@@ -31,6 +31,9 @@ export function DarkModeProvider({ children }: { children: ReactNode }) {
   )
 }
 
+DarkModeProvider.displayName = 'DarkModeProvider'
+
+// eslint-disable-next-line react-refresh/only-export-components
 export function useDarkMode() {
   const context = useContext(DarkModeContext)
   if (!context) {
