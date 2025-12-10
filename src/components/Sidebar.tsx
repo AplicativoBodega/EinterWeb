@@ -12,7 +12,14 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
   const menuItems = [
     { id: 'home', label: 'Home', icon: '🏠' },
-    { id: 'about', label: 'About', icon: '📝' },
+    { id: 'productos', label: 'Productos', icon: '🛒' },
+    { id: 'proveedores', label: 'Proveedores', icon: '🚚' },
+    { id: 'ubicaciones', label: 'Ubicaciones', icon: '📍' },
+    { id: 'movimientos', label: 'Movimientos', icon: '🔄' },
+    { id: 'ventas', label: 'Ventas', icon: '💰' },
+    { id: 'recibos', label: 'Recibos', icon: '🧾' },
+    { id: 'categorias', label: 'Categorías', icon: '📂' },
+    { id: 'perfiles', label: 'Perfiles', icon: '👤' },
   ]
 
   return (
@@ -81,14 +88,6 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
               )}
             </button>
           </div>
-
-          {/* Collapse Toggle (Desktop) */}
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="hidden md:flex mt-4 items-center justify-center p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all"
-          >
-            {isOpen ? '◀' : '▶'}
-          </button>
         </div>
       </aside>
     </>
