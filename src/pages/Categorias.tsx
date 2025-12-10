@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useDarkMode } from "../context/DarkModeContext";
 
 type Product = {
   id: string;
@@ -95,26 +96,26 @@ const AccordionItem: React.FC<AccordionItemProps> = ({
   open,
 }) => {
   return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
       {/* Header de la categoría */}
-      <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-        <h3 className="text-lg font-medium text-gray-800">{title}</h3>
+      <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+        <h3 className="text-lg font-medium text-gray-800 dark:text-white">{title}</h3>
       </div>
 
       {open && (
         <div className="p-6">
           {/* Header de la tabla con diseño más limpio */}
-          <div className="flex flex-row border-b border-gray-200 pb-3 mb-4">
-            <h4 className="w-2/5 text-sm font-semibold text-gray-600 uppercase tracking-wide">
+          <div className="flex flex-row border-b border-gray-200 dark:border-gray-700 pb-3 mb-4">
+            <h4 className="w-2/5 text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
               Producto
             </h4>
-            <p className="w-1/5 text-sm font-semibold text-gray-600 uppercase tracking-wide">
+            <p className="w-1/5 text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
               SKU
             </p>
-            <p className="w-1/5 text-sm font-semibold text-gray-600 uppercase tracking-wide">
+            <p className="w-1/5 text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
               Stock
             </p>
-            <p className="w-1/5 text-sm font-semibold text-gray-600 uppercase tracking-wide text-right">
+            <p className="w-1/5 text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide text-right">
               Acción
             </p>
           </div>
@@ -126,29 +127,29 @@ const AccordionItem: React.FC<AccordionItemProps> = ({
                 <div
                   key={p.id}
                   className={`flex flex-row items-start py-4 ${
-                    index !== products.length - 1 ? "border-b border-gray-100" : ""
+                    index !== products.length - 1 ? "border-b border-gray-100 dark:border-gray-700" : ""
                   }`}
                 >
                   <div className="w-2/5 pr-4">
-                    <p className="text-base font-medium text-gray-900 mb-1">
+                    <p className="text-base font-medium text-gray-900 dark:text-white mb-1">
                       {p.name}
                     </p>
                     {p.children && (
                       <div className="ml-4 mt-2 space-y-1">
                         {p.children.map((c) => (
-                          <p key={c.id} className="text-sm text-gray-600">
+                          <p key={c.id} className="text-sm text-gray-600 dark:text-gray-400">
                             ↳ {c.name}
                           </p>
                         ))}
                       </div>
                     )}
                   </div>
-                  <p className="w-1/5 text-base text-gray-700">{p.sku}</p>
-                  <p className="w-1/5 text-base font-medium text-gray-900">
+                  <p className="w-1/5 text-base text-gray-700 dark:text-gray-300">{p.sku}</p>
+                  <p className="w-1/5 text-base font-medium text-gray-900 dark:text-white">
                     {p.existencia}
                   </p>
                   <div className="w-1/5 flex flex-row justify-end">
-                    <button className="px-3 py-2 border border-gray-300 rounded hover:border-black hover:bg-gray-50 transition-colors">
+                    <button className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded hover:border-black dark:hover:border-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                       <span className="text-base">🖨️</span>
                     </button>
                   </div>
@@ -156,8 +157,8 @@ const AccordionItem: React.FC<AccordionItemProps> = ({
               ))
             ) : (
               <div className="py-8 text-center">
-                <p className="text-gray-500 italic">
-                  No hay productos en esta bodega
+                <p className="text-gray-500 dark:text-gray-400 italic">
+                  No hay productos en esta categoría
                 </p>
               </div>
             )}
@@ -169,6 +170,7 @@ const AccordionItem: React.FC<AccordionItemProps> = ({
 };
 
 export function Categorias() {
+  useDarkMode(); // Initialize dark mode context
   const [data] = useState(sampleData);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dropdownVisible, setDropdownVisible] = useState(false);
@@ -179,47 +181,49 @@ export function Categorias() {
   };
 
   return (
-    <div className="flex-1 bg-gray-50 min-h-screen overflow-auto">
+    <div className="flex-1 bg-gray-50 dark:bg-gray-900 min-h-screen overflow-auto">
       {/* Header limpio y elegante */}
-      <div className="bg-white border-b border-gray-200 px-8 py-6">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-6">
         <div className="flex flex-row justify-between items-center">
-          <h1 className="text-3xl font-bold tracking-wide">Categorías</h1>
+          <h1 className="text-3xl font-bold tracking-wide text-gray-900 dark:text-white">Categorías</h1>
         </div>
       </div>
 
       {/* Área de selección con espaciado mejorado */}
-      <div className="bg-white mx-8 mt-6 rounded-lg border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <p className="text-sm font-medium text-gray-600 mb-3">
+      <div className="bg-white dark:bg-gray-800 mx-8 mt-6 rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">
             SELECCIONAR CATEGORÍA
           </p>
           <button
             onClick={() => setDropdownVisible(!dropdownVisible)}
-            className="w-full flex flex-row items-center justify-between px-4 py-3 border border-gray-300 rounded hover:border-black transition-colors"
+            className="w-full flex flex-row items-center justify-between px-4 py-3 border border-gray-300 dark:border-gray-600 rounded hover:border-black dark:hover:border-white transition-colors bg-white dark:bg-gray-700"
           >
             <span
               className={`text-base ${
-                selectedId ? "text-black font-medium" : "text-gray-500"
+                selectedId 
+                  ? "text-black dark:text-white font-medium" 
+                  : "text-gray-500 dark:text-gray-400"
               }`}
             >
               {selectedId
                 ? data.find((c) => c.id === selectedId)?.name
                 : "Seleccione una categoría para visualizar"}
             </span>
-            <span className="text-lg text-gray-400">
+            <span className="text-lg text-gray-400 dark:text-gray-500">
               {dropdownVisible ? "×" : "⌄"}
             </span>
           </button>
 
           {/* Dropdown mejorado */}
           {dropdownVisible && (
-            <div className="mt-2 border border-gray-200 rounded bg-white">
+            <div className="mt-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-700">
               {data.map((categoria, index) => (
                 <button
                   key={categoria.id}
                   onClick={() => handleCategorySelect(categoria.id)}
-                  className={`w-full px-4 py-3 text-left hover:bg-gray-50 text-base text-gray-700 ${
-                    index !== data.length - 1 ? "border-b border-gray-100" : ""
+                  className={`w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-600 text-base text-gray-700 dark:text-gray-200 ${
+                    index !== data.length - 1 ? "border-b border-gray-100 dark:border-gray-700" : ""
                   }`}
                 >
                   {categoria.name}
@@ -244,12 +248,12 @@ export function Categorias() {
               />
             ))
         ) : (
-          <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
             <div className="max-w-md mx-auto">
-              <h2 className="text-xl font-light text-gray-600 mb-4">
+              <h2 className="text-xl font-light text-gray-600 dark:text-gray-400 mb-4">
                 Ninguna categoría seleccionada
               </h2>
-              <p className="text-base text-gray-500 leading-relaxed">
+              <p className="text-base text-gray-500 dark:text-gray-500 leading-relaxed">
                 Selecciona una categoría del menú desplegable superior para
                 visualizar sus productos.
               </p>

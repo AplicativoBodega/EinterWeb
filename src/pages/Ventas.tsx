@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { VentaModal } from "../components/VentaModal";
 import type { OrdenVenta } from "../components/VentaModal";
+import { useDarkMode } from "../context/DarkModeContext";
 
 interface Venta {
   id_venta: number;
@@ -20,6 +21,7 @@ interface VentasResponse {
 }
 
 export function Ventas() {
+  useDarkMode();
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [filteredVentas, setFilteredVentas] = useState<Venta[]>([]);
   const [searchText, setSearchText] = useState("");
@@ -129,40 +131,39 @@ export function Ventas() {
   };
 
   const WebView = (
-    <div className="w-full bg-gray-50 flex flex-col">
-      <div className="bg-white px-6 py-4 border-b border-gray-200">
-        <div className="flex-row items-center justify-between">
-          <div className="flex-row items-center">
-            <h2 className="text-2xl font-robotoMedium text-gray-800">
-              Ventas
-            </h2>
-          </div>
+    <div className="w-full bg-gray-50 dark:bg-gray-900 flex flex-col min-h-screen">
+      {/* Header */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-6">
+        <div className="flex flex-row items-center justify-between">
+          <h1 className="text-3xl font-bold tracking-wide text-gray-900 dark:text-white">
+            Ventas
+          </h1>
           <button
             onClick={handleOpenCreateModal}
-            className="bg-blue-600 px-4 py-2 rounded-lg hover:bg-blue-700"
+            className="px-6 py-2 border border-black dark:border-white hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-colors text-sm font-medium text-gray-900 dark:text-white"
           >
-            <span className="text-white font-robotoMedium">Agregar Venta</span>
+            + Agregar Venta
           </button>
         </div>
       </div>
 
-      <div className="flex-1 bg-white mx-6 mt-4 border border-gray-400 overflow-hidden flex flex-col">
-        <div className="flex bg-[#f0f0f0] border-b-2 border-gray-400">
-          <div className="w-16 py-4 px-3 border-r border-gray-400 flex items-center justify-center">
+      <div className="flex-1 bg-white dark:bg-gray-800 mx-8 mt-4 border border-gray-400 dark:border-gray-700 overflow-hidden flex flex-col rounded-lg">
+        <div className="flex bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-400 dark:border-gray-600">
+          <div className="w-16 py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
             <span className="text-2xl">📄</span>
           </div>
-          <div className="flex-[0.8] py-4 px-3 border-r border-gray-400 flex items-center justify-center">
-            <span className="font-robotoMedium text-gray-900 text-xl text-center">
+          <div className="flex-[0.8] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
+            <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
               ID
             </span>
           </div>
-          <div className="flex-[1.5] py-4 px-3 border-r border-gray-400 flex items-center justify-center">
-            <span className="font-robotoMedium text-gray-900 text-xl text-center">
+          <div className="flex-[1.5] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
+            <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
               Numero Orden
             </span>
           </div>
-          <div className="flex-[1.2] py-4 px-3 border-r border-gray-400 flex items-center justify-center">
-            <span className="font-robotoMedium text-gray-900 text-xl text-center">
+          <div className="flex-[1.2] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
+            <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
               Folio
             </span>
           </div>

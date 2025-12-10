@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { ProductModal } from "../components/ProductModal";
 import { DeleteConfirmModal } from "../components/DeleteConfirmModal";
+import { useDarkMode } from "../context/DarkModeContext";
 
 export function Productos() {
+  useDarkMode();
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [searchText, setSearchText] = useState("");
@@ -309,15 +311,16 @@ export function Productos() {
   };
 
   return (
-    <div className="w-full bg-gray-50 flex flex-col">
-      <div className="bg-white px-6 py-4 border-b border-gray-200">
+    <div className="w-full bg-gray-50 dark:bg-gray-900 flex flex-col min-h-screen">
+      {/* Header */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-6">
         <div className="flex flex-row items-center justify-between">
-          <h1 className="text-4xl font-robotoMedium text-gray-800">
+          <h1 className="text-3xl font-bold tracking-wide text-gray-900 dark:text-white">
             Productos
           </h1>
           <button
             onClick={openCreateModal}
-            className="bg-[#0286ff] px-4 py-2 rounded-lg hover:bg-blue-700 text-white font-robotoMedium"
+            className="px-6 py-2 border border-black dark:border-white hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-colors text-sm font-medium text-gray-900 dark:text-white"
           >
             + Agregar Producto
           </button>
@@ -331,7 +334,7 @@ export function Productos() {
               placeholder="Buscar por SKU o nombre..."
               value={searchText}
               onChange={(e) => handleSearch(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base bg-white pr-10"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 text-base bg-white dark:bg-gray-700 dark:text-white pr-10 placeholder-gray-500 dark:placeholder-gray-400"
             />
             {searchText ? (
               <button
@@ -339,12 +342,12 @@ export function Productos() {
                   setSearchText("");
                   fetchProducts("", 1);
                 }}
-                className="absolute right-3 top-3 text-gray-400 text-xl hover:text-gray-600"
+                className="absolute right-3 top-3 text-gray-400 dark:text-gray-500 text-xl hover:text-gray-600 dark:hover:text-gray-400"
               >
                 ✕
               </button>
             ) : (
-              <div className="absolute right-3 top-3 text-gray-400 text-xl pointer-events-none">
+              <div className="absolute right-3 top-3 text-gray-400 dark:text-gray-500 text-xl pointer-events-none">
                 🔍
               </div>
             )}
@@ -359,14 +362,14 @@ export function Productos() {
             sortBy) && (
             <button
               onClick={clearFilters}
-              className="bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300 text-gray-700 font-robotoMedium"
+              className="bg-gray-200 dark:bg-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-robotoMedium"
             >
               Limpiar Filtros
             </button>
           )}
           {searchText && (
-            <div className="bg-blue-100 px-3 py-2 rounded-lg">
-              <p className="text-blue-700 text-sm font-robotoMedium">
+            <div className="bg-blue-100 dark:bg-blue-900 px-3 py-2 rounded-lg">
+              <p className="text-blue-700 dark:text-blue-300 text-sm font-robotoMedium">
                 Buscando: "{searchText}"
               </p>
             </div>
@@ -374,11 +377,11 @@ export function Productos() {
         </div>
 
         {error && (
-          <div className="mt-4 p-3 bg-red-100 border border-red-300 rounded-lg">
-            <p className="text-red-700">Error: {error}</p>
+          <div className="mt-4 p-3 bg-red-100 dark:bg-red-900 border border-red-300 dark:border-red-700 rounded-lg">
+            <p className="text-red-700 dark:text-red-300">Error: {error}</p>
             <button
               onClick={() => fetchProducts(searchText, 1)}
-              className="mt-2 text-red-600 underline hover:text-red-800"
+              className="mt-2 text-red-600 dark:text-red-400 underline hover:text-red-800 dark:hover:text-red-300"
             >
               Reintentar
             </button>
@@ -386,23 +389,23 @@ export function Productos() {
         )}
       </div>
 
-      <div className="flex-1 bg-white mx-6 mt-4 border border-gray-400 overflow-hidden flex flex-col">
+      <div className="flex-1 bg-white dark:bg-gray-800 mx-8 mt-4 border border-gray-400 dark:border-gray-700 overflow-hidden flex flex-col rounded-lg">
         {/* Excel-style header row with grid lines */}
-        <div className="flex flex-row bg-[#f0f0f0] border-b-2 border-gray-400">
-          <div className="w-28 py-4 px-3 border-r border-gray-400 flex justify-center items-center">
-            <h3 className="font-robotoMedium text-gray-900 text-lg text-center">
+        <div className="flex flex-row bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-400 dark:border-gray-600">
+          <div className="w-28 py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center items-center">
+            <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
               Foto
             </h3>
           </div>
-          <div className="flex-3 py-4 px-3 border-r border-gray-400 flex justify-center items-center">
+          <div className="flex-3 py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center items-center">
             <button
               onClick={() => handleSort("name")}
               className="flex flex-row items-center gap-1 hover:opacity-75"
             >
-              <h3 className="font-robotoMedium text-gray-900 text-lg text-center">
+              <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
                 Nombre
               </h3>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-gray-600 dark:text-gray-400">
                 {sortBy?.column === "name"
                   ? sortBy.direction === "asc"
                     ? "▲"

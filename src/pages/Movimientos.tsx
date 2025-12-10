@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
+import { useDarkMode } from "../context/DarkModeContext";
 
 export function Movimientos() {
+  useDarkMode();
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
   const [filteredMovimientos, setFilteredMovimientos] = useState<Movimiento[]>(
     []
@@ -121,28 +123,25 @@ export function Movimientos() {
   };
 
   const WebView = (
-    <div className="w-full bg-gray-50 flex flex-col">
-      <div className="bg-white px-6 py-4 border-b border-gray-200">
-        <div className="flex-row items-center justify-between">
-          <h2 className="text-3xl font-robotoMedium text-gray-800">
-            Movimientos
-          </h2>
-        </div>
+    <div className="w-full bg-gray-50 dark:bg-gray-900 flex flex-col min-h-screen">
+      {/* Header */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-6">
+        <h1 className="text-3xl font-bold tracking-wide text-gray-900 dark:text-white">
+          Movimientos
+        </h1>
 
         <div className="flex-row items-center mt-4 gap-3">
           {(searchText || sortBy) && (
             <button
               onClick={clearFilters}
-              className="bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300"
+              className="bg-gray-200 dark:bg-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium"
             >
-              <span className="text-gray-700 font-robotoMedium">
-                Limpiar Filtros
-              </span>
+              Limpiar Filtros
             </button>
           )}
           {searchText && (
-            <div className="bg-blue-100 px-3 py-2 rounded-lg">
-              <span className="text-blue-700 text-sm font-robotoMedium">
+            <div className="bg-blue-100 dark:bg-blue-900 px-3 py-2 rounded-lg">
+              <span className="text-blue-700 dark:text-blue-300 text-sm font-medium">
                 Buscando: "{searchText}"
               </span>
             </div>
@@ -150,20 +149,20 @@ export function Movimientos() {
         </div>
 
         {error && (
-          <div className="mt-4 p-3 bg-red-100 border border-red-300 rounded-lg">
-            <p className="text-red-700">Error: {error}</p>
+          <div className="mt-4 p-3 bg-red-100 dark:bg-red-900 border border-red-300 dark:border-red-700 rounded-lg">
+            <p className="text-red-700 dark:text-red-300">Error: {error}</p>
             <button
               onClick={() => fetchMovimientos()}
               className="mt-2"
             >
-              <span className="text-red-600 underline">Reintentar</span>
+              <span className="text-red-600 dark:text-red-400 underline">Reintentar</span>
             </button>
           </div>
         )}
       </div>
 
-      <div className="flex-1 bg-white mx-6 mt-4 border border-gray-400 overflow-hidden flex flex-col">
-        <div className="flex bg-[#f0f0f0] border-b-2 border-gray-400">
+      <div className="flex-1 bg-white dark:bg-gray-800 mx-8 mt-4 border border-gray-400 dark:border-gray-700 overflow-hidden flex flex-col rounded-lg">
+        <div className="flex bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-400 dark:border-gray-600">
           <div className="flex-[1.5] py-4 px-4 border-r border-gray-400 flex items-center justify-center">
             <button
               onClick={() => handleSort("nombre")}

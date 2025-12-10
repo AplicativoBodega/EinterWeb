@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { ReciboModal } from "../components/ReciboModal";
 import type { ReciboData } from "../components/ReciboModal";
+import { useDarkMode } from "../context/DarkModeContext";
 
 interface Recibo {
   id_recibo: number;
@@ -20,6 +21,7 @@ interface RecibosResponse {
 }
 
 export function Recibos() {
+  useDarkMode();
   const [recibos, setRecibos] = useState<Recibo[]>([]);
   const [filteredRecibos, setFilteredRecibos] = useState<Recibo[]>([]);
   const [searchText, setSearchText] = useState("");
@@ -150,19 +152,18 @@ export function Recibos() {
   };
 
   const WebView = (
-    <div className="w-full h-screen bg-gray-50 flex flex-col">
-      <div className="bg-white px-6 py-4 border-b border-gray-200">
+    <div className="w-full bg-gray-50 dark:bg-gray-900 flex flex-col min-h-screen">
+      {/* Header */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-6">
         <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <h2 className="text-2xl font-robotoMedium text-gray-800">
-              Recibos
-            </h2>
-          </div>
+          <h1 className="text-3xl font-bold tracking-wide text-gray-900 dark:text-white">
+            Recibos
+          </h1>
           <button
             onClick={handleOpenCreateModal}
-            className="bg-blue-600 px-4 py-2 rounded-lg hover:bg-blue-700"
+            className="px-6 py-2 border border-black dark:border-white hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-colors text-sm font-medium text-gray-900 dark:text-white"
           >
-            <span className="text-white font-robotoMedium">Agregar Recibo</span>
+            + Agregar Recibo
           </button>
         </div>
 
@@ -171,38 +172,38 @@ export function Recibos() {
             <input
               value={searchText}
               onChange={(e) => handleSearch(e.target.value)}
-              placeholder="Search"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
+              placeholder="Buscar"
+              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
             />
             <div className="absolute right-3 top-3">
-              <span className="text-gray-400">🔍</span>
+              <span className="text-gray-400 dark:text-gray-500">🔍</span>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 bg-white mx-6 mt-4 border border-gray-400 overflow-hidden rounded-lg flex flex-col">
-        <div className="flex bg-[#f0f0f0] border-b-2 border-gray-400">
-          <div className="w-12 py-4 px-2 border-r border-gray-400 flex items-center justify-center">
-            <span className="text-gray-500">🔽</span>
+      <div className="flex-1 bg-white dark:bg-gray-800 mx-8 mt-4 border border-gray-400 dark:border-gray-700 overflow-hidden flex flex-col rounded-lg">
+        <div className="flex bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-400 dark:border-gray-600">
+          <div className="w-12 py-4 px-2 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
+            <span className="text-gray-500 dark:text-gray-400">🔽</span>
           </div>
-          <div className="flex-2 py-4 px-4 border-r border-gray-400 flex items-center justify-center">
-            <span className="font-robotoMedium text-gray-700 text-base text-center">
+          <div className="flex-2 py-4 px-4 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
+            <span className="font-robotoMedium text-gray-700 dark:text-gray-300 text-base text-center">
               Proveedor
             </span>
           </div>
-          <div className="flex-[1.5] py-4 px-4 border-r border-gray-400 flex items-center justify-center">
-            <span className="font-robotoMedium text-gray-700 text-base text-center">
+          <div className="flex-[1.5] py-4 px-4 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
+            <span className="font-robotoMedium text-gray-700 dark:text-gray-300 text-base text-center">
               Numero Orden
             </span>
           </div>
-          <div className="flex-1 py-4 px-4 border-r border-gray-400 flex items-center justify-center">
-            <span className="font-robotoMedium text-gray-700 text-base text-center">
+          <div className="flex-1 py-4 px-4 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
+            <span className="font-robotoMedium text-gray-700 dark:text-gray-300 text-base text-center">
               Precio
             </span>
           </div>
-          <div className="flex-[1.5] py-4 px-4 border-r border-gray-400 flex items-center justify-center">
-            <span className="font-robotoMedium text-gray-700 text-base text-center">
+          <div className="flex-[1.5] py-4 px-4 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
+            <span className="font-robotoMedium text-gray-700 dark:text-gray-300 text-base text-center">
               Fecha Compra
             </span>
           </div>
