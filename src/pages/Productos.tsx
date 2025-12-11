@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { ProductModal } from "../components/ProductModal";
 import { DeleteConfirmModal } from "../components/DeleteConfirmModal";
 import { useDarkMode } from "../context/DarkModeContext";
+import type { Product, ApiResponse } from "../lib/types";
 
 export function Productos() {
   useDarkMode();
@@ -47,13 +48,13 @@ export function Productos() {
         params.append("search", searchQuery);
       }
 
-      const response: ApiResponse = await fetchAPI(
+      const response: ApiResponse<Product> = await fetchAPI(
         `/(api)/productos?${params}`
       );
 
-      setProducts(response.items);
-      setFilteredProducts(response.items);
-      setTotalPages(Math.ceil(response.total / response.pageSize));
+      setProducts(response.items || []);
+      setFilteredProducts(response.items || []);
+      setTotalPages(Math.ceil((response.total || 0) / (response.pageSize || 20)));
       setPage(pageNum);
     } catch (err) {
       console.error("Error fetching products from database:", err);

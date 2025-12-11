@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
+import type { Movement as Movimiento } from "../lib/types";
 
 export function Movimientos() {
   useDarkMode();
