@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { ProductModal } from "../components/ProductModal";
 import { DeleteConfirmModal } from "../components/DeleteConfirmModal";
 import { useDarkMode } from "../context/DarkModeContext";
+import { fetchAPI } from "../lib/fetch";
+import type { Product, ApiResponse } from "../lib/types";
 
 export function Productos() {
   useDarkMode();
@@ -47,13 +49,13 @@ export function Productos() {
         params.append("search", searchQuery);
       }
 
-      const response: ApiResponse = await fetchAPI(
+      const response: ApiResponse<Product> = await fetchAPI(
         `/(api)/productos?${params}`
       );
 
-      setProducts(response.items);
-      setFilteredProducts(response.items);
-      setTotalPages(Math.ceil(response.total / response.pageSize));
+      setProducts(response.items || []);
+      setFilteredProducts(response.items || []);
+      setTotalPages(Math.ceil((response.total || 0) / (response.pageSize || 20)));
       setPage(pageNum);
     } catch (err) {
       console.error("Error fetching products from database:", err);
@@ -524,7 +526,7 @@ export function Productos() {
         </div>
 
         {/* Excel-style data rows with grid lines */}
-        <div className="flex flex-col overflow-y-auto max-h-[600px]">
+        <div className="flex-1 flex flex-col overflow-y-auto">
           {loading && products.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>

@@ -58,7 +58,8 @@ export function Ventas() {
     fetchVentas();
   }, [page, pageSize]);
 
-  const handleSearch = (text: string) => {
+  // @ts-expect-error - Unused function kept for future implementation
+  const _handleSearch = (text: string) => {
     setSearchText(text);
     const filtered = ventas.filter(
       (venta) =>
@@ -91,7 +92,8 @@ export function Ventas() {
     setModalVisible(true);
   };
 
-  const handleOpenEditModal = (venta: Venta) => {
+  // @ts-expect-error - Unused function kept for future implementation
+  const _handleOpenEditModal = (_venta: Venta) => {
     // TODO: Convert venta to OrdenVenta structure
     // setSelectedOrden(venta);
     // setModalMode("edit");

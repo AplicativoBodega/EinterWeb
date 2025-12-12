@@ -1,20 +1,5 @@
 import { useState, useEffect } from "react";
-
-interface Product {
-  id?: number;
-  sku: string;
-  name: string;
-  category?: string;
-  supplier?: { id: number; name: string } | null;
-  description?: string;
-  price: number;
-  cost: number;
-  stock: number;
-  weight_kg: number;
-  dimensions_cm?: { largo: number; ancho: number; alto: number };
-  photo?: string;
-  standard_tarima?: number;
-}
+import type { Product } from "../lib/types";
 
 interface ProductModalProps {
   visible: boolean;

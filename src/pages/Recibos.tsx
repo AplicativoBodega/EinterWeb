@@ -27,7 +27,7 @@ export function Recibos() {
   const [searchText, setSearchText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState({
+  const [_pagination, setPagination] = useState({
     total: 0,
     totalPages: 0,
     pageSize: 20,
@@ -86,7 +86,8 @@ export function Recibos() {
     setModalVisible(true);
   };
 
-  const handleOpenEditModal = (recibo: Recibo) => {
+  // @ts-expect-error - Unused function kept for future implementation
+  const _handleOpenEditModal = (recibo: Recibo) => {
     const reciboData: ReciboData = {
       orden: recibo.id_orden?.toString() || "",
       proveedor_id: 0, // Will need to be resolved
