@@ -136,15 +136,8 @@ export function Categorias() {
     try {
       setLoadingCategory(true);
       const categoryData = await fetchAPI(`/api/categorias?id=${categoryId}`);
-      
-      console.log("Respuesta completa del API:", categoryData);
-      
-      // Obtener productos de la respuesta (el API retorna "productos")
       const products = categoryData.productos || categoryData.products || categoryData.items || categoryData.data || [];
       
-      console.log("Productos extraídos:", products);
-      
-      // Actualizar los datos con los productos de la categoría seleccionada
       setData((prevData) =>
         prevData.map((cat) =>
           cat.id === categoryId
