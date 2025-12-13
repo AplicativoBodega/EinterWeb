@@ -1,88 +1,23 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { fetchAPI } from "../lib/fetch";
 import { useDarkMode } from "../context/DarkModeContext";
+import { CategoryModal } from "../components/CategoryModal";
+import { DeleteConfirmModal } from "../components/DeleteCategoryConfirmModal";
 
 type Product = {
-  id: string;
+  id: number;
   name: string;
   sku: string;
-  existencia: number;
+  stock: number;
   children?: Product[];
 };
 
 type Category = {
-  id: string;
+  id: number;
   name: string;
   products: Product[];
 };
 
-const sampleData: Category[] = [
-  {
-    id: "cat1",
-    name: "Baños",
-    products: [
-      {
-        id: "p1",
-        name: "Lavamanos de Cerámica",
-        sku: "LAV-001",
-        existencia: 45,
-        children: [
-          { id: "p1-1", name: "Blanco", sku: "LAV-001-W", existencia: 25 },
-          { id: "p1-2", name: "Negro", sku: "LAV-001-B", existencia: 20 },
-        ],
-      },
-      {
-        id: "p2",
-        name: "Espejo de Baño",
-        sku: "ESP-002",
-        existencia: 30,
-      },
-      {
-        id: "p3",
-        name: "Cortina de Ducha",
-        sku: "COR-003",
-        existencia: 60,
-        children: [
-          { id: "p3-1", name: "Transparente", sku: "COR-003-T", existencia: 35 },
-          { id: "p3-2", name: "Opaca", sku: "COR-003-O", existencia: 25 },
-        ],
-      },
-    ],
-  },
-  {
-    id: "cat2",
-    name: "Decoración",
-    products: [
-      {
-        id: "p4",
-        name: "Cuadro Moderno",
-        sku: "CUA-001",
-        existencia: 25,
-      },
-      {
-        id: "p5",
-        name: "Lámpara de Piso",
-        sku: "LAM-002",
-        existencia: 15,
-        children: [
-          { id: "p5-1", name: "Dorada", sku: "LAM-002-G", existencia: 8 },
-          { id: "p5-2", name: "Plateada", sku: "LAM-002-S", existencia: 7 },
-        ],
-      },
-      {
-        id: "p6",
-        name: "Espejo Decorativo",
-        sku: "ESP-004",
-        existencia: 18,
-      },
-      {
-        id: "p7",
-        name: "Tapiz de Pared",
-        sku: "TAP-005",
-        existencia: 40,
-      },
-    ],
-  },
-];
 
 interface AccordionItemProps {
   title: string;
@@ -146,7 +81,7 @@ const AccordionItem: React.FC<AccordionItemProps> = ({
                   </div>
                   <p className="w-1/5 text-base text-gray-700 dark:text-gray-300">{p.sku}</p>
                   <p className="w-1/5 text-base font-medium text-gray-900 dark:text-white">
-                    {p.existencia}
+                    {p.stock}
                   </p>
                   <div className="w-1/5 flex flex-row justify-end">
                     <button className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded hover:border-black dark:hover:border-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
@@ -171,13 +106,138 @@ const AccordionItem: React.FC<AccordionItemProps> = ({
 
 export function Categorias() {
   useDarkMode(); // Initialize dark mode context
-  const [data] = useState(sampleData);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [data, setData] = useState<Category[]>([]);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [dropdownVisible, setDropdownVisible] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
 
-  const handleCategorySelect = (categoryId: string) => {
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Cargar categorías
+      const categoriesData = await fetchAPI("/api/categorias?page=1&pageSize=100");
+      const categories = categoriesData.items || categoriesData || [];
+
+      // Para cada categoría, cargar sus productos
+      const categoriesWithProducts: Category[] = await Promise.all(
+        categories.map(async (cat: any) => {
+          try {
+            const productsData = await fetchAPI(
+              `/api/articulos?search=&page=1&pageSize=100`
+            );
+            const allProducts = productsData.items || [];
+            const categoryProducts = allProducts.filter(
+              (p: any) => p.category?.id === cat.id
+            );
+
+            return {
+              id: cat.id,
+              name: cat.name,
+              products: categoryProducts.map((p: any) => ({
+                id: p.id,
+                name: p.name,
+                sku: p.sku,
+                stock: p.stock,
+              })),
+            };
+          } catch (err) {
+            console.error(`Failed to load products for category ${cat.id}`, err);
+            return {
+              id: cat.id,
+              name: cat.name,
+              products: [],
+            };
+          }
+        })
+      );
+
+      setData(categoriesWithProducts);
+    } catch (err) {
+      console.error("Failed to load categories", err);
+      setError(err instanceof Error ? err.message : "Error al cargar categorías");
+      setData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCategorySelect = (categoryId: number) => {
     setSelectedId(categoryId || null);
     setDropdownVisible(false);
+  };
+
+  const openCreateModal = () => {
+    setEditingCategory(null);
+    setCategoryModalVisible(true);
+  };
+
+  const openEditModal = (category: { id: number; name: string }) => {
+    setEditingCategory(category);
+    setCategoryModalVisible(true);
+  };
+
+  const handleSaveCategory = async (categoryData: {
+    id?: number;
+    name: string;
+  }) => {
+    try {
+      if (categoryData.id) {
+        // Editar
+        await fetchAPI(`/api/categorias?id=${categoryData.id}`, {
+          method: "PUT",
+          body: JSON.stringify({ nombre_categoria: categoryData.name }),
+        });
+      } else {
+        // Crear
+        await fetchAPI("/api/categorias", {
+          method: "POST",
+          body: JSON.stringify({ nombre_categoria: categoryData.name }),
+        });
+      }
+      loadData();
+      setCategoryModalVisible(false);
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  const handleDeleteCategory = async () => {
+    if (!categoryToDelete) return;
+    try {
+      await fetchAPI(`/api/categorias?id=${categoryToDelete.id}`, {
+        method: "DELETE",
+      });
+      loadData();
+      setDeleteModalVisible(false);
+      setCategoryToDelete(null);
+      if (selectedId === categoryToDelete.id) {
+        setSelectedId(null);
+      }
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  const openDeleteModal = (category: { id: number; name: string }) => {
+    setCategoryToDelete(category);
+    setDeleteModalVisible(true);
   };
 
   return (
@@ -185,7 +245,15 @@ export function Categorias() {
       {/* Header limpio y elegante */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-6">
         <div className="flex flex-row justify-between items-center">
-          <h1 className="text-3xl font-bold tracking-wide text-gray-900 dark:text-white">Categorías</h1>
+          <h1 className="text-3xl font-bold tracking-wide text-gray-900 dark:text-white">
+            Categorías
+          </h1>
+          <button
+            onClick={openCreateModal}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-robotoMedium transition-colors"
+          >
+            + Nueva Categoría
+          </button>
         </div>
       </div>
 
@@ -217,18 +285,52 @@ export function Categorias() {
 
           {/* Dropdown mejorado */}
           {dropdownVisible && (
-            <div className="mt-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-700">
-              {data.map((categoria, index) => (
-                <button
-                  key={categoria.id}
-                  onClick={() => handleCategorySelect(categoria.id)}
-                  className={`w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-600 text-base text-gray-700 dark:text-gray-200 ${
-                    index !== data.length - 1 ? "border-b border-gray-100 dark:border-gray-700" : ""
-                  }`}
-                >
-                  {categoria.name}
-                </button>
-              ))}
+            <div className="mt-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-700 max-h-60 overflow-y-auto">
+              {data.length === 0 ? (
+                <div className="px-4 py-3 text-gray-500 dark:text-gray-400 text-center">
+                  No hay categorías
+                </div>
+              ) : (
+                data.map((categoria, index) => (
+                  <div
+                    key={categoria.id}
+                    className={`flex flex-row items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-600 ${
+                      index !== data.length - 1
+                        ? "border-b border-gray-100 dark:border-gray-700"
+                        : ""
+                    }`}
+                  >
+                    <button
+                      onClick={() => handleCategorySelect(categoria.id)}
+                      className="flex-1 text-left text-base text-gray-700 dark:text-gray-200"
+                    >
+                      {categoria.name}
+                    </button>
+                    <div className="flex flex-row gap-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditModal(categoria);
+                        }}
+                        className="p-1 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                        title="Editar"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openDeleteModal(categoria);
+                        }}
+                        className="p-1 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                        title="Eliminar"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           )}
         </div>
@@ -236,7 +338,15 @@ export function Categorias() {
 
       {/* Contenido principal con scroll de página completa */}
       <div className="flex-1 px-8 py-6 overflow-y-auto">
-        {selectedId ? (
+        {loading ? (
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
+            <p className="text-gray-600 dark:text-gray-400">Cargando categorías...</p>
+          </div>
+        ) : error ? (
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-red-200 dark:border-red-700 p-6">
+            <p className="text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        ) : selectedId ? (
           data
             .filter((d) => d.id === selectedId)
             .map((c) => (
@@ -261,6 +371,25 @@ export function Categorias() {
           </div>
         )}
       </div>
+
+      <CategoryModal
+        visible={categoryModalVisible}
+        category={editingCategory}
+        onClose={() => setCategoryModalVisible(false)}
+        onSave={handleSaveCategory}
+        mode={editingCategory ? "edit" : "create"}
+      />
+
+      <DeleteConfirmModal
+        visible={deleteModalVisible}
+        title="Eliminar Categoría"
+        message={`¿Estás seguro de que deseas eliminar la categoría "${categoryToDelete?.name}"?`}
+        onConfirm={handleDeleteCategory}
+        onCancel={() => {
+          setDeleteModalVisible(false);
+          setCategoryToDelete(null);
+        }}
+      />
     </div>
   );
 }
