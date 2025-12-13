@@ -39,57 +39,32 @@ const AccordionItem: React.FC<AccordionItemProps> = ({
 
       {open && (
         <div className="p-6">
-          {/* Header de la tabla con diseño más limpio */}
-          <div className="flex flex-row border-b border-gray-200 dark:border-gray-700 pb-3 mb-4">
-            <h4 className="w-2/5 text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
-              Producto
-            </h4>
-            <p className="w-1/5 text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
-              SKU
-            </p>
-            <p className="w-1/5 text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
-              Stock
-            </p>
-            <p className="w-1/5 text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide text-right">
-              Acción
-            </p>
-          </div>
-
-          {/* Lista de productos expandida completamente */}
-          <div>
+          {/* Lista de productos en tabla */}
+          <div className="overflow-x-auto">
             {products.length > 0 ? (
-              products.map((p, index) => (
-                <div
-                  key={p.id}
-                  className={`flex flex-row items-start py-4 ${
-                    index !== products.length - 1 ? "border-b border-gray-100 dark:border-gray-700" : ""
-                  }`}
-                >
-                  <div className="w-2/5 pr-4">
-                    <p className="text-base font-medium text-gray-900 dark:text-white mb-1">
-                      {p.name}
-                    </p>
-                    {p.children && (
-                      <div className="ml-4 mt-2 space-y-1">
-                        {p.children.map((c) => (
-                          <p key={c.id} className="text-sm text-gray-600 dark:text-gray-400">
-                            ↳ {c.name}
-                          </p>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <p className="w-1/5 text-base text-gray-700 dark:text-gray-300">{p.sku}</p>
-                  <p className="w-1/5 text-base font-medium text-gray-900 dark:text-white">
-                    {p.stock}
-                  </p>
-                  <div className="w-1/5 flex flex-row justify-end">
-                    <button className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded hover:border-black dark:hover:border-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                      <span className="text-base">🖨️</span>
-                    </button>
-                  </div>
-                </div>
-              ))
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="border-b-2 border-gray-300 dark:border-gray-600">
+                    <th className="text-left px-4 py-3 font-semibold text-black dark:text-white text-sm">Producto</th>
+                    <th className="text-left px-4 py-3 font-semibold text-black dark:text-white text-sm">SKU</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {products.map((p, index) => (
+                    <tr
+                      key={p.id ? `product-${p.id}` : `product-${index}`}
+                      className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      <td className="px-4 py-4 text-black dark:text-white">
+                        {p.name}
+                      </td>
+                      <td className="px-4 py-4 text-black dark:text-white">
+                        {p.sku}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             ) : (
               <div className="py-8 text-center">
                 <p className="text-gray-500 dark:text-gray-400 italic">
@@ -121,6 +96,7 @@ export function Categorias() {
     id: number;
     name: string;
   } | null>(null);
+  const [loadingCategory, setLoadingCategory] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -131,44 +107,18 @@ export function Categorias() {
       setLoading(true);
       setError(null);
 
-      // Cargar categorías
+      // Cargar solo categorías
       const categoriesData = await fetchAPI("/api/categorias?page=1&pageSize=100");
       const categories = categoriesData.items || categoriesData || [];
 
-      // Para cada categoría, cargar sus productos
-      const categoriesWithProducts: Category[] = await Promise.all(
-        categories.map(async (cat: any) => {
-          try {
-            const productsData = await fetchAPI(
-              `/api/articulos?search=&page=1&pageSize=100`
-            );
-            const allProducts = productsData.items || [];
-            const categoryProducts = allProducts.filter(
-              (p: any) => p.category?.id === cat.id
-            );
+      // Crear estructura de categorías sin productos
+      const categoriesWithoutProducts: Category[] = categories.map((cat: any) => ({
+        id: cat.id,
+        name: cat.name,
+        products: [],
+      }));
 
-            return {
-              id: cat.id,
-              name: cat.name,
-              products: categoryProducts.map((p: any) => ({
-                id: p.id,
-                name: p.name,
-                sku: p.sku,
-                stock: p.stock,
-              })),
-            };
-          } catch (err) {
-            console.error(`Failed to load products for category ${cat.id}`, err);
-            return {
-              id: cat.id,
-              name: cat.name,
-              products: [],
-            };
-          }
-        })
-      );
-
-      setData(categoriesWithProducts);
+      setData(categoriesWithoutProducts);
     } catch (err) {
       console.error("Failed to load categories", err);
       setError(err instanceof Error ? err.message : "Error al cargar categorías");
@@ -178,9 +128,45 @@ export function Categorias() {
     }
   };
 
-  const handleCategorySelect = (categoryId: number) => {
+  const handleCategorySelect = async (categoryId: number) => {
     setSelectedId(categoryId || null);
     setDropdownVisible(false);
+    
+    // Cargar productos de la categoría seleccionada
+    try {
+      setLoadingCategory(true);
+      const categoryData = await fetchAPI(`/api/categorias?id=${categoryId}`);
+      
+      console.log("Respuesta completa del API:", categoryData);
+      
+      // Obtener productos de la respuesta (el API retorna "productos")
+      const products = categoryData.productos || categoryData.products || categoryData.items || categoryData.data || [];
+      
+      console.log("Productos extraídos:", products);
+      
+      // Actualizar los datos con los productos de la categoría seleccionada
+      setData((prevData) =>
+        prevData.map((cat) =>
+          cat.id === categoryId
+            ? {
+                ...cat,
+                products: products.map((p: any) => ({
+                  id: p.id_articulo || p.id,
+                  name: p.nombre_producto || p.name,
+                  sku: p.master_sku || p.sku,
+                  stock: p.stock,
+                  children: p.children,
+                })),
+              }
+            : cat
+        )
+      );
+    } catch (err) {
+      console.error(`Failed to load products for category ${categoryId}`, err);
+      setError(err instanceof Error ? err.message : "Error al cargar productos de la categoría");
+    } finally {
+      setLoadingCategory(false);
+    }
   };
 
   const openCreateModal = () => {
@@ -347,16 +333,22 @@ export function Categorias() {
             <p className="text-red-600 dark:text-red-400">{error}</p>
           </div>
         ) : selectedId ? (
-          data
-            .filter((d) => d.id === selectedId)
-            .map((c) => (
-              <AccordionItem
-                key={c.id}
-                title={c.name}
-                products={c.products}
-                open={true}
-              />
-            ))
+          loadingCategory ? (
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
+              <p className="text-gray-600 dark:text-gray-400">Cargando productos de la categoría...</p>
+            </div>
+          ) : (
+            data
+              .filter((d) => d.id === selectedId)
+              .map((c) => (
+                <AccordionItem
+                  key={c.id}
+                  title={c.name}
+                  products={c.products}
+                  open={true}
+                />
+              ))
+          )
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
             <div className="max-w-md mx-auto">
