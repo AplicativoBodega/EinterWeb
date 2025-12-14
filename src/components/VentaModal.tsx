@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { fetchAPI } from "../lib/fetch";
 
 export interface Producto {
   id: string;
@@ -45,6 +46,12 @@ export function VentaModal({
   const [selectedFolioId, setSelectedFolioId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Estados para búsqueda de productos por SKU
+  const [skuSearch, setSkuSearch] = useState("");
+  const [skuLoading, setSkuLoading] = useState(false);
+  const [skuError, setSkuError] = useState<string | null>(null);
+  const skuInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (orden && mode === "edit") {
@@ -68,7 +75,68 @@ export function VentaModal({
       setSelectedFolioId(null);
     }
     setError(null);
+    setSkuSearch("");
+    setSkuError(null);
   }, [orden, mode, visible]);
+
+  const handleAddProductBySku = async () => {
+    if (!selectedFolioId) {
+      setSkuError("Debes seleccionar un folio primero");
+      return;
+    }
+
+    const trimmedSku = skuSearch.trim();
+    if (!trimmedSku) {
+      setSkuError("Ingresa un SKU");
+      return;
+    }
+
+    setSkuLoading(true);
+    setSkuError(null);
+
+    try {
+      // Buscar producto exacto por SKU
+      const data = await fetchAPI(`/api/productos?sku=${encodeURIComponent(trimmedSku)}`);
+      
+      const productos = Array.isArray(data) ? data : data.productos || [];
+      
+      if (!productos || productos.length === 0) {
+        setSkuError(`No existe producto con SKU: ${trimmedSku}`);
+        return;
+      }
+
+      const product = productos[0]; // Tomar el primer resultado (búsqueda exacta)
+
+      const newProducto: Producto = {
+        id: Date.now().toString(),
+        nombre: product.nombre,
+        sku: product.sku,
+        cantidad: 1,
+        precio: product.precio || 0,
+      };
+
+      setFolios(
+        folios.map((f) =>
+          f.id === selectedFolioId
+            ? { ...f, productos: [...f.productos, newProducto] }
+            : f
+        )
+      );
+
+      setSkuSearch("");
+      setSkuError(null);
+    } catch (err) {
+      setSkuError(err instanceof Error ? err.message : "Error al buscar SKU");
+    } finally {
+      setSkuLoading(false);
+    }
+  };
+
+  const handleSkuKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      handleAddProductBySku();
+    }
+  };
 
   const handleAddFolio = () => {
     const newFolio: Folio = {
@@ -343,74 +411,132 @@ export function VentaModal({
                     <h4 className="text-lg font-robotoMedium">
                       {selectedFolio.numero_folio}
                     </h4>
-                    <button
-                      onClick={handleAddProducto}
-                      className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
-                    >
-                      Agregar Producto
-                    </button>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1 max-w-xs">
+                        <div className="flex gap-2">
+                          <input
+                            ref={skuInputRef}
+                            type="text"
+                            value={skuSearch}
+                            onChange={(e) => setSkuSearch(e.target.value)}
+                            onKeyPress={handleSkuKeyPress}
+                            placeholder="Ingresa SKU..."
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm"
+                          />
+                          <button
+                            onClick={handleAddProductBySku}
+                            disabled={skuLoading || !skuSearch.trim()}
+                            className="px-4 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                          >
+                            {skuLoading ? "Buscando..." : "Agregar"}
+                          </button>
+                        </div>
+                        {skuError && (
+                          <div className="absolute top-12 left-0 right-0 bg-red-50 border border-red-200 rounded text-xs text-red-600 p-2 z-50 max-w-xs">
+                            {skuError}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   {selectedFolio.productos.length === 0 ? (
                     <p className="text-gray-500">No hay productos</p>
                   ) : (
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
-                      {selectedFolio.productos.map((producto) => (
-                        <div key={producto.id} className="p-3 border border-gray-200 rounded">
-                          <div className="grid grid-cols-4 gap-2 mb-2">
-                            <input
-                              type="text"
-                              value={producto.nombre}
-                              onChange={(e) =>
-                                handleUpdateProducto(producto.id, "nombre", e.target.value)
-                              }
-                              placeholder="Nombre"
-                              className="px-2 py-1 border border-gray-300 rounded text-sm"
-                            />
-                            <input
-                              type="text"
-                              value={producto.sku}
-                              onChange={(e) =>
-                                handleUpdateProducto(producto.id, "sku", e.target.value)
-                              }
-                              placeholder="SKU"
-                              className="px-2 py-1 border border-gray-300 rounded text-sm"
-                            />
-                            <input
-                              type="number"
-                              value={producto.cantidad}
-                              onChange={(e) =>
-                                handleUpdateProducto(
-                                  producto.id,
-                                  "cantidad",
-                                  parseInt(e.target.value) || 0
-                                )
-                              }
-                              placeholder="Cantidad"
-                              className="px-2 py-1 border border-gray-300 rounded text-sm"
-                            />
-                            <input
-                              type="number"
-                              value={producto.precio}
-                              onChange={(e) =>
-                                handleUpdateProducto(
-                                  producto.id,
-                                  "precio",
-                                  parseFloat(e.target.value) || 0
-                                )
-                              }
-                              placeholder="Precio"
-                              className="px-2 py-1 border border-gray-300 rounded text-sm"
-                            />
-                          </div>
-                          <button
-                            onClick={() => handleRemoveProducto(producto.id)}
-                            className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 w-full"
-                          >
-                            Quitar
-                          </button>
-                        </div>
-                      ))}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-gray-100 border-b-2 border-gray-300">
+                            <th className="px-4 py-3 text-left font-robotoMedium text-gray-900 border-r border-gray-300">
+                              Nombre del Producto
+                            </th>
+                            <th className="px-4 py-3 text-left font-robotoMedium text-gray-900 border-r border-gray-300">
+                              SKU
+                            </th>
+                            <th className="px-4 py-3 text-left font-robotoMedium text-gray-900 border-r border-gray-300">
+                              Cantidad
+                            </th>
+                            <th className="px-4 py-3 text-left font-robotoMedium text-gray-900 border-r border-gray-300">
+                              Precio
+                            </th>
+                            <th className="px-4 py-3 text-center font-robotoMedium text-gray-900">
+                              Acción
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedFolio.productos.map((producto, index) => (
+                            <tr
+                              key={producto.id}
+                              className={`border-b border-gray-200 ${
+                                index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                              } hover:bg-gray-100 transition-colors`}
+                            >
+                              <td className="px-4 py-2 border-r border-gray-200">
+                                <input
+                                  type="text"
+                                  value={producto.nombre}
+                                  onChange={(e) =>
+                                    handleUpdateProducto(producto.id, "nombre", e.target.value)
+                                  }
+                                  placeholder="Nombre del producto"
+                                  className="w-full px-2 py-1 border border-gray-300 rounded bg-white text-sm"
+                                />
+                              </td>
+                              <td className="px-4 py-2 border-r border-gray-200">
+                                <input
+                                  type="text"
+                                  value={producto.sku}
+                                  onChange={(e) =>
+                                    handleUpdateProducto(producto.id, "sku", e.target.value)
+                                  }
+                                  placeholder="SKU"
+                                  className="w-full px-2 py-1 border border-gray-300 rounded bg-white text-sm"
+                                />
+                              </td>
+                              <td className="px-4 py-2 border-r border-gray-200">
+                                <input
+                                  type="number"
+                                  value={producto.cantidad}
+                                  onChange={(e) =>
+                                    handleUpdateProducto(
+                                      producto.id,
+                                      "cantidad",
+                                      parseInt(e.target.value) || 0
+                                    )
+                                  }
+                                  placeholder="1"
+                                  className="w-full px-2 py-1 border border-gray-300 rounded bg-white text-sm"
+                                />
+                              </td>
+                              <td className="px-4 py-2 border-r border-gray-200">
+                                <input
+                                  type="number"
+                                  value={producto.precio}
+                                  onChange={(e) =>
+                                    handleUpdateProducto(
+                                      producto.id,
+                                      "precio",
+                                      parseFloat(e.target.value) || 0
+                                    )
+                                  }
+                                  placeholder="0.00"
+                                  className="w-full px-2 py-1 border border-gray-300 rounded bg-white text-sm"
+                                />
+                              </td>
+                              <td className="px-4 py-2 text-center">
+                                <button
+                                  onClick={() => handleRemoveProducto(producto.id)}
+                                  className="text-red-500 text-xl hover:text-red-700 transition-colors"
+                                  title="Eliminar producto"
+                                >
+                                  🗑️
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>
