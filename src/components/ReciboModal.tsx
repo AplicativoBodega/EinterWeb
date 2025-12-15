@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { fetchAPI } from "../lib/fetch";
 
 export interface Producto {
   id: string;
@@ -57,12 +58,43 @@ export function ReciboModal({
   const [error, setError] = useState<string | null>(null);
   const [pdfFile, setPdfFile] = useState<string | null>(null);
   const [pdfFileName, setPdfFileName] = useState<string | null>(null);
+  const [skuSearch, setSkuSearch] = useState("");
+  const [skuLoading, setSkuLoading] = useState(false);
+  const [skuError, setSkuError] = useState<string | null>(null);
+  const [proveedorSearch, setProveedorSearch] = useState("");
+  const [filteredProveedores, setFilteredProveedores] = useState<Proveedor[]>([]);
+  const skuInputRef = useRef<HTMLInputElement>(null);
+  const proveedorRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (visible) {
       fetchProveedores();
     }
   }, [visible]);
+
+  useEffect(() => {
+    // Filtrar proveedores cuando cambia el search
+    const filtered = proveedores.filter((p) =>
+      p.name.toLowerCase().includes(proveedorSearch.toLowerCase())
+    );
+    setFilteredProveedores(filtered);
+  }, [proveedorSearch, proveedores]);
+
+  useEffect(() => {
+    // Cerrar dropdown cuando hace click fuera
+    const handleClickOutside = (event: MouseEvent) => {
+      if (proveedorRef.current && !proveedorRef.current.contains(event.target as Node)) {
+        setShowProveedorList(false);
+      }
+    };
+
+    if (showProveedorList) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }
+  }, [showProveedorList]);
 
   useEffect(() => {
     if (recibo && mode === "edit") {
@@ -91,38 +123,76 @@ export function ReciboModal({
     setError(null);
     setPdfFile(null);
     setPdfFileName(null);
+    setSkuSearch("");
+    setSkuError(null);
+    setProveedorSearch("");
+    setFilteredProveedores(proveedores);
   }, [recibo, mode, visible, proveedores]);
 
   const fetchProveedores = async () => {
     setLoadingProveedores(true);
     try {
-      // Mock data - replace with actual API call
-      setProveedores([
-        { id: 1, name: "Proveedor A", city: "México", lead_time: 3 },
-        { id: 2, name: "Proveedor B", city: "Guadalajara", lead_time: 5 },
-      ]);
+      const data = await fetchAPI("/(api)/proveedores");
+      const proveedoresList = Array.isArray(data) ? data : data.items || [];
+      setProveedores(proveedoresList);
+      setFilteredProveedores(proveedoresList);
     } catch (err) {
       console.error("Error fetching proveedores:", err);
+      setProveedores([]);
+      setFilteredProveedores([]);
     } finally {
       setLoadingProveedores(false);
     }
   };
 
-  const handleSelectProveedor = (proveedor: Proveedor) => {
-    setSelectedProveedor(proveedor);
-    setFormData({ ...formData, proveedor_id: String(proveedor.id) });
-    setShowProveedorList(false);
+  const handleAddProductBySku = async () => {
+    const trimmedSku = skuSearch.trim();
+    if (!trimmedSku) {
+      setSkuError("Ingresa un SKU");
+      return;
+    }
+
+    setSkuLoading(true);
+    setSkuError(null);
+
+    try {
+      // Buscar producto exacto por SKU
+      const data = await fetchAPI(
+        `/(api)/productos?search=${encodeURIComponent(trimmedSku)}`
+      );
+
+      const respuestaProductos = Array.isArray(data) ? data : data.items || [];
+
+      if (!respuestaProductos || respuestaProductos.length === 0) {
+        setSkuError(`No existe producto con SKU: ${trimmedSku}`);
+        return;
+      }
+
+      const product = respuestaProductos[0]; // Tomar el primer resultado (búsqueda exacta)
+
+      const newProducto: Producto = {
+        id: product.id.toString(),
+        nombre: product.name,
+        sku: product.sku,
+        cantidad: 1,
+        costo_por_articulo: product.price || 0,
+      };
+
+      setProductos([...productos, newProducto]);
+
+      setSkuSearch("");
+      setSkuError(null);
+    } catch (err) {
+      setSkuError(err instanceof Error ? err.message : "Error al buscar SKU");
+    } finally {
+      setSkuLoading(false);
+    }
   };
 
-  const handleAddProducto = () => {
-    const newProducto: Producto = {
-      id: Date.now().toString(),
-      nombre: "",
-      sku: "",
-      cantidad: 1,
-      costo_por_articulo: 0,
-    };
-    setProductos([...productos, newProducto]);
+  const handleSkuKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      handleAddProductBySku();
+    }
   };
 
   const handleRemoveProducto = (productoId: string) => {
@@ -269,30 +339,49 @@ export function ReciboModal({
               <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
                 Proveedor *
               </label>
-              <button
-                onClick={() => setShowProveedorList(!showProveedorList)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white text-left"
-              >
-                {loadingProveedores ? "Cargando..." : selectedProveedor?.name || "Selecciona un proveedor"}
-              </button>
+              <div className="relative" ref={proveedorRef}>
+                <input
+                  type="text"
+                  value={proveedorSearch}
+                  onChange={(e) => {
+                    setProveedorSearch(e.target.value);
+                    setShowProveedorList(true);
+                  }}
+                  onFocus={() => setShowProveedorList(true)}
+                  placeholder="Busca o selecciona un proveedor"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
 
-              {showProveedorList && (
-                <div className="mt-2 border border-gray-200 rounded-lg bg-white overflow-y-auto max-h-48">
-                  {loadingProveedores ? (
-                    <div className="p-3">Cargando...</div>
-                  ) : (
-                    proveedores.map((p) => (
-                      <button
-                        key={p.id}
-                        onClick={() => handleSelectProveedor(p)}
-                        className="w-full text-left px-4 py-2 border-b border-gray-100 hover:bg-gray-50"
-                      >
-                        {p.name} ({p.city})
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
+                {showProveedorList && (
+                  <div className="absolute top-full left-0 right-0 mt-1 border border-gray-200 rounded-lg bg-white overflow-y-auto max-h-48 z-50 shadow-lg">
+                    {loadingProveedores ? (
+                      <div className="p-3 text-gray-600">Cargando...</div>
+                    ) : filteredProveedores.length === 0 ? (
+                      <div className="p-3 text-gray-500">
+                        No hay proveedores que coincidan
+                      </div>
+                    ) : (
+                      filteredProveedores.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setSelectedProveedor(p);
+                            setFormData(prev => ({ ...prev, proveedor_id: String(p.id) }));
+                            setProveedorSearch(p.name);
+                            setShowProveedorList(false);
+                          }}
+                          className="w-full text-left px-4 py-2 border-b border-gray-100 hover:bg-blue-50 transition-colors"
+                        >
+                          <div className="font-robotoMedium text-gray-900">{p.name}</div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="flex flex-row gap-4">
@@ -327,12 +416,39 @@ export function ReciboModal({
             <div className="border-t border-gray-200 pt-4 mt-4">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-robotoMedium">Productos</h3>
-                <button
-                  onClick={handleAddProducto}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                >
-                  Agregar Producto
-                </button>
+              </div>
+
+              <div className="mb-4 p-3 border border-gray-200 rounded-lg bg-gray-50">
+                <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+                  Agregar producto por SKU
+                </label>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <input
+                      ref={skuInputRef}
+                      type="text"
+                      value={skuSearch}
+                      onChange={(e) => setSkuSearch(e.target.value)}
+                      onKeyPress={handleSkuKeyPress}
+                      placeholder="Ingresa SKU..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                    />
+                    {skuError && (
+                      <p className="text-red-600 text-xs mt-1">{skuError}</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleAddProductBySku}
+                    disabled={skuLoading}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm font-robotoMedium"
+                  >
+                    {skuLoading ? "Buscando..." : "Agregar"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center mb-4">
+                <h4 className="text-base font-robotoMedium">Productos agregados</h4>
               </div>
 
               {productos.length === 0 ? (
