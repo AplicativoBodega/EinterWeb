@@ -6,10 +6,8 @@ import { useDarkMode } from "../context/DarkModeContext";
 interface Venta {
   id_venta: number;
   id_orden: string | number | null;
-  id_folio: string | number | null;
   cliente: string | null;
-  precio: number | string;
-  costo: number | string;
+  total: number | string;
   fecha: string | Date;
 }
 
@@ -41,7 +39,7 @@ export function Ventas() {
       setError(null);
       try {
         const response = (await fetchAPI(
-          `/(api)/ventas?type=ventas&page=${page}&pageSize=${pageSize}`
+          `/(api)/ventas?type=recibos&page=${page}&pageSize=${pageSize}`
         )) as VentasResponse;
 
         setVentas(response.items);
@@ -66,8 +64,6 @@ export function Ventas() {
         venta.id_orden?.toString().toLowerCase().includes(text.toLowerCase()) ||
         false ||
         venta.cliente?.toLowerCase().includes(text.toLowerCase()) ||
-        false ||
-        venta.id_folio?.toString().toLowerCase().includes(text.toLowerCase()) ||
         false
     );
     setFilteredVentas(filtered);
@@ -107,27 +103,27 @@ export function Ventas() {
 
   const handleSaveOrden = async (ordenData: OrdenVenta) => {
     try {
-      if (modalMode === "create") {
-        await fetchAPI("/(api)/ventas", {
-          method: "POST",
-          body: JSON.stringify(ordenData),
-        });
-      } else if (modalMode === "edit" && selectedOrden) {
-        await fetchAPI(`/(api)/ventas`, {
-          method: "PUT",
-          body: JSON.stringify(ordenData),
-        });
+      const items = [];
+      for (const folio of ordenData.folios) {
+        for (const producto of folio.productos) {
+          items.push({
+            id_articulo: parseInt(producto.id),
+            cantidad: producto.cantidad,
+            numero_folio: folio.numero_folio,
+          });
+        }
       }
 
-      // Refresh the ventas list
       const response = (await fetchAPI(
-        `/(api)/ventas?type=ventas&page=${page}&pageSize=${pageSize}`
+        `/(api)/ventas?type=recibos&page=${page}&pageSize=${pageSize}`
       )) as VentasResponse;
 
       setVentas(response.items);
       setFilteredVentas(response.items);
       setTotal(response.total);
     } catch (err) {
+      console.error("❌ Error al guardar:", err);
+      
       throw err;
     }
   };
@@ -151,22 +147,9 @@ export function Ventas() {
 
       <div className="flex-1 bg-white dark:bg-gray-800 mx-8 mt-4 border border-gray-400 dark:border-gray-700 overflow-hidden flex flex-col rounded-lg">
         <div className="flex bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-400 dark:border-gray-600">
-          <div className="w-16 py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
-            <span className="text-2xl">📄</span>
-          </div>
-          <div className="flex-[0.8] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
-            <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
-              ID
-            </span>
-          </div>
           <div className="flex-[1.5] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
             <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
               Numero Orden
-            </span>
-          </div>
-          <div className="flex-[1.2] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
-            <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
-              Folio
             </span>
           </div>
           <div className="flex-2 py-4 px-3 border-r border-gray-400 flex items-center justify-center">
@@ -176,12 +159,7 @@ export function Ventas() {
           </div>
           <div className="flex-[1.2] py-4 px-3 border-r border-gray-400 flex items-center justify-center">
             <span className="font-robotoMedium text-gray-900 text-xl text-center">
-              Precio
-            </span>
-          </div>
-          <div className="flex-[1.2] py-4 px-3 border-r border-gray-400 flex items-center justify-center">
-            <span className="font-robotoMedium text-gray-900 text-xl text-center">
-              Costo
+              Total
             </span>
           </div>
           <div className="flex-[1.2] py-4 px-3 flex items-center justify-center">
@@ -227,25 +205,9 @@ export function Ventas() {
                   index % 2 === 0 ? "bg-white" : "bg-gray-50"
                 } hover:bg-blue-50`}
               >
-                <div className="w-16 py-4 px-3 border-r border-gray-300 flex items-center justify-center">
-                  <span className="text-2xl">📄</span>
-                </div>
-
-                <div className="flex-[0.8] py-4 px-3 border-r border-gray-300 flex items-center justify-center">
-                  <span className="text-gray-900 font-robotoRegular text-base text-center">
-                    {(page - 1) * pageSize + index + 1}
-                  </span>
-                </div>
-
                 <div className="flex-[1.5] py-4 px-3 border-r border-gray-300 flex items-center justify-center">
                   <span className="text-gray-900 font-robotoRegular text-base text-center">
                     {venta.id_orden || "—"}
-                  </span>
-                </div>
-
-                <div className="flex-[1.2] py-4 px-3 border-r border-gray-300 flex items-center justify-center">
-                  <span className="text-gray-900 font-robotoRegular text-base text-center">
-                    {venta.id_folio || "—"}
                   </span>
                 </div>
 
@@ -260,13 +222,7 @@ export function Ventas() {
 
                 <div className="flex-[1.2] py-4 px-3 border-r border-gray-300 flex items-center justify-center">
                   <span className="text-gray-900 font-robotoRegular text-base text-center">
-                    {formatCurrency(venta.precio)}
-                  </span>
-                </div>
-
-                <div className="flex-[1.2] py-4 px-3 border-r border-gray-300 flex items-center justify-center">
-                  <span className="text-gray-900 font-robotoRegular text-base text-center">
-                    {formatCurrency(venta.costo)}
+                    {formatCurrency(venta.total)}
                   </span>
                 </div>
 

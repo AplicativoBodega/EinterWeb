@@ -46,6 +46,7 @@ export function VentaModal({
   const [selectedFolioId, setSelectedFolioId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [newFolioNumber, setNewFolioNumber] = useState("");
   
   // Estados para búsqueda de productos por SKU
   const [skuSearch, setSkuSearch] = useState("");
@@ -77,6 +78,7 @@ export function VentaModal({
     setError(null);
     setSkuSearch("");
     setSkuError(null);
+    setNewFolioNumber("");
   }, [orden, mode, visible]);
 
   const handleAddProductBySku = async () => {
@@ -96,9 +98,9 @@ export function VentaModal({
 
     try {
       // Buscar producto exacto por SKU
-      const data = await fetchAPI(`/api/productos?sku=${encodeURIComponent(trimmedSku)}`);
+      const data = await fetchAPI(`/api/productos?search=${encodeURIComponent(trimmedSku)}`);
       
-      const productos = Array.isArray(data) ? data : data.productos || [];
+      const productos = Array.isArray(data) ? data : data.items || [];
       
       if (!productos || productos.length === 0) {
         setSkuError(`No existe producto con SKU: ${trimmedSku}`);
@@ -108,11 +110,11 @@ export function VentaModal({
       const product = productos[0]; // Tomar el primer resultado (búsqueda exacta)
 
       const newProducto: Producto = {
-        id: Date.now().toString(),
-        nombre: product.nombre,
+        id: product.id.toString(),
+        nombre: product.name,
         sku: product.sku,
         cantidad: 1,
-        precio: product.precio || 0,
+        precio: product.price || 0,
       };
 
       setFolios(
@@ -139,13 +141,19 @@ export function VentaModal({
   };
 
   const handleAddFolio = () => {
+    if (!newFolioNumber.trim()) {
+      alert("Ingresa el número de folio");
+      return;
+    }
+
     const newFolio: Folio = {
       id: Date.now().toString(),
-      numero_folio: `FOL-${Date.now()}`,
+      numero_folio: newFolioNumber,
       productos: [],
     };
     setFolios([...folios, newFolio]);
     setSelectedFolioId(newFolio.id);
+    setNewFolioNumber("");
   };
 
   const handleRemoveFolio = (folioId: string) => {
@@ -350,16 +358,27 @@ export function VentaModal({
             </div>
 
             <div className="flex-1">
-              <div className="flex flex-row items-center justify-between mb-3">
+              <div className="flex flex-row items-center justify-between gap-2 mb-3">
                 <h4 className="text-sm font-robotoMedium text-gray-700">
                   Folios
                 </h4>
-                <button
-                  onClick={handleAddFolio}
-                  className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
-                >
-                  Agregar
-                </button>
+                <div className="flex gap-2 flex-1 max-w-xs">
+                  <input
+                    type="number"
+                    value={newFolioNumber}
+                    onChange={(e) => setNewFolioNumber(e.target.value)}
+                    onKeyPress={(e) => e.key === "Enter" && handleAddFolio()}
+                    placeholder="Nº folio"
+                    min="0"
+                    className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm bg-white"
+                  />
+                  <button
+                    onClick={handleAddFolio}
+                    className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                  >
+                    Agregar
+                  </button>
+                </div>
               </div>
 
               <div className="overflow-y-auto max-h-48 space-y-2">
@@ -480,7 +499,8 @@ export function VentaModal({
                                     handleUpdateProducto(producto.id, "nombre", e.target.value)
                                   }
                                   placeholder="Nombre del producto"
-                                  className="w-full px-2 py-1 border border-gray-300 rounded bg-white text-sm"
+                                  readOnly
+                                  className="w-full px-2 py-1 border border-gray-300 rounded bg-gray-50 text-sm cursor-not-allowed"
                                 />
                               </td>
                               <td className="px-4 py-2 border-r border-gray-200">
@@ -502,10 +522,11 @@ export function VentaModal({
                                     handleUpdateProducto(
                                       producto.id,
                                       "cantidad",
-                                      parseInt(e.target.value) || 0
+                                      Math.max(0, parseInt(e.target.value) || 0)
                                     )
                                   }
                                   placeholder="1"
+                                  min="0"
                                   className="w-full px-2 py-1 border border-gray-300 rounded bg-white text-sm"
                                 />
                               </td>
