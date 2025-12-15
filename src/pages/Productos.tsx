@@ -18,6 +18,7 @@ export function Productos() {
   const [filterName, setFilterName] = useState("");
   const [filterSKU, setFilterSKU] = useState("");
   const [filterProveedor, setFilterProveedor] = useState("");
+  const [filterCategoria, setFilterCategoria] = useState("");
   const [filterStock, setFilterStock] = useState("");
   const [sortBy, setSortBy] = useState<{
     column: string;
@@ -94,6 +95,18 @@ export function Productos() {
         product.supplier?.name
           ?.toLowerCase()
           .includes(filterProveedor.toLowerCase())
+      );
+    }
+
+    // Filter by categoría
+    if (filterCategoria.trim()) {
+      filtered = filtered.filter((product) =>
+        (typeof product.category === "object"
+          ? product.category?.name
+          : product.category
+        )
+          ?.toLowerCase()
+          .includes(filterCategoria.toLowerCase())
       );
     }
 
@@ -175,6 +188,7 @@ export function Productos() {
     setFilterName("");
     setFilterSKU("");
     setFilterProveedor("");
+    setFilterCategoria("");
     setFilterStock("");
     setSortBy(null);
   };
@@ -360,6 +374,7 @@ export function Productos() {
           {(filterName ||
             filterSKU ||
             filterProveedor ||
+            filterCategoria ||
             filterStock ||
             sortBy) && (
             <button
@@ -443,6 +458,23 @@ export function Productos() {
               </h3>
               <span className="text-xs text-gray-600">
                 {sortBy?.column === "proveedor"
+                  ? sortBy.direction === "asc"
+                    ? "▲"
+                    : "▼"
+                  : "⬍"}
+              </span>
+            </button>
+          </div>
+          <div className="flex-2 py-4 px-3 border-r border-gray-400 flex justify-center">
+            <button
+              onClick={() => handleSort("categoria")}
+              className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
+            >
+              <h3 className="font-robotoMedium text-gray-900 text-lg text-center">
+                Categoría
+              </h3>
+              <span className="text-xs text-gray-600">
+                {sortBy?.column === "categoria"
                   ? sortBy.direction === "asc"
                     ? "▲"
                     : "▼"
@@ -588,6 +620,15 @@ export function Productos() {
                 <div className="flex-2 py-4 px-3 border-r border-gray-300 flex justify-center items-center">
                   <p className="text-gray-900 font-robotoRegular text-base text-center truncate">
                     {product.supplier?.name || "—"}
+                  </p>
+                </div>
+
+                {/* Categoría */}
+                <div className="flex-2 py-4 px-3 border-r border-gray-300 flex justify-center items-center">
+                  <p className="text-gray-900 font-robotoRegular text-base text-center truncate">
+                    {typeof product.category === "object" && product.category?.name
+                      ? product.category.name
+                      : product.category || "—"}
                   </p>
                 </div>
 

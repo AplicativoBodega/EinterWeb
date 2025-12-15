@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { fetchAPI } from "../lib/fetch";
 import type { Product } from "../lib/types";
 
 interface ProductModalProps {
@@ -60,6 +61,11 @@ export function ProductModal({
   >([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
   const [showSupplierList, setShowSupplierList] = useState(false);
+  const [categories, setCategories] = useState<
+    Array<{ id: number; name: string }>
+  >([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+  const [showCategoryList, setShowCategoryList] = useState(false);
 
   useEffect(() => {
     if (product && mode === "edit") {
@@ -88,10 +94,14 @@ export function ProductModal({
   const fetchSuppliers = async () => {
     setLoadingSuppliers(true);
     try {
-      setSuppliers([
-        { id: 1, name: "Proveedor A" },
-        { id: 2, name: "Proveedor B" },
-      ]);
+      const data = await fetchAPI("/api/proveedores");
+      const suppliersList = data.items || data || [];
+      setSuppliers(
+        suppliersList.map((supplier: any) => ({
+          id: supplier.id,
+          name: supplier.name,
+        }))
+      );
     } catch (err) {
       console.error("Failed to load suppliers", err);
       setSuppliers([]);
@@ -100,8 +110,30 @@ export function ProductModal({
     }
   };
 
+  const fetchCategories = async () => {
+    setLoadingCategories(true);
+    try {
+      const data = await fetchAPI("/api/categorias");
+      const categoriesList = data.items || data || [];
+      setCategories(
+        categoriesList.map((category: any) => ({
+          id: category.id,
+          name: category.name,
+        }))
+      );
+    } catch (err) {
+      console.error("Failed to load categories", err);
+      setCategories([]);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
   useEffect(() => {
-    if (visible) fetchSuppliers();
+    if (visible) {
+      fetchSuppliers();
+      fetchCategories();
+    }
   }, [visible]);
 
   const pickImage = async () => {
@@ -238,15 +270,56 @@ export function ProductModal({
               <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
                 Categoría
               </label>
-              <input
-                type="text"
-                value={formData.category_id}
-                onChange={(e) =>
-                  setFormData({ ...formData, category_id: e.target.value })
-                }
-                placeholder="Categoría"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
-              />
+              <button
+                onClick={() => setShowCategoryList((s) => !s)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-left"
+              >
+                {(() => {
+                  const id = parseInt(formData.category_id || "", 10);
+                  const found = categories.find((c) => c.id === id);
+                  if (found) return found.name;
+                  if (loadingCategories) return "Cargando...";
+                  return "Selecciona Categoría";
+                })()}
+              </button>
+
+              {showCategoryList && (
+                <div className="mt-2 max-h-40 border border-gray-200 rounded-lg bg-white overflow-y-auto">
+                  {loadingCategories ? (
+                    <div className="p-3 text-center">Cargando...</div>
+                  ) : categories.length === 0 ? (
+                    <div className="p-3">
+                      <p className="text-sm text-gray-500">
+                        No hay categorías
+                      </p>
+                      <button
+                        onClick={fetchCategories}
+                        className="mt-2 px-3 py-2 bg-gray-100 rounded text-sm"
+                      >
+                        Recargar
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      {categories.map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => {
+                            setFormData({
+                              ...formData,
+                              category_id: String(c.id),
+                            });
+                            setShowCategoryList(false);
+                          }}
+                          className="w-full text-left px-4 py-2 border-b border-gray-100 hover:bg-gray-50"
+                        >
+                          {c.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div className="flex-1">
               <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
