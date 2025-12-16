@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useDarkMode } from '../context/DarkModeContext'
+import { useRole } from '../hooks/useRole'
 
 interface SidebarProps {
   currentPage: string
@@ -9,6 +10,7 @@ interface SidebarProps {
 export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(true)
   const { darkMode, toggleDarkMode } = useDarkMode()
+  const { isSuperAdmin } = useRole()
 
   const menuItems = [
     { id: 'home', label: 'Home', icon: '🏠' },
@@ -20,6 +22,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
     { id: 'recibos', label: 'Recibos', icon: '🧾' },
     { id: 'categorias', label: 'Categorías', icon: '📂' },
     { id: 'perfiles', label: 'Perfiles', icon: '👤' },
+    ...(isSuperAdmin ? [{ id: 'users', label: 'Usuarios', icon: '👥' }] : []),
   ]
 
   return (
