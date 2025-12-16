@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useAuth0 } from '@auth0/auth0-react'
+import { useAuth } from './context/AuthContext'
 import { DarkModeProvider } from './context/DarkModeContext'
 import { Sidebar } from './components/Sidebar'
 import { Navbar } from './components/NavBar'
@@ -16,7 +16,7 @@ import { Categorias } from './pages/Categorias'
 import Profile from './components/Profile'
 
 function App() {
-  const { isAuthenticated, isLoading } = useAuth0()
+  const { user, loading } = useAuth()
   const [currentPage, setCurrentPage] = useState('home')
 
   const renderPage = () => {
@@ -46,7 +46,7 @@ function App() {
     }
   }
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-xl text-gray-600">Cargando...</div>
@@ -54,7 +54,7 @@ function App() {
     )
   }
 
-  if (!isAuthenticated) {
+  if (!user) {
     return <Login />
   }
 
