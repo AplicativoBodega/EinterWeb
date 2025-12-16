@@ -1,0 +1,311 @@
+================================================================================
+PDF IMPLEMENTATION GUIDE - AplicativoApp
+================================================================================
+Location: components/ReciboModal.tsx
+Purpose: Document how PDF files are attached to receipts
+================================================================================
+
+OVERVIEW
+--------
+1. User selects PDF via HTML file input
+2. File validated (must be application/pdf MIME type)
+3. File read and converted to Base64 using FileReader API
+4. Base64 string stored in state (without data URI prefix)
+5. Base64 included in form submission payload
+
+================================================================================
+STATE VARIABLES
+================================================================================
+
+const [pdfFile, setPdfFile] = useState<string | null>(null);
+const [pdfFileName, setPdfFileName] = useState<string | null>(null);
+
+pdfFile:     Pure Base64 string (no "data:application/pdf;base64," prefix)
+pdfFileName: Original filename for UI display
+
+================================================================================
+FILE SELECTION HANDLER
+================================================================================
+
+const handleFileSelect = (event: any) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  // VALIDATION: Only PDF files allowed
+  if (file.type !== "application/pdf") {
+    setError("Solo se permiten archivos PDF");
+    return;
+  }
+
+  // CONVERSION: Read file as Base64
+  const reader = new FileReader();
+  
+  reader.onload = () => {
+    const base64 = reader.result as string;
+    // Result: "data:application/pdf;base64,JVBERi0xLjQK..."
+    // We strip the prefix and save only: "JVBERi0xLjQK..."
+    setPdfFile(base64.split(",")[1]); 
+    setPdfFileName(file.name);
+  };
+  
+  reader.onerror = () => {
+    setError("Error al leer el archivo PDF");
+  };
+  
+  reader.readAsDataURL(file);
+};
+
+Why strip the prefix?
+- FileReader returns: "data:application/pdf;base64,<content>"
+- Backend expects pure Base64 string
+- Keeping prefix would corrupt PDF when decoded
+- split(",")[1] extracts only the content part
+
+================================================================================
+UI COMPONENTS
+================================================================================
+
+1. FILE INPUT (hidden):
+<input
+  type="file"
+  accept="application/pdf"
+  onChange={handleFileSelect}
+  className="hidden"
+/>
+
+2. UPLOAD BUTTON (label wrapping input):
+<label className="cursor-pointer bg-blue-600 px-4 py-2 rounded-lg">
+  <Text className="text-white font-robotoMedium">
+    {pdfFileName ? "Cambiar PDF" : "Seleccionar PDF"}
+  </Text>
+  {/* input nested here */}
+</label>
+
+3. SELECTED FILE DISPLAY:
+{pdfFileName && (
+  <View className="bg-green-50 px-3 py-2 rounded-lg">
+    <Text>📄 {pdfFileName}</Text>
+    <TouchableOpacity onPress={() => {
+      setPdfFile(null);
+      setPdfFileName(null);
+    }}>
+      <Text className="text-red-500">✕</Text>
+    </TouchableOpacity>
+  </View>
+)}
+
+================================================================================
+DATA SUBMISSION
+================================================================================
+
+const reciboData: ReciboData = {
+  orden: formData.orden,
+  proveedor_id: parseInt(formData.proveedor_id),
+  tipo: parseInt(formData.tipo),
+  fecha_compra: formData.fecha_compra,
+  eta: formData.eta,
+  productos: productos,
+  pdf: pdfFile,  // Base64 string or null
+};
+
+await onSave(reciboData);
+
+The 'pdf' field contains:
+- null (if no file selected)
+- "JVBERi0xLjQKJeLjz9MK..." (Base64 string if file selected)
+
+================================================================================
+BACKEND STORAGE (TO IMPLEMENT)
+================================================================================
+
+Current Status: Backend does NOT store PDF yet
+
+To complete implementation, update recibos+api.ts:
+
+1. Modify createRecibo function to accept pdf field
+2. Add database columns (choose one option below)
+3. Store Base64 string in database
+
+DATABASE OPTIONS:
+
+Option A - Add to existing table:
+ALTER TABLE recibos_web ADD COLUMN pdf_data LONGTEXT;
+ALTER TABLE recibos_web ADD COLUMN pdf_filename VARCHAR(255);
+
+Option B - Separate table:
+CREATE TABLE recibos_pdf (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  id_recibo INT NOT NULL,
+  pdf_data LONGTEXT NOT NULL,
+  filename VARCHAR(255),
+  uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (id_recibo) REFERENCES recibos_web(id_recibo)
+);
+
+Option C - File system (recommended):
+- Save PDF as file: /uploads/recibos/{id_recibo}.pdf
+- Store only path in database: pdf_path VARCHAR(255)
+- More scalable, better performance
+
+Column Types:
+- MEDIUMTEXT: Max 16MB (good for most PDFs)
+- LONGTEXT: Max 4GB (safe choice)
+- LONGBLOB: Max 4GB (better for binary, but Base64 is text)
+
+================================================================================
+BASE64 TECHNICAL DETAILS
+================================================================================
+
+Why Base64?
+- PDFs are binary files
+- JSON cannot contain binary data
+- Base64 converts binary to ASCII text (safe for JSON)
+- Backend can decode back to binary for storage/display
+
+Base64 Overhead:
+- Increases file size by ~33%
+- 3MB PDF → 4MB Base64 string
+- Consider for database storage limits
+
+How it works:
+1. File bytes: [255, 216, 255, ...]
+2. Base64 encode: "JVBERi0xLjQK..."
+3. Send in JSON: {"pdf": "JVBERi0xLjQK..."}
+4. Backend decode: [255, 216, 255, ...]
+5. Store as BLOB or save to file
+
+Alternative Approach:
+Instead of Base64 in JSON, use multipart/form-data:
+- Send file as binary (no encoding overhead)
+- More efficient for large files
+- Requires different API handling
+
+================================================================================
+VALIDATION & ERROR HANDLING
+================================================================================
+
+Current Validations:
+✓ MIME type check: file.type === "application/pdf"
+✓ File read error handling
+
+Missing Validations (recommended to add):
+✗ File size limit (e.g., max 10MB)
+✗ File signature verification (PDF magic bytes: %PDF)
+✗ Filename sanitization (remove special chars)
+✗ Virus/malware scanning (production requirement)
+
+Size Validation Example:
+const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+if (file.size > MAX_SIZE) {
+  setError("PDF debe ser menor a 10MB");
+  return;
+}
+
+Magic Bytes Validation Example (backend):
+const isPDF = buffer[0] === 0x25 && // %
+              buffer[1] === 0x50 && // P
+              buffer[2] === 0x44 && // D
+              buffer[3] === 0x46;   // F
+
+================================================================================
+PLATFORM COMPATIBILITY
+================================================================================
+
+Current: WEB ONLY
+- Uses HTML file input (not available in native React Native)
+- FileReader API is browser-only
+
+To support mobile (iOS/Android):
+Install: expo-document-picker
+
+const pickDocument = async () => {
+  const result = await DocumentPicker.getDocumentAsync({
+    type: 'application/pdf',
+    copyToCacheDirectory: true
+  });
+  
+  if (result.type === 'success') {
+    // Read file and convert to Base64
+    const base64 = await FileSystem.readAsStringAsync(result.uri, {
+      encoding: FileSystem.EncodingType.Base64
+    });
+    setPdfFile(base64);
+    setPdfFileName(result.name);
+  }
+};
+
+Platform Detection:
+import { Platform } from 'react-native';
+
+{Platform.OS === 'web' ? (
+  <input type="file" accept="application/pdf" onChange={handleFileSelect} />
+) : (
+  <TouchableOpacity onPress={pickDocument}>
+    <Text>Seleccionar PDF</Text>
+  </TouchableOpacity>
+)}
+
+================================================================================
+COMMON ISSUES
+================================================================================
+
+Issue: PDF corrupted after storage
+Cause: Prefix not stripped or encoding issues
+Fix: Ensure base64.split(",")[1] removes data URI prefix
+
+Issue: File too large for database
+Cause: Base64 string exceeds column limit
+Fix: Use LONGTEXT or move to file system storage
+
+Issue: Upload timeout
+Cause: Large PDF takes too long to encode/transfer
+Fix: Add file size limit or implement chunked upload
+
+Issue: Works on Chrome but not Safari
+Cause: Browser compatibility with FileReader
+Fix: Add polyfills or use different encoding method
+
+Issue: Cannot preview PDF
+Cause: No viewer implementation
+Fix: Add react-pdf library for preview
+
+================================================================================
+IMPLEMENTATION CHECKLIST
+================================================================================
+
+Frontend (Complete):
+✓ State variables for PDF data
+✓ File input with accept="application/pdf"
+✓ File selection handler with FileReader
+✓ MIME type validation
+✓ UI for file upload button
+✓ UI for selected file display
+✓ Remove file functionality
+✓ Include PDF in form payload
+
+================================================================================
+QUICK REFERENCE
+================================================================================
+
+Key Files:
+- components/ReciboModal.tsx (PDF UI & logic)
+- app/(api)/recibos+api.ts (backend - needs PDF support)
+- types/type.d.ts (add pdf?: string to ReciboData interface)
+
+Dependencies:
+- FileReader API (native browser)
+- No npm packages required for web
+- Need expo-document-picker for mobile
+
+State Flow:
+User selects file → handleFileSelect
+  → FileReader.readAsDataURL
+  → reader.onload fires
+  → Extract Base64 (split on comma)
+  → setPdfFile(base64)
+  → User submits form
+  → pdf field sent to backend
+
+================================================================================
+END OF DOCUMENT
+================================================================================

@@ -14,6 +14,8 @@ import { Recibos } from './pages/Recibos'
 import { Perfiles } from './pages/Perfiles'
 import { Categorias } from './pages/Categorias'
 import Profile from './components/Profile'
+import { UserManagement } from './pages/UserManagement'
+import { RoleGuard } from './components/RoleGuard'
 
 function App() {
   const { user, loading } = useAuth()
@@ -41,6 +43,22 @@ function App() {
         return <Perfiles/>
       case 'profile':
         return <Profile />
+      case 'users':
+        return (
+          <RoleGuard
+            requireSuperAdmin={true}
+            fallback={
+              <div className="flex items-center justify-center min-h-screen">
+                <div className="text-center">
+                  <h2 className="text-2xl font-bold text-red-600 mb-2">Acceso Denegado</h2>
+                  <p className="text-gray-600">No tienes permisos para acceder a esta página.</p>
+                </div>
+              </div>
+            }
+          >
+            <UserManagement />
+          </RoleGuard>
+        )
       default:
         return <Home />
     }
