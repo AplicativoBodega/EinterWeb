@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useAuth0 } from '@auth0/auth0-react'
+import { useAuth } from '../context/AuthContext'
 import { useDarkMode } from '../context/DarkModeContext'
 
 interface NavbarProps {
@@ -7,7 +7,7 @@ interface NavbarProps {
 }
 
 export function Navbar({ onNavigateToProfile }: NavbarProps) {
-  const { user, logout } = useAuth0()
+  const { user, logout } = useAuth()
   const { darkMode } = useDarkMode()
   const [showNotifications, setShowNotifications] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
@@ -155,10 +155,10 @@ export function Navbar({ onNavigateToProfile }: NavbarProps) {
             >
               <img
                 src={
-                  user?.picture ||
+                  user?.photoURL ||
                   `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 110 110'%3E%3Ccircle cx='55' cy='55' r='55' fill='%2363b3ed'/%3E%3Cpath d='M55 50c8.28 0 15-6.72 15-15s-6.72-15-15-15-15 6.72-15 15 6.72 15 15 15zm0 7.5c-10 0-30 5.02-30 15v3.75c0 2.07 1.68 3.75 3.75 3.75h52.5c2.07 0 3.75-1.68 3.75-3.75V72.5c0-9.98-20-15-30-15z' fill='%23fff'/%3E%3C/svg%3E`
                 }
-                alt={user?.name || 'User'}
+                alt={user?.displayName || 'User'}
                 className="w-8 h-8 rounded-full object-cover"
               />
             </button>
@@ -181,10 +181,10 @@ export function Navbar({ onNavigateToProfile }: NavbarProps) {
                   <div className="flex items-center gap-3">
                     <img
                       src={
-                        user?.picture ||
+                        user?.photoURL ||
                         `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 110 110'%3E%3Ccircle cx='55' cy='55' r='55' fill='%2363b3ed'/%3E%3Cpath d='M55 50c8.28 0 15-6.72 15-15s-6.72-15-15-15-15 6.72-15 15 6.72 15 15 15zm0 7.5c-10 0-30 5.02-30 15v3.75c0 2.07 1.68 3.75 3.75 3.75h52.5c2.07 0 3.75-1.68 3.75-3.75V72.5c0-9.98-20-15-30-15z' fill='%23fff'/%3E%3C/svg%3E`
                       }
-                      alt={user?.name || 'User'}
+                      alt={user?.displayName || 'User'}
                       className="w-10 h-10 rounded-full object-cover"
                     />
                     <div className="flex-1 min-w-0">
@@ -193,7 +193,7 @@ export function Navbar({ onNavigateToProfile }: NavbarProps) {
                           darkMode ? 'text-white' : 'text-gray-900'
                         }`}
                       >
-                        {user?.name || 'Usuario'}
+                        {user?.displayName || 'Usuario'}
                       </p>
                       <p
                         className={`text-xs truncate ${
@@ -240,7 +240,13 @@ export function Navbar({ onNavigateToProfile }: NavbarProps) {
                     }`}
                   >
                     <button
-                      onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}
+                      onClick={async () => {
+                        try {
+                          await logout();
+                        } catch (error) {
+                          console.error("Error signing out:", error);
+                        }
+                      }}
                       className={`w-full text-left px-4 py-3 transition-all flex items-center gap-3 ${
                         darkMode
                           ? 'hover:bg-red-900 hover:bg-opacity-30 text-red-400'
