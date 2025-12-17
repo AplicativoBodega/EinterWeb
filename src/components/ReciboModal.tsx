@@ -220,21 +220,40 @@ export function ReciboModal({
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // VALIDATION: Only PDF files allowed
     if (file.type !== "application/pdf") {
       setError("Solo se permiten archivos PDF");
       return;
     }
 
+    // VALIDATION: File size limit (10MB)
+    const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+    if (file.size > MAX_SIZE) {
+      setError("El PDF debe ser menor a 10MB");
+      return;
+    }
+
+    // CONVERSION: Read file as Base64
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = reader.result as string;
+      // Strip the data URI prefix and save only the Base64 content
       setPdfFile(base64.split(",")[1]);
       setPdfFileName(file.name);
+      setError(null); // Clear any previous errors
     };
     reader.onerror = () => {
       setError("Error al leer el archivo PDF");
     };
     reader.readAsDataURL(file);
+
+    // Reset the input to allow selecting the same file again
+    event.target.value = "";
+  };
+
+  const handleRemovePdf = () => {
+    setPdfFile(null);
+    setPdfFileName(null);
   };
 
   const handleSave = async () => {
@@ -519,17 +538,40 @@ export function ReciboModal({
 
             <div className="border-t border-gray-200 pt-4">
               <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
-                Subir PDF (Opcional)
+                Adjuntar PDF (Opcional)
               </label>
-              <input
-                type="file"
-                accept="application/pdf"
-                onChange={handleFileSelect}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-              />
-              {pdfFileName && (
-                <p className="text-sm text-gray-600 mt-2">Archivo: {pdfFileName}</p>
-              )}
+              <div className="flex items-center gap-3">
+                <label className="cursor-pointer bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition-colors">
+                  <span className="text-white font-robotoMedium text-sm">
+                    {pdfFileName ? "Cambiar PDF" : "Seleccionar PDF"}
+                  </span>
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                </label>
+
+                {pdfFileName && (
+                  <div className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg border border-green-200 flex-1">
+                    <span className="text-green-700 font-robotoRegular text-sm">
+                      📄 {pdfFileName}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleRemovePdf}
+                      className="ml-auto text-red-500 hover:text-red-700 font-bold text-lg"
+                      title="Quitar PDF"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Solo archivos PDF, máximo 10MB
+              </p>
             </div>
           </div>
         </div>
