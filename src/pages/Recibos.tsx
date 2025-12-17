@@ -118,6 +118,7 @@ export function Recibos() {
         fecha_compra: reciboData.fecha_compra,
         fecha_llegada: reciboData.eta || null,
         recibido: false,
+        pdf: reciboData.pdf || null, // Include PDF Base64 string
       };
 
       if (modalMode === "create") {
