@@ -69,10 +69,20 @@ export function ProductModal({
 
   useEffect(() => {
     if (product && mode === "edit") {
+      // Handle category - could be string, number, or object with id
+      let categoryId = "";
+      if (product.category) {
+        if (typeof product.category === "object" && "id" in product.category) {
+          categoryId = String(product.category.id);
+        } else {
+          categoryId = String(product.category);
+        }
+      }
+
       setFormData({
         sku: String(product.sku || ""),
         name: product.name || "",
-        category_id: product.category || "",
+        category_id: categoryId,
         supplier_id: String(product.supplier?.id || ""),
         description: product.description || "",
         price: String(product.price || ""),
@@ -136,6 +146,45 @@ export function ProductModal({
     }
   }, [visible]);
 
+  const compressImage = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let width = img.width;
+          let height = img.height;
+
+          // Resize if image is too large (max 800px width)
+          if (width > 800) {
+            height = Math.round((height * 800) / width);
+            width = 800;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("Could not get canvas context"));
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Compress to JPEG with quality 0.5 for smaller payload
+          const compressed = canvas.toDataURL("image/jpeg", 0.5);
+          const base64Data = compressed.split(",")[1];
+          resolve(base64Data);
+        };
+        img.onerror = () => reject(new Error("Could not load image"));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error("Could not read file"));
+      reader.readAsDataURL(file);
+    });
+  };
+
   const pickImage = async () => {
     const input = document.createElement("input");
     input.type = "file";
@@ -144,17 +193,18 @@ export function ProductModal({
       const file = e.target.files[0];
       if (!file) return;
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = reader.result as string;
-        const base64Data = base64.split(",")[1];
+      try {
+        const compressedBase64 = await compressImage(file);
         setFormData({
           ...formData,
           photoUri: file.name,
-          photoBase64: base64Data,
+          photoBase64: compressedBase64,
         });
-      };
-      reader.readAsDataURL(file);
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Error compressing image"
+        );
+      }
     };
     input.click();
   };
@@ -480,6 +530,21 @@ export function ProductModal({
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
               />
             </div>
+          </div>
+
+          <div className="mb-4">
+            <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+              Estándar X Tarima
+            </label>
+            <input
+              type="number"
+              value={formData.standard_tarima}
+              onChange={(e) =>
+                setFormData({ ...formData, standard_tarima: e.target.value })
+              }
+              placeholder="Cantidad por tarima"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
+            />
           </div>
 
           <div className="mb-6">
