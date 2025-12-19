@@ -257,6 +257,8 @@ export function ReciboModal({
   };
 
   const handleSave = async () => {
+    setError(null);
+    
     if (!formData.orden.trim()) {
       setError("El número de orden es obligatorio");
       return;
@@ -278,7 +280,7 @@ export function ReciboModal({
     }
 
     for (const producto of productos) {
-      if (!producto.nombre.trim() || !producto.sku.trim()) {
+      if (!producto.nombre.trim() || !String(producto.sku).trim()) {
         setError("Todos los productos deben tener nombre y SKU");
         return;
       }
@@ -289,7 +291,6 @@ export function ReciboModal({
     }
 
     setLoading(true);
-    setError(null);
 
     try {
       const reciboData: ReciboData = {
@@ -307,6 +308,7 @@ export function ReciboModal({
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar");
+      console.error("Error saving recibo:", err);
     } finally {
       setLoading(false);
     }
@@ -332,6 +334,12 @@ export function ReciboModal({
         {error && (
           <div className="bg-red-50 border-b border-red-200 px-6 py-3">
             <p className="text-red-600 font-robotoRegular">{error}</p>
+          </div>
+        )}
+
+        {!error && !productos.length && (
+          <div className="bg-yellow-50 border-b border-yellow-200 px-6 py-3">
+            <p className="text-yellow-700 font-robotoRegular text-sm">ℹ️ Debes agregar al menos un producto para crear la compra</p>
           </div>
         )}
 
@@ -578,17 +586,19 @@ export function ReciboModal({
 
         <div className="flex flex-row items-center justify-end gap-3 px-6 py-4 border-t border-gray-200">
           <button
+            type="button"
             onClick={onClose}
             disabled={loading}
-            className="px-6 py-3 rounded-lg border border-gray-300 disabled:opacity-50"
+            className="px-6 py-3 rounded-lg border border-gray-300 disabled:opacity-50 cursor-pointer pointer-events-auto"
           >
             <span className="text-gray-700 font-robotoMedium">Cancelar</span>
           </button>
 
           <button
+            type="button"
             onClick={handleSave}
             disabled={loading}
-            className="px-6 py-3 rounded-lg bg-blue-600 disabled:opacity-50"
+            className="px-6 py-3 rounded-lg bg-blue-600 disabled:opacity-50 cursor-pointer pointer-events-auto hover:bg-blue-700 active:bg-blue-800"
           >
             <span className="text-white font-robotoMedium">
               {loading ? "Guardando..." : mode === "create" ? "Crear" : "Guardar"}

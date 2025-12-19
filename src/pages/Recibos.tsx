@@ -11,6 +11,8 @@ interface Recibo {
   fecha_compra: string;
   fecha_llegada: string | null;
   recibido: boolean;
+  pdf_data: string | null;
+  pdf_filename: string | null;
 }
 
 interface RecibosResponse {
@@ -78,6 +80,10 @@ export function Recibos() {
     }
 
     setFilteredRecibos(filtered);
+  };
+
+  const handleOpenPdf = (reciboId: number) => {
+    window.open(`/api/recibos/${reciboId}/pdf`, "_blank");
   };
 
   const handleOpenCreateModal = () => {
@@ -247,7 +253,17 @@ export function Recibos() {
                 className={`flex border-b border-gray-300 ${index % 2 === 0 ? "bg-white" : "bg-gray-50"}`}
               >
                 <div className="w-12 py-4 px-2 border-r border-gray-300 flex items-center justify-center">
-                  <span className="text-gray-400 text-xl">📄</span>
+                  {recibo.pdf_data ? (
+                    <button
+                      onClick={() => handleOpenPdf(recibo.id_recibo)}
+                      className="text-gray-600 hover:text-blue-600 text-xl cursor-pointer transition-colors"
+                      title="Descargar PDF"
+                    >
+                      📄
+                    </button>
+                  ) : (
+                    <span className="text-gray-300 text-xl">📄</span>
+                  )}
                 </div>
                 <div className="flex-2 py-4 px-4 border-r border-gray-300 flex items-center justify-center">
                   <span className="font-robotoRegular text-gray-900 text-sm text-center">
