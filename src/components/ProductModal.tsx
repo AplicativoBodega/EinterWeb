@@ -476,7 +476,7 @@ export function ProductModal({
             </div>
             <div className="flex-1">
               <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
-                Peso (kg)
+                Peso del carton (kg)
               </label>
               <input
                 type="number"
@@ -491,7 +491,7 @@ export function ProductModal({
           </div>
 
           <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
-            Dimensiones (cm)
+            Dimensiones del carton (cm)
           </label>
           <div className="flex flex-row gap-4 mb-6">
             <div className="flex-1">
