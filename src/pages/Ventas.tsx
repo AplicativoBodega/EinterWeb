@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { VentaModal } from "../components/VentaModal";
 import type { OrdenVenta } from "../components/VentaModal";
 import { useDarkMode } from "../context/DarkModeContext";
+import { fetchAPI } from "../lib/fetch";
 
 interface Venta {
   id_venta: number;
@@ -9,6 +10,8 @@ interface Venta {
   cliente: string | null;
   total: number | string;
   fecha: string | Date;
+  pdf_data: string | null;
+  pdf_filename: string | null;
 }
 
 interface VentasResponse {
@@ -39,7 +42,7 @@ export function Ventas() {
       setError(null);
       try {
         const response = (await fetchAPI(
-          `/(api)/ventas?type=recibos&page=${page}&pageSize=${pageSize}`
+          `/(api)/ventas?page=${page}&pageSize=${pageSize}`
         )) as VentasResponse;
 
         setVentas(response.items);
@@ -82,6 +85,10 @@ export function Ventas() {
     return `$${Number(value).toFixed(2)}`;
   };
 
+  const handleOpenPdf = (ventaId: number) => {
+    window.open(`/api/ventas/${ventaId}/pdf`, "_blank");
+  };
+
   const handleOpenCreateModal = () => {
     setSelectedOrden(null);
     setModalMode("create");
@@ -114,8 +121,31 @@ export function Ventas() {
         }
       }
 
+      // Calculate total price
+      const total = ordenData.folios.reduce((sum, folio) => {
+        return sum + folio.productos.reduce((folioSum, producto) => {
+          return folioSum + (producto.cantidad * producto.precio);
+        }, 0);
+      }, 0);
+
+      // POST the order data to the API
+      const payload = {
+        id_orden: ordenData.id_orden,
+        cliente: ordenData.cliente,
+        fecha: ordenData.fecha,
+        total: total,
+        items: items,
+        pdf: ordenData.pdf || null,
+      };
+
+      await fetchAPI(`/(api)/ventas`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      // Refresh the ventas list
       const response = (await fetchAPI(
-        `/(api)/ventas?type=recibos&page=${page}&pageSize=${pageSize}`
+        `/(api)/ventas?page=${page}&pageSize=${pageSize}`
       )) as VentasResponse;
 
       setVentas(response.items);
@@ -147,6 +177,9 @@ export function Ventas() {
 
       <div className="flex-1 bg-white dark:bg-gray-800 mx-8 mt-4 border border-gray-400 dark:border-gray-700 overflow-hidden flex flex-col rounded-lg">
         <div className="flex bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-400 dark:border-gray-600">
+          <div className="w-12 py-4 px-2 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
+            <span className="text-gray-700 dark:text-gray-300 font-bold text-sm" title="PDF disponible">📄</span>
+          </div>
           <div className="flex-[1.5] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
             <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
               Numero Orden
@@ -205,6 +238,19 @@ export function Ventas() {
                   index % 2 === 0 ? "bg-white" : "bg-gray-50"
                 } hover:bg-blue-50`}
               >
+                <div className="w-12 py-4 px-2 border-r border-gray-300 flex items-center justify-center">
+                  {venta.pdf_data ? (
+                    <button
+                      onClick={() => handleOpenPdf(venta.id_venta)}
+                      className="text-blue-600 hover:text-blue-800 hover:scale-110 text-lg cursor-pointer transition-all font-bold"
+                      title="Descargar PDF"
+                    >
+                      📄
+                    </button>
+                  ) : (
+                    <span className="text-gray-300 text-lg">📄</span>
+                  )}
+                </div>
                 <div className="flex-[1.5] py-4 px-3 border-r border-gray-300 flex items-center justify-center">
                   <span className="text-gray-900 font-robotoRegular text-base text-center">
                     {venta.id_orden || "—"}

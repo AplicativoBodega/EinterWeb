@@ -153,6 +153,10 @@ export function Productos() {
             aValue = Number(a.cost) || 0;
             bValue = Number(b.cost) || 0;
             break;
+          case "standard_tarima":
+            aValue = Number(a.standard_tarima) || 0;
+            bValue = Number(b.standard_tarima) || 0;
+            break;
           default:
             return 0;
         }
@@ -217,6 +221,8 @@ export function Productos() {
         precio: productData.price || 0,
         costo: productData.cost || 0,
         id_proveedor: productData.supplier?.id || null,
+        id_categoria: productData.category ? parseInt(String(productData.category)) : null,
+        inventario_standar_tarima: productData.standard_tarima || null,
       };
 
       await fetchAPI("/(api)/productos", {
@@ -267,6 +273,10 @@ export function Productos() {
       if (productData.cost !== undefined) apiData.costo = productData.cost;
       if (productData.supplier?.id !== undefined)
         apiData.id_proveedor = productData.supplier.id;
+      if (productData.standard_tarima !== undefined)
+        apiData.inventario_standar_tarima = productData.standard_tarima;
+      if (productData.category !== undefined)
+        apiData.id_categoria = productData.category ? parseInt(String(productData.category)) : null;
 
       await fetchAPI(`/(api)/productos?id=${productData.id}`, {
         method: "PUT",
@@ -550,6 +560,23 @@ export function Productos() {
               </span>
             </button>
           </div>
+          <div className="flex-[1.3] py-4 px-3 border-r border-gray-400 flex justify-center">
+            <button
+              onClick={() => handleSort("standard_tarima")}
+              className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
+            >
+              <h3 className="font-robotoMedium text-gray-900 text-lg text-center">
+                Estándar X Tarima
+              </h3>
+              <span className="text-xs text-gray-600">
+                {sortBy?.column === "standard_tarima"
+                  ? sortBy.direction === "asc"
+                    ? "▲"
+                    : "▼"
+                  : "⬍"}
+              </span>
+            </button>
+          </div>
           <div className="flex-[1.5] py-4 px-3 flex justify-center items-center">
             <h3 className="font-robotoMedium text-gray-900 text-lg text-center">
               Acciones
@@ -657,6 +684,13 @@ export function Productos() {
                 <div className="flex-[1.2] py-4 px-3 border-r border-gray-300 flex justify-center items-center">
                   <p className="text-gray-900 font-robotoRegular text-base text-center">
                     ${parseFloat(String(product.cost || 0)).toFixed(2)}
+                  </p>
+                </div>
+
+                {/* Estándar X Tarima */}
+                <div className="flex-[1.3] py-4 px-3 border-r border-gray-300 flex justify-center items-center">
+                  <p className="text-gray-900 font-robotoRegular text-base text-center">
+                    {product.standard_tarima || "—"}
                   </p>
                 </div>
 
