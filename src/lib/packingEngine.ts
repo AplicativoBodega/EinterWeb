@@ -237,7 +237,6 @@ function distribuirFFD(
 
     // Intento 2: fragmentar caja por caja
     let cajasPendientes = a.cajas;
-    let binsUsados = 0;
     while (cajasPendientes > 0) {
       let targetBin: BinState | null = null;
       let maxCajasCaben = 0;
@@ -254,7 +253,6 @@ function distribuirFFD(
       }
       addAssignment(targetBin, { sku: a.sku, cajas: maxCajasCaben, pesoCaja: a.pesoCaja, volCaja: a.volCaja, pzsCaja: a.pzsCaja, role: 'ancla', desc: a.desc });
       cajasPendientes -= maxCajasCaben;
-      binsUsados++;
     }
     const binsConSku = bins.filter(b => b.assignments.some(ag => ag.sku === a.sku)).length;
     if (binsConSku > 1) nFragmentos += binsConSku - 1;
@@ -510,7 +508,6 @@ export function generarTopOff(
     const skusEnBin = new Set(sim.assignments.map(a => a.sku));
 
     // Pasada 1: complementos (no anclas)
-    const skusAncla = new Set(anclasUsuario.map(a => a.sku));
     const comps = candidatos.filter(c => {
       if (skusEnBin.has(c.sku)) return false;
       if (c.estado === 'SOBRESTOCK') return false;

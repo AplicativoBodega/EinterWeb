@@ -10,7 +10,8 @@
       "Bash(findstr:*)",
       "Bash(Get-ChildItem -Path \"D:\\\\1.SQM\\\\3.PERSONAL\\\\EINTER\\\\CODE\\\\EinterWeb\\\\EinterWeb\")",
       "Bash(Select-Object Name, PSIsContainer)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Bash(npm run *)"
     ]
   }
 }

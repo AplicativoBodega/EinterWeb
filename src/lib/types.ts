@@ -14,7 +14,7 @@ export interface ApiPaginationMeta {
   totalPages?: number;
 }
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   data?: T;
   items?: T[];
   pagination?: ApiPaginationMeta;
@@ -109,7 +109,7 @@ export interface Product {
   cost: number;
   supplier?: ProductSupplier | null;
   locations?: ProductLocation[];
-  category?: string;
+  category?: string | { id: number; name: string };
   description?: string;
   standard_tarima?: number;
 }

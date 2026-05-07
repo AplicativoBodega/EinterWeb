@@ -6,11 +6,9 @@ import {
   calcularResumenContenedores,
   sortResultados,
   DEFAULT_PARAMS,
-  CONTENEDORES,
   type ModelParams,
   type ProductoResultado,
   type ResumenContenedor,
-  type OpcionContenedor,
   type SemaforoStatus,
 } from '../lib/inventoryModel';
 
@@ -77,7 +75,7 @@ export function InventarioInteligente() {
   useDarkMode();
 
   // ── State ──────────────────────────────────────────────────────────────────
-  const [rawItems, setRawItems]   = useState<any[]>([]);
+  const [rawItems, setRawItems]   = useState<unknown[]>([]);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState<string | null>(null);
 
@@ -117,11 +115,11 @@ export function InventarioInteligente() {
     setLoading(true);
     setError(null);
     try {
-      const all: any[] = [];
+      const all: unknown[] = [];
       let pg = 1;
       while (true) {
-        const res = await fetchAPI(`/api/odoo/productos?page=${pg}&pageSize=100`);
-        const items: any[] = res.items || [];
+        const res = await fetchAPI(`/api/odoo/productos?page=${pg}&pageSize=100`) as { items?: unknown[]; total?: number };
+        const items: unknown[] = res.items || [];
         all.push(...items);
         const total: number = res.total || 0;
         if (all.length >= total || items.length === 0) break;
@@ -146,25 +144,28 @@ export function InventarioInteligente() {
 
   // ── Calcular resultados ────────────────────────────────────────────────────
   const resultados: ProductoResultado[] = useMemo(() => {
-    const inputs = rawItems.map((item) => ({
-      sku:           item.master_sku ?? String(item.id_articulo),
-      name:          item.nombre_producto ?? '',
-      supplier:      item.proveedor_nombre || 'Sin proveedor',
-      supplierId:    item.id_proveedor,
-      stock:         Number(item.existencias) || 0,
-      weightKg:      Number(item.peso_kg) || 0,
-      standardTarima: item.inventario_standar_tarima
-                        ? Number(item.inventario_standar_tarima)
-                        : undefined,
-      dimensionsCm:
-        item.largo_cm || item.ancho_cm || item.alto_cm
-          ? { largo: Number(item.largo_cm) || 0,
-              ancho: Number(item.ancho_cm) || 0,
-              alto:  Number(item.alto_cm)  || 0 }
-          : undefined,
-      pzsEnTransito: transit[item.master_sku] || 0,
-      demandaDiaria: demanda[item.master_sku] || 0,
-    }));
+    const inputs = rawItems.map((item) => {
+      const i = item as Record<string, unknown>;
+      return {
+        sku:           String(i.master_sku ?? i.id_articulo ?? ''),
+        name:          String(i.nombre_producto ?? ''),
+        supplier:      String(i.proveedor_nombre || 'Sin proveedor'),
+        supplierId:    i.id_proveedor !== undefined ? Number(i.id_proveedor) : undefined,
+        stock:         Number(i.existencias) || 0,
+        weightKg:      Number(i.peso_kg) || 0,
+        standardTarima: i.inventario_standar_tarima
+                          ? Number(i.inventario_standar_tarima)
+                          : undefined,
+        dimensionsCm:
+          i.largo_cm || i.ancho_cm || i.alto_cm
+            ? { largo: Number(i.largo_cm) || 0,
+                ancho: Number(i.ancho_cm) || 0,
+                alto:  Number(i.alto_cm)  || 0 }
+            : undefined,
+        pzsEnTransito: transit[String(i.master_sku ?? '')] || 0,
+        demandaDiaria: demanda[String(i.master_sku ?? '')] || 0,
+      };
+    });
     return sortResultados(calcularResultados(inputs, params));
   }, [rawItems, demanda, transit, params]);
 

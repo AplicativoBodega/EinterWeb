@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { User } from 'firebase/auth';
 import {
   signInWithPopup,
@@ -30,6 +30,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -76,11 +77,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           const backendUser = await loginToBackend(idToken);
           setUserData(backendUser);
           setUserRole(backendUser.role);
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('Error authenticating with backend:', error);
 
           // Show user-friendly error message
-          if (error.message?.includes('Failed to fetch')) {
+          if (error instanceof Error && error.message?.includes('Failed to fetch')) {
             console.error('❌ Backend is not running or CORS is not configured');
             console.error('👉 Make sure your backend is running on port 3000');
             console.error('👉 Check BACKEND_INTEGRATION.md for CORS setup');

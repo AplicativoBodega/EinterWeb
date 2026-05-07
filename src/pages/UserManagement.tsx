@@ -24,9 +24,9 @@ export function UserManagement() {
     try {
       const allUsers = await api.getAllUsers();
       setUsers(allUsers);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error loading users:', error);
-      setError(error.message || 'Error al cargar usuarios');
+      setError(error instanceof Error ? error.message : 'Error al cargar usuarios');
     } finally {
       setLoading(false);
     }
@@ -40,9 +40,9 @@ export function UserManagement() {
       await loadUsers();
       setEditingUserId(null);
       setSelectedRole('');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating role:', error);
-      alert(error.message || 'Error al actualizar el rol del usuario');
+      alert(error instanceof Error ? error.message : 'Error al actualizar el rol del usuario');
     }
   };
 
@@ -50,9 +50,9 @@ export function UserManagement() {
     try {
       await api.toggleUserActive(uid, !currentStatus);
       await loadUsers();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error toggling user status:', error);
-      alert(error.message || 'Error al cambiar el estado del usuario');
+      alert(error instanceof Error ? error.message : 'Error al cambiar el estado del usuario');
     }
   };
 
@@ -245,7 +245,7 @@ export function UserManagement() {
                               Cambiar Rol
                             </button>
                             <button
-                              onClick={() => handleToggleActive(user.uid, user.isActive)}
+                              onClick={() => handleToggleActive(user.uid, user.isActive as boolean)}
                               className={`px-3 py-1 rounded ${
                                 user.isActive
                                   ? 'bg-red-600 text-white hover:bg-red-700'

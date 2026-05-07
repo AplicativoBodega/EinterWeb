@@ -29,7 +29,7 @@ export function Recibos() {
   const [searchText, setSearchText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [_pagination, setPagination] = useState({
+  const [, setPagination] = useState({
     total: 0,
     totalPages: 0,
     pageSize: 20,
@@ -92,29 +92,13 @@ export function Recibos() {
     setModalVisible(true);
   };
 
-  // @ts-expect-error - Unused function kept for future implementation
-  const _handleOpenEditModal = (recibo: Recibo) => {
-    const reciboData: ReciboData = {
-      orden: recibo.id_orden?.toString() || "",
-      proveedor_id: 0, // Will need to be resolved
-      tipo: 1, // Default to "Compra"
-      fecha_compra: recibo.fecha_compra,
-      eta: recibo.fecha_llegada || "",
-      productos: [],
-    };
-    setSelectedRecibo(reciboData);
-    setModalMode("edit");
-    setModalVisible(true);
-  };
-
   const handleCloseModal = () => {
     setModalVisible(false);
     setSelectedRecibo(null);
   };
 
   const handleSaveRecibo = async (reciboData: ReciboData) => {
-    try {
-      const payload = {
+    const payload = {
         proveedor: reciboData.proveedor_name || null,
         id_orden: reciboData.orden ? parseInt(reciboData.orden) : null,
         precio: reciboData.productos.reduce(
@@ -141,11 +125,7 @@ export function Recibos() {
         });
       }
 
-      // Refresh the recibos list
       await fetchRecibos();
-    } catch (err) {
-      throw err;
-    }
   };
 
 

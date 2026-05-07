@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
+import { fetchAPI } from "../lib/fetch";
 import type { Movement as Movimiento } from "../lib/types";
 
 export function Movimientos() {
@@ -25,22 +26,22 @@ export function Movimientos() {
       const [entradasRes, salidasRes] = await Promise.all([
         fetchAPI("/api/odoo/entradas"),
         fetchAPI("/api/odoo/salidas"),
-      ]);
+      ]) as [{ items?: Record<string, unknown>[] }, { items?: Record<string, unknown>[] }];
 
       // Map Odoo fields to Movement type
-      const mapItem = (item: any): Movimiento => ({
-        id_movimiento: item.id_movimiento,
+      const mapItem = (item: Record<string, unknown>): Movimiento => ({
+        id_movimiento: Number(item.id_movimiento) || 0,
         id_usuario: 0,
         id_ubicacion_origen: 0,
         id_ubicacion_destino: 0,
         tipo: item.tipo === "entrada" || item.tipo === "compra" ? 1 : 2,
         id_tarima: 0,
         id_articulo: 0,
-        cantidad: item.cantidad || 0,
-        old_masterSKU: item.master_sku || "",
-        new_masterSKU: item.master_sku || "",
-        fecha: item.fecha_movimiento || "",
-        nombre_usuario: item.nombre_producto || "",
+        cantidad: Number(item.cantidad) || 0,
+        old_masterSKU: String(item.master_sku || ""),
+        new_masterSKU: String(item.master_sku || ""),
+        fecha: String(item.fecha_movimiento || ""),
+        nombre_usuario: String(item.nombre_producto || ""),
       });
 
       const allItems = [
@@ -82,8 +83,8 @@ export function Movimientos() {
 
     if (sortBy) {
       filtered.sort((a, b) => {
-        let aValue: any;
-        let bValue: any;
+        let aValue: string | number;
+        let bValue: string | number;
 
         switch (sortBy.column) {
           case "nombre":

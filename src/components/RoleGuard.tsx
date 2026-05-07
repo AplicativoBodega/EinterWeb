@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { useRole } from '../hooks/useRole';
 import type { UserRole } from '../lib/roles';
 

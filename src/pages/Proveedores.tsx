@@ -48,13 +48,13 @@ export function Proveedores() {
     setError(null);
 
     try {
-      const response = await fetchAPI(`/api/odoo/proveedores`);
+      const response = await fetchAPI(`/api/odoo/proveedores`) as { items?: Record<string, unknown>[] };
 
       // Map Odoo raw DB fields to Proveedor type
-      const mapped: Proveedor[] = (response.items || []).map((item: any) => ({
-        id: item.id_proveedor,
-        name: item.nombre,
-        city: item.ciudad,
+      const mapped: Proveedor[] = (response.items || []).map((item: Record<string, unknown>) => ({
+        id: Number(item.id_proveedor) || 0,
+        name: String(item.nombre ?? ''),
+        city: String(item.ciudad ?? ''),
         lead_time: 0,
       }));
 
@@ -105,8 +105,8 @@ export function Proveedores() {
     // Sort
     if (sortBy) {
       filtered.sort((a, b) => {
-        let aValue: any;
-        let bValue: any;
+        let aValue: string | number;
+        let bValue: string | number;
 
         switch (sortBy.column) {
           case "name":
@@ -160,70 +160,52 @@ export function Proveedores() {
 
   // Create proveedor
   const handleCreateProveedor = async (proveedorData: Partial<Proveedor>) => {
-    try {
-      // Map frontend fields to API expected fields
-      const apiData = {
-        nombre: proveedorData.name,
-        ciudad: proveedorData.city,
-        tiempo_envio: proveedorData.lead_time,
-      };
+    const apiData = {
+      nombre: proveedorData.name,
+      ciudad: proveedorData.city,
+      tiempo_envio: proveedorData.lead_time,
+    };
 
-      const result = await fetchAPI("/(api)/proveedores", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(apiData),
-      });
+    const result = await fetchAPI("/(api)/proveedores", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(apiData),
+    }) as { id?: number };
 
-      // Sync to Odoo after creation
-      if (result?.id) {
-        try {
-          await fetchAPI(`/api/odoo/sync/proveedor/${result.id}`, { method: "POST" });
-        } catch (odooErr) {
-          console.warn("Odoo sync failed (supplier will sync later):", odooErr);
-        }
+    if (result?.id) {
+      try {
+        await fetchAPI(`/api/odoo/sync/proveedor/${result.id}`, { method: "POST" });
+      } catch (odooErr) {
+        console.warn("Odoo sync failed (supplier will sync later):", odooErr);
       }
-
-      // Refresh the proveedor list
-      await fetchProveedores();
-    } catch (err) {
-      throw err;
     }
+
+    await fetchProveedores();
   };
 
   // Update proveedor
   const handleUpdateProveedor = async (proveedorData: Partial<Proveedor>) => {
-    try {
-      // Map frontend fields to API expected fields
-      const apiData: any = {};
-      if (proveedorData.name !== undefined) apiData.nombre = proveedorData.name;
-      if (proveedorData.city !== undefined) apiData.ciudad = proveedorData.city;
-      if (proveedorData.lead_time !== undefined)
-        apiData.tiempo_envio = proveedorData.lead_time;
+    const apiData: Record<string, unknown> = {};
+    if (proveedorData.name !== undefined) apiData.nombre = proveedorData.name;
+    if (proveedorData.city !== undefined) apiData.ciudad = proveedorData.city;
+    if (proveedorData.lead_time !== undefined)
+      apiData.tiempo_envio = proveedorData.lead_time;
 
-      await fetchAPI(`/(api)/proveedores?id=${proveedorData.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(apiData),
-      });
+    await fetchAPI(`/(api)/proveedores?id=${proveedorData.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(apiData),
+    });
 
-      // Sync to Odoo after update
-      if (proveedorData.id) {
-        try {
-          await fetchAPI(`/api/odoo/sync/proveedor/${proveedorData.id}`, { method: "POST" });
-        } catch (odooErr) {
-          console.warn("Odoo sync failed (supplier will sync later):", odooErr);
-        }
+    if (proveedorData.id) {
+      try {
+        await fetchAPI(`/api/odoo/sync/proveedor/${proveedorData.id}`, { method: "POST" });
+      } catch (odooErr) {
+        console.warn("Odoo sync failed (supplier will sync later):", odooErr);
       }
-
-      // Refresh the proveedor list
-      await fetchProveedores();
-    } catch (err) {
-      throw err;
     }
+
+    await fetchProveedores();
   };
 
   // Delete proveedor

@@ -59,10 +59,10 @@ export function ProveedorModal({
     setError(null);
 
     try {
-      const proveedorData: any = {
+      const proveedorData: Partial<Proveedor> & { id?: number } = {
         name: formData.name,
-        city: formData.city || null,
-        lead_time: formData.lead_time ? parseInt(formData.lead_time) : null,
+        city: formData.city || undefined,
+        lead_time: formData.lead_time ? parseInt(formData.lead_time) : undefined,
       };
 
       if (mode === "edit" && proveedor) {

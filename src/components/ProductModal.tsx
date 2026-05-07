@@ -104,12 +104,12 @@ export function ProductModal({
   const fetchSuppliers = async () => {
     setLoadingSuppliers(true);
     try {
-      const data = await fetchAPI("/api/odoo/proveedores");
-      const suppliersList = data.items || data || [];
+      const data = await fetchAPI("/api/odoo/proveedores") as { items?: { id_proveedor?: number; id?: number; nombre?: string; name?: string }[] };
+      const suppliersList = data.items || [];
       setSuppliers(
-        suppliersList.map((supplier: any) => ({
-          id: supplier.id_proveedor || supplier.id,
-          name: supplier.nombre || supplier.name,
+        suppliersList.map((supplier: { id_proveedor?: number; id?: number; nombre?: string; name?: string }) => ({
+          id: supplier.id_proveedor || supplier.id || 0,
+          name: supplier.nombre || supplier.name || '',
         }))
       );
     } catch (err) {
@@ -123,10 +123,10 @@ export function ProductModal({
   const fetchCategories = async () => {
     setLoadingCategories(true);
     try {
-      const data = await fetchAPI("/api/categorias");
-      const categoriesList = data.items || data || [];
+      const data = await fetchAPI("/api/categorias") as { items?: { id: number; name: string }[] };
+      const categoriesList = data.items || [];
       setCategories(
-        categoriesList.map((category: any) => ({
+        categoriesList.map((category: { id: number; name: string }) => ({
           id: category.id,
           name: category.name,
         }))
@@ -189,8 +189,8 @@ export function ProductModal({
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
-    input.onchange = async (e: any) => {
-      const file = e.target.files[0];
+    input.onchange = async (e: Event) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
 
       try {

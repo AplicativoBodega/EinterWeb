@@ -13,7 +13,6 @@ import {
   aplicarTopOff,
   resolverEscenarioA,
   getBinStats,
-  type ContainerName,
   type ContainerType,
   type Ancla,
   type CandidatoRelleno,
@@ -27,8 +26,6 @@ import {
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 
-const LEAD_TIME_DIAS = 60;
-const DIAS_OBJETIVO  = 150;
 const LS_DEMAND      = 'einter_inv_demanda';
 const LS_TRANSIT     = 'einter_inv_transito';
 
@@ -134,27 +131,27 @@ export function PedidoPersonalizado() {
       // Cargar overrides de localStorage
       let demanda: Record<string, number> = {};
       let transit: Record<string, number> = {};
-      try { demanda = JSON.parse(localStorage.getItem(LS_DEMAND)  || '{}'); } catch {}
-      try { transit = JSON.parse(localStorage.getItem(LS_TRANSIT) || '{}'); } catch {}
+      try { demanda = JSON.parse(localStorage.getItem(LS_DEMAND)  || '{}'); } catch { /* ignore */ }
+      try { transit = JSON.parse(localStorage.getItem(LS_TRANSIT) || '{}'); } catch { /* ignore */ }
 
       // Cargar proveedores y productos en paralelo
       const [provRes, ...productBatches] = await Promise.all([
         fetchAPI('/api/odoo/proveedores?pageSize=500'),
         fetchAPI('/api/odoo/productos?page=1&pageSize=100'),
-      ]);
+      ]) as [{ items?: Record<string, unknown>[] }, ...unknown[]];
 
       setProveedores(
-        (provRes.items || []).map((p: any) => ({ id: p.id_proveedor, nombre: p.nombre }))
+        (provRes.items || []).map((p: Record<string, unknown>) => ({ id: p.id_proveedor as number, nombre: p.nombre as string }))
       );
 
       // Paginar resto de productos
-      const firstBatch = productBatches[0];
-      const items: any[] = firstBatch.items || [];
+      const firstBatch = productBatches[0] as { items?: Record<string, unknown>[]; total?: number };
+      const items: Record<string, unknown>[] = firstBatch.items || [];
       const total: number = firstBatch.total || 0;
       let page = 2;
       while (items.length < total) {
-        const res = await fetchAPI(`/api/odoo/productos?page=${page}&pageSize=100`);
-        const batch: any[] = res.items || [];
+        const res = await fetchAPI(`/api/odoo/productos?page=${page}&pageSize=100`) as { items?: Record<string, unknown>[] };
+        const batch: Record<string, unknown>[] = res.items || [];
         items.push(...batch);
         if (batch.length === 0 || page > 30) break;
         page++;
@@ -166,7 +163,7 @@ export function PedidoPersonalizado() {
           return std > 0;
         })
         .map(item => {
-          const skuStr     = item.master_sku ?? String(item.id_articulo ?? '');
+          const skuStr     = String(item.master_sku ?? item.id_articulo ?? '');
           const skuNum     = parseInt(skuStr, 10) || 0;
           const pzsCaja    = Number(item.inventario_standar_tarima) || 1;
           const pesoUnitKg = Number(item.peso_kg) || 0;
@@ -187,8 +184,8 @@ export function PedidoPersonalizado() {
           return {
             sku:      skuNum,
             skuStr,
-            desc:     item.nombre_producto ?? '',
-            supplier: (item.proveedor_nombre ?? 'Sin proveedor').trim(),
+            desc:     String(item.nombre_producto ?? ''),
+            supplier: String(item.proveedor_nombre ?? 'Sin proveedor').trim(),
             supplierId: Number(item.id_proveedor) || 0,
             invActual,
             pzsCaja,
@@ -204,8 +201,8 @@ export function PedidoPersonalizado() {
 
       setCatalogo(skus);
       setStep('supplier');
-    } catch (e: any) {
-      setError(e.message || 'Error al cargar productos');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al cargar productos');
     } finally {
       setLoading(false);
     }

@@ -12,15 +12,16 @@ const LoginButton = () => {
 
     try {
       await signInWithGoogle();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error signing in with Google:", error);
+      const code = (error as { code?: string }).code;
 
       // Handle specific Firebase errors
-      if (error.code === 'auth/popup-blocked') {
+      if (code === 'auth/popup-blocked') {
         setError('El navegador bloqueó la ventana emergente. Por favor, permite ventanas emergentes para este sitio.');
-      } else if (error.code === 'auth/popup-closed-by-user') {
+      } else if (code === 'auth/popup-closed-by-user') {
         setError('Inicio de sesión cancelado.');
-      } else if (error.code === 'auth/cancelled-popup-request') {
+      } else if (code === 'auth/cancelled-popup-request') {
         // User clicked multiple times, ignore this error
         setError(null);
       } else {

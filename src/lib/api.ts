@@ -20,7 +20,7 @@ export interface BackendUserData {
   role: UserRole;
   displayName?: string;
   photoURL?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 // Login to backend after Firebase authentication
@@ -66,15 +66,15 @@ export async function getCurrentUser(): Promise<BackendUserData> {
 }
 
 // Generic API request helper with authentication
-export async function apiRequest<T = any>(
+export async function apiRequest<T = unknown>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
   
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...options.headers
+    ...(options.headers as Record<string, string>),
   };
 
   if (currentIdToken) {
@@ -102,11 +102,11 @@ export const api = {
 
   // Productos
   getProductos: () => apiRequest('/api/productos'),
-  createProducto: (data: any) => apiRequest('/api/productos', {
+  createProducto: (data: Record<string, unknown>) => apiRequest('/api/productos', {
     method: 'POST',
     body: JSON.stringify(data)
   }),
-  updateProducto: (id: string, data: any) => apiRequest(`/api/productos/${id}`, {
+  updateProducto: (id: string, data: Record<string, unknown>) => apiRequest(`/api/productos/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data)
   }),
@@ -116,7 +116,7 @@ export const api = {
 
   // Proveedores
   getProveedores: () => apiRequest('/api/proveedores'),
-  createProveedor: (data: any) => apiRequest('/api/proveedores', {
+  createProveedor: (data: Record<string, unknown>) => apiRequest('/api/proveedores', {
     method: 'POST',
     body: JSON.stringify(data)
   }),

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { fetchAPI } from "../lib/fetch";
 
 export interface Producto {
@@ -132,13 +132,13 @@ export function ReciboModal({
   const fetchProveedores = async () => {
     setLoadingProveedores(true);
     try {
-      const data = await fetchAPI("/api/odoo/proveedores");
-      const rawList = Array.isArray(data) ? data : data.items || [];
+      const data = await fetchAPI("/api/odoo/proveedores") as { items?: Record<string, unknown>[] };
+      const rawList: Record<string, unknown>[] = data.items || [];
       // Map Odoo raw fields to Proveedor type
-      const proveedoresList: Proveedor[] = rawList.map((item: any) => ({
-        id: item.id_proveedor || item.id,
-        name: item.nombre || item.name,
-        city: item.ciudad || item.city || "",
+      const proveedoresList: Proveedor[] = rawList.map((item: Record<string, unknown>) => ({
+        id: Number(item.id_proveedor || item.id) || 0,
+        name: String(item.nombre || item.name || ''),
+        city: String(item.ciudad || item.city || ''),
         lead_time: 0,
       }));
       setProveedores(proveedoresList);
@@ -164,15 +164,15 @@ export function ReciboModal({
 
     try {
       // Buscar producto por SKU usando endpoint Odoo
-      const data = await fetchAPI("/api/odoo/productos?pageSize=1000");
+      const data = await fetchAPI("/api/odoo/productos?pageSize=1000") as { items?: Record<string, unknown>[] };
 
-      const rawItems = Array.isArray(data) ? data : data.items || [];
+      const rawItems: Record<string, unknown>[] = data.items || [];
 
       // Filter client-side by SKU
       const matched = rawItems.filter(
-        (item: any) =>
-          (item.master_sku || "").toLowerCase().includes(trimmedSku.toLowerCase()) ||
-          (item.nombre_producto || "").toLowerCase().includes(trimmedSku.toLowerCase())
+        (item: Record<string, unknown>) =>
+          (String(item.master_sku || "")).toLowerCase().includes(trimmedSku.toLowerCase()) ||
+          (String(item.nombre_producto || "")).toLowerCase().includes(trimmedSku.toLowerCase())
       );
 
       if (!matched || matched.length === 0) {
@@ -183,11 +183,11 @@ export function ReciboModal({
       const product = matched[0];
 
       const newProducto: Producto = {
-        id: (product.id_articulo || product.id).toString(),
-        nombre: product.nombre_producto || product.name,
-        sku: product.master_sku || product.sku,
+        id: String(product.id_articulo || product.id || ''),
+        nombre: String(product.nombre_producto || product.name || ''),
+        sku: String(product.master_sku || product.sku || ''),
         cantidad: 1,
-        costo_por_articulo: product.precio || product.price || 0,
+        costo_por_articulo: Number(product.precio || product.price) || 0,
       };
 
       setProductos([...productos, newProducto]);
@@ -214,7 +214,7 @@ export function ReciboModal({
   const handleUpdateProducto = (
     productoId: string,
     field: keyof Producto,
-    value: any
+    value: Producto[keyof Producto]
   ) => {
     setProductos(
       productos.map((p) => (p.id === productoId ? { ...p, [field]: value } : p))
@@ -228,38 +228,33 @@ export function ReciboModal({
     );
   };
 
-  const handleFileSelect = (event: any) => {
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // VALIDATION: Only PDF files allowed
     if (file.type !== "application/pdf") {
       setError("Solo se permiten archivos PDF");
       return;
     }
 
-    // VALIDATION: File size limit (10MB)
-    const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+    const MAX_SIZE = 10 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
       setError("El PDF debe ser menor a 10MB");
       return;
     }
 
-    // CONVERSION: Read file as Base64
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = reader.result as string;
-      // Strip the data URI prefix and save only the Base64 content
       setPdfFile(base64.split(",")[1]);
       setPdfFileName(file.name);
-      setError(null); // Clear any previous errors
+      setError(null);
     };
     reader.onerror = () => {
       setError("Error al leer el archivo PDF");
     };
     reader.readAsDataURL(file);
 
-    // Reset the input to allow selecting the same file again
     event.target.value = "";
   };
 

@@ -23,9 +23,9 @@ interface VentasResponse {
 
 export function Ventas() {
   useDarkMode();
-  const [ventas, setVentas] = useState<Venta[]>([]);
+  const [, setVentas] = useState<Venta[]>([]);
   const [filteredVentas, setFilteredVentas] = useState<Venta[]>([]);
-  const [searchText, setSearchText] = useState("");
+  const [searchText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -59,19 +59,6 @@ export function Ventas() {
     fetchVentas();
   }, [page, pageSize]);
 
-  // @ts-expect-error - Unused function kept for future implementation
-  const _handleSearch = (text: string) => {
-    setSearchText(text);
-    const filtered = ventas.filter(
-      (venta) =>
-        venta.id_orden?.toString().toLowerCase().includes(text.toLowerCase()) ||
-        false ||
-        venta.cliente?.toLowerCase().includes(text.toLowerCase()) ||
-        false
-    );
-    setFilteredVentas(filtered);
-  };
-
   const formatDate = (dateValue: string | Date) => {
     const date = new Date(dateValue);
     return date.toLocaleDateString("es-ES", {
@@ -93,14 +80,6 @@ export function Ventas() {
     setSelectedOrden(null);
     setModalMode("create");
     setModalVisible(true);
-  };
-
-  // @ts-expect-error - Unused function kept for future implementation
-  const _handleOpenEditModal = (_venta: Venta) => {
-    // TODO: Convert venta to OrdenVenta structure
-    // setSelectedOrden(venta);
-    // setModalMode("edit");
-    // setModalVisible(true);
   };
 
   const handleCloseModal = () => {

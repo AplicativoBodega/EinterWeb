@@ -10,9 +10,4 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
-// Global fetchAPI function declaration
-declare global {
-  function fetchAPI(path: string, options?: RequestInit): Promise<any>;
-}
-
-export {};
+declare function fetchAPI(path: string, options?: RequestInit): Promise<unknown>;

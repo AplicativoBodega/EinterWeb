@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { fetchAPI } from "../lib/fetch";
 
 export interface Producto {
@@ -103,15 +103,15 @@ export function VentaModal({
 
     try {
       // Buscar producto por SKU usando endpoint Odoo
-      const data = await fetchAPI("/api/odoo/productos?pageSize=1000");
+      const data = await fetchAPI("/api/odoo/productos?pageSize=1000") as { items?: Record<string, unknown>[] };
 
-      const rawItems = Array.isArray(data) ? data : data.items || [];
+      const rawItems: Record<string, unknown>[] = data.items || [];
 
       // Filter client-side by SKU
       const matched = rawItems.filter(
-        (item: any) =>
-          (item.master_sku || "").toLowerCase().includes(trimmedSku.toLowerCase()) ||
-          (item.nombre_producto || "").toLowerCase().includes(trimmedSku.toLowerCase())
+        (item: Record<string, unknown>) =>
+          (String(item.master_sku || "")).toLowerCase().includes(trimmedSku.toLowerCase()) ||
+          (String(item.nombre_producto || "")).toLowerCase().includes(trimmedSku.toLowerCase())
       );
 
       if (!matched || matched.length === 0) {
@@ -122,11 +122,11 @@ export function VentaModal({
       const product = matched[0];
 
       const newProducto: Producto = {
-        id: (product.id_articulo || product.id).toString(),
-        nombre: product.nombre_producto || product.name,
-        sku: product.master_sku || product.sku,
+        id: String(product.id_articulo || product.id || ''),
+        nombre: String(product.nombre_producto || product.name || ''),
+        sku: String(product.master_sku || product.sku || ''),
         cantidad: 1,
-        precio: product.precio || product.price || 0,
+        precio: Number(product.precio || product.price) || 0,
       };
 
       setFolios(
@@ -152,38 +152,33 @@ export function VentaModal({
     }
   };
 
-  const handleFileSelect = (event: any) => {
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // VALIDATION: Only PDF files allowed
     if (file.type !== "application/pdf") {
       setError("Solo se permiten archivos PDF");
       return;
     }
 
-    // VALIDATION: File size limit (10MB)
-    const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+    const MAX_SIZE = 10 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
       setError("El PDF debe ser menor a 10MB");
       return;
     }
 
-    // CONVERSION: Read file as Base64
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = reader.result as string;
-      // Strip the data URI prefix and save only the Base64 content
       setPdfFile(base64.split(",")[1]);
       setPdfFileName(file.name);
-      setError(null); // Clear any previous errors
+      setError(null);
     };
     reader.onerror = () => {
       setError("Error al leer el archivo PDF");
     };
     reader.readAsDataURL(file);
 
-    // Reset the input to allow selecting the same file again
     event.target.value = "";
   };
 
@@ -216,26 +211,6 @@ export function VentaModal({
     }
   };
 
-  const handleAddProducto = () => {
-    if (!selectedFolioId) return;
-
-    const newProducto: Producto = {
-      id: Date.now().toString(),
-      nombre: "",
-      sku: "",
-      cantidad: 1,
-      precio: 0,
-    };
-
-    setFolios(
-      folios.map((f) =>
-        f.id === selectedFolioId
-          ? { ...f, productos: [...f.productos, newProducto] }
-          : f
-      )
-    );
-  };
-
   const handleRemoveProducto = (productoId: string) => {
     if (!selectedFolioId) return;
 
@@ -251,7 +226,7 @@ export function VentaModal({
   const handleUpdateProducto = (
     productoId: string,
     field: keyof Producto,
-    value: any
+    value: Producto[keyof Producto]
   ) => {
     if (!selectedFolioId) return;
 

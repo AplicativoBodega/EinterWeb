@@ -108,11 +108,11 @@ export function Categorias() {
       setError(null);
 
       // Cargar solo categorías
-      const categoriesData = await fetchAPI("/api/categorias?page=1&pageSize=100");
-      const categories = categoriesData.items || categoriesData || [];
+      const categoriesData = await fetchAPI("/api/categorias?page=1&pageSize=100") as { items?: { id: number; name: string }[] };
+      const categories = categoriesData.items || [];
 
       // Crear estructura de categorías sin productos
-      const categoriesWithoutProducts: Category[] = categories.map((cat: any) => ({
+      const categoriesWithoutProducts: Category[] = categories.map((cat: { id: number; name: string }) => ({
         id: cat.id,
         name: cat.name,
         products: [],
@@ -135,7 +135,7 @@ export function Categorias() {
     // Cargar productos de la categoría seleccionada
     try {
       setLoadingCategory(true);
-      const categoryData = await fetchAPI(`/api/categorias?id=${categoryId}`);
+      const categoryData = await fetchAPI(`/api/categorias?id=${categoryId}`) as { productos?: Record<string, unknown>[]; products?: Record<string, unknown>[]; items?: Record<string, unknown>[]; data?: Record<string, unknown>[] };
       const products = categoryData.productos || categoryData.products || categoryData.items || categoryData.data || [];
       
       setData((prevData) =>
@@ -143,12 +143,12 @@ export function Categorias() {
           cat.id === categoryId
             ? {
                 ...cat,
-                products: products.map((p: any) => ({
-                  id: p.id_articulo || p.id,
-                  name: p.nombre_producto || p.name,
-                  sku: p.master_sku || p.sku,
-                  stock: p.stock,
-                  children: p.children,
+                products: products.map((p: Record<string, unknown>) => ({
+                  id: Number(p.id_articulo || p.id) || 0,
+                  name: String(p.nombre_producto || p.name || ''),
+                  sku: String(p.master_sku || p.sku || ''),
+                  stock: Number(p.stock) || 0,
+                  children: p.children as Product[] | undefined,
                 })),
               }
             : cat
@@ -176,41 +176,31 @@ export function Categorias() {
     id?: number;
     name: string;
   }) => {
-    try {
-      if (categoryData.id) {
-        // Editar
-        await fetchAPI(`/api/categorias?id=${categoryData.id}`, {
-          method: "PUT",
-          body: JSON.stringify({ nombre_categoria: categoryData.name }),
-        });
-      } else {
-        // Crear
-        await fetchAPI("/api/categorias", {
-          method: "POST",
-          body: JSON.stringify({ nombre_categoria: categoryData.name }),
-        });
-      }
-      loadData();
-      setCategoryModalVisible(false);
-    } catch (err) {
-      throw err;
+    if (categoryData.id) {
+      await fetchAPI(`/api/categorias?id=${categoryData.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ nombre_categoria: categoryData.name }),
+      });
+    } else {
+      await fetchAPI("/api/categorias", {
+        method: "POST",
+        body: JSON.stringify({ nombre_categoria: categoryData.name }),
+      });
     }
+    loadData();
+    setCategoryModalVisible(false);
   };
 
   const handleDeleteCategory = async () => {
     if (!categoryToDelete) return;
-    try {
-      await fetchAPI(`/api/categorias?id=${categoryToDelete.id}`, {
-        method: "DELETE",
-      });
-      loadData();
-      setDeleteModalVisible(false);
-      setCategoryToDelete(null);
-      if (selectedId === categoryToDelete.id) {
-        setSelectedId(null);
-      }
-    } catch (err) {
-      throw err;
+    await fetchAPI(`/api/categorias?id=${categoryToDelete.id}`, {
+      method: "DELETE",
+    });
+    loadData();
+    setDeleteModalVisible(false);
+    setCategoryToDelete(null);
+    if (selectedId === categoryToDelete.id) {
+      setSelectedId(null);
     }
   };
 

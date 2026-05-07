@@ -43,8 +43,8 @@ export function Productos() {
     setSyncLoading(true);
     setSyncMsg(null);
     try {
-      const provRes = await fetchAPI('/api/odoo/pull/proveedores', { method: 'POST' });
-      const prodRes = await fetchAPI('/api/odoo/pull/productos',   { method: 'POST' });
+      const provRes = await fetchAPI('/api/odoo/pull/proveedores', { method: 'POST' }) as { upserted?: number };
+      const prodRes = await fetchAPI('/api/odoo/pull/productos',   { method: 'POST' }) as { upserted?: number; suppliersMapped?: number };
       const provCount = provRes.upserted ?? 0;
       const prodCount = prodRes.upserted ?? 0;
       const mapped    = prodRes.suppliersMapped ?? 0;
@@ -72,30 +72,30 @@ export function Productos() {
 
       const response = await fetchAPI(
         `/api/odoo/productos?${params}`
-      );
+      ) as { items?: Record<string, unknown>[]; total?: number; pageSize?: number };
 
       // Map Odoo raw DB fields to Product type
-      const mapped: Product[] = (response.items || []).map((item: any) => ({
-        id: item.id_articulo,
-        sku: item.master_sku,
-        name: item.nombre_producto,
-        price: item.precio,
-        cost: item.costo,
+      const mapped: Product[] = (response.items || []).map((item: Record<string, unknown>) => ({
+        id: item.id_articulo !== undefined ? Number(item.id_articulo) : undefined,
+        sku: String(item.master_sku ?? ''),
+        name: String(item.nombre_producto ?? ''),
+        price: Number(item.precio) || 0,
+        cost: Number(item.costo) || 0,
         photo: null,
-        stock: item.existencias || 0,
-        weight_kg: item.peso_kg || 0,
+        stock: Number(item.existencias) || 0,
+        weight_kg: Number(item.peso_kg) || 0,
         dimensions_cm: {
-          largo: item.largo_cm || 0,
-          ancho: item.ancho_cm || 0,
-          alto: item.alto_cm || 0,
+          largo: Number(item.largo_cm) || 0,
+          ancho: Number(item.ancho_cm) || 0,
+          alto: Number(item.alto_cm) || 0,
         },
         supplier: item.id_proveedor
-          ? { id: item.id_proveedor, name: item.proveedor_nombre }
+          ? { id: Number(item.id_proveedor), name: String(item.proveedor_nombre ?? '') }
           : null,
         category: item.id_categoria
-          ? { id: item.id_categoria, name: item.nombre_categoria }
+          ? { id: Number(item.id_categoria), name: String(item.nombre_categoria ?? '') }
           : undefined,
-        standard_tarima: item.inventario_standar_tarima || undefined,
+        standard_tarima: item.inventario_standar_tarima !== undefined ? Number(item.inventario_standar_tarima) : undefined,
       }));
 
       // Client-side search filter (Odoo endpoint doesn't support search param)
@@ -174,8 +174,8 @@ export function Productos() {
     // Sort
     if (sortBy) {
       filtered.sort((a, b) => {
-        let aValue: any;
-        let bValue: any;
+        let aValue: string | number;
+        let bValue: string | number;
 
         switch (sortBy.column) {
           case "name":
@@ -260,9 +260,8 @@ export function Productos() {
 
   // Create product
   const handleCreateProduct = async (productData: Partial<Product>) => {
-    try {
-      // Transform Product to ArticuloCreate format
-      const apiData = {
+    // Transform Product to ArticuloCreate format
+    const apiData = {
         master_sku: productData.sku || "",
         nombre_producto: productData.name || "",
         foto: productData.photo || null,
@@ -284,10 +283,10 @@ export function Productos() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(apiData),
-      });
+      }) as { id?: number };
 
-      // Sync to Odoo after creation
-      if (result?.id) {
+    // Sync to Odoo after creation
+    if (result?.id) {
         try {
           await fetchAPI(`/api/odoo/sync/producto/${result.id}`, { method: "POST" });
         } catch (odooErr) {
@@ -295,27 +294,23 @@ export function Productos() {
         }
       }
 
-      // Optimización: solo refrescar si estamos en la primera página sin búsqueda
-      if (page === 1 && !searchText) {
-        await fetchProducts("", 1);
-      } else {
-        setSearchText("");
-        await fetchProducts("", 1);
-      }
-    } catch (err) {
-      throw err;
+    // Optimización: solo refrescar si estamos en la primera página sin búsqueda
+    if (page === 1 && !searchText) {
+      await fetchProducts("", 1);
+    } else {
+      setSearchText("");
+      await fetchProducts("", 1);
     }
   };
 
   // Update product
   const handleUpdateProduct = async (productData: Partial<Product>) => {
-    try {
       if (!productData.id) {
         throw new Error("ID del producto es requerido para actualizar");
       }
 
       // Transform Product to ArticuloUpdate format (only changed fields)
-      const apiData: any = {};
+      const apiData: Record<string, unknown> = {};
 
       if (productData.sku !== undefined) apiData.master_sku = productData.sku;
       if (productData.name !== undefined)
@@ -357,9 +352,6 @@ export function Productos() {
 
       // Optimización: mantener la página actual
       await fetchProducts(searchText, page);
-    } catch (err) {
-      throw err;
-    }
   };
 
   // Delete product
@@ -744,7 +736,7 @@ export function Productos() {
                   <p className="text-gray-900 font-robotoRegular text-base text-center truncate">
                     {typeof product.category === "object" && product.category?.name
                       ? product.category.name
-                      : product.category || "—"}
+                      : typeof product.category === "string" ? product.category : "—"}
                   </p>
                 </div>
 

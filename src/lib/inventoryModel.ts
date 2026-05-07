@@ -202,8 +202,8 @@ export interface ResumenContenedor {
 
 /** Elige el tipo de contenedor óptimo para un pedido dado su peso y volumen. */
 function elegirTipoRecomendado(
-  pesoKg: number,
-  volM3: number,
+  _pesoKg: number,
+  _volM3: number,
   opciones: Omit<OpcionContenedor, 'recomendado'>[]
 ): string {
   // Contenedores en orden de menor a mayor capacidad

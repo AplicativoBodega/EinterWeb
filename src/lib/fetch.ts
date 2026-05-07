@@ -13,7 +13,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ?
  * Global fetchAPI function used throughout the application
  * Handles API requests with Firebase authentication and proper error handling
  */
-export async function fetchAPI(path: string, options: RequestInit = {}): Promise<any> {
+export async function fetchAPI(path: string, options: RequestInit = {}): Promise<unknown> {
   // Convert /(api)/ prefix to /api/
   const normalizedPath = path.replace('/(api)/', '/api/');
   const url = `${API_BASE_URL}${normalizedPath}`;
@@ -27,9 +27,9 @@ export async function fetchAPI(path: string, options: RequestInit = {}): Promise
       token = await user.getIdToken(); // Get fresh token
     }
 
-    const headers = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...(options.headers as Record<string, string>),
     };
 
     // Add Authorization header if token exists
@@ -74,7 +74,7 @@ export function useFetch<T>(url: string, options?: RequestInit) {
         setError(null);
         const result = await fetchAPI(url, options);
         if (isMounted) {
-          setData(result);
+          setData(result as T);
         }
       } catch (err) {
         if (isMounted) {
@@ -99,5 +99,5 @@ export function useFetch<T>(url: string, options?: RequestInit) {
 
 // Make fetchAPI available globally for components that expect it
 if (typeof window !== 'undefined') {
-  (window as any).fetchAPI = fetchAPI;
+  (window as Window & { fetchAPI: typeof fetchAPI }).fetchAPI = fetchAPI;
 }
