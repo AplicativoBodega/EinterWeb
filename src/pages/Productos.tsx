@@ -39,6 +39,59 @@ export function Productos() {
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMsg,     setSyncMsg]     = useState<{ ok: boolean; text: string } | null>(null);
 
+  const handleExportExcel = () => {
+    const headers = [
+      "SKU",
+      "Nombre",
+      "Proveedor",
+      "Categoría",
+      "Peso (kg)",
+      "Stock",
+      "Precio",
+      "Costo",
+      "Estándar X Tarima",
+      "Largo (cm)",
+      "Ancho (cm)",
+      "Alto (cm)",
+    ];
+
+    const escape = (val: unknown) => {
+      const s = val === null || val === undefined ? "" : String(val);
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+
+    const rows = filteredProducts.map((p) => [
+      p.sku,
+      p.name,
+      p.supplier?.name ?? "",
+      typeof p.category === "object" ? p.category?.name ?? "" : p.category ?? "",
+      p.weight_kg,
+      p.stock,
+      p.price,
+      p.cost,
+      p.standard_tarima ?? "",
+      p.dimensions_cm?.largo ?? "",
+      p.dimensions_cm?.ancho ?? "",
+      p.dimensions_cm?.alto ?? "",
+    ]);
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map(escape).join(";"))
+      .join("\r\n");
+
+    // BOM UTF-8 so Excel opens accents/ñ correctly
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const date = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `productos_${date}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const handleSyncOdoo = async () => {
     setSyncLoading(true);
     setSyncMsg(null);
@@ -417,6 +470,13 @@ export function Productos() {
                   Sincronizando...
                 </>
               ) : '↻ Sync Odoo'}
+            </button>
+            <button
+              onClick={handleExportExcel}
+              disabled={filteredProducts.length === 0}
+              className="px-4 py-2 border border-green-600 dark:border-green-500 text-green-700 dark:text-green-400 hover:bg-green-600 hover:text-white dark:hover:bg-green-500 dark:hover:text-white transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              📊 Exportar Excel
             </button>
             <button
               onClick={openCreateModal}

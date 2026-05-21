@@ -22,7 +22,7 @@ interface RecibosResponse {
   total: number;
 }
 
-export function Recibos() {
+export function Entradas() {
   useDarkMode();
   const [recibos, setRecibos] = useState<Recibo[]>([]);
   const [filteredRecibos, setFilteredRecibos] = useState<Recibo[]>([]);
@@ -57,7 +57,7 @@ export function Recibos() {
       });
     } catch (err) {
       console.error("Error fetching recibos:", err);
-      setError("Error al cargar los recibos");
+      setError("Error al cargar las entradas");
     } finally {
       setLoading(false);
     }
@@ -145,14 +145,14 @@ export function Recibos() {
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold tracking-wide text-gray-900 dark:text-white">
-            Recibos
+            Entradas
           </h1>
           <div className="flex gap-3">
             <button
               onClick={handleOpenCreateModal}
               className="px-6 py-2 border border-black dark:border-white hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-colors text-sm font-medium text-gray-900 dark:text-white"
             >
-              + Agregar Recibo
+              + Agregar Entrada
             </button>
           </div>
         </div>
@@ -209,7 +209,7 @@ export function Recibos() {
             <div className="flex flex-1 items-center justify-center py-20">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
               <p className="text-gray-500 font-robotoRegular mt-4">
-                Cargando recibos...
+                Cargando entradas...
               </p>
             </div>
           ) : error ? (
@@ -225,7 +225,7 @@ export function Recibos() {
           ) : filteredRecibos.length === 0 ? (
             <div className="flex flex-1 items-center justify-center py-20">
               <p className="text-gray-500 font-robotoRegular">
-                No hay recibos disponibles
+                No hay entradas disponibles
               </p>
             </div>
           ) : (
