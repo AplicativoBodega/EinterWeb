@@ -1,9 +1,34 @@
 import { useState, useEffect, useCallback } from "react";
+import * as XLSX from "xlsx";
 import { ProductModal } from "../components/ProductModal";
 import { DeleteConfirmModal } from "../components/DeleteConfirmModal";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 import type { Product } from "../lib/types";
+
+// Map a raw Odoo DB row to the Product type
+const mapOdooProduct = (item: Record<string, unknown>): Product => ({
+  id: item.id_articulo !== undefined ? Number(item.id_articulo) : undefined,
+  sku: String(item.master_sku ?? ''),
+  name: String(item.nombre_producto ?? ''),
+  price: Number(item.precio) || 0,
+  cost: Number(item.costo) || 0,
+  photo: null,
+  stock: Number(item.existencias) || 0,
+  weight_kg: Number(item.peso_kg) || 0,
+  dimensions_cm: {
+    largo: Number(item.largo_cm) || 0,
+    ancho: Number(item.ancho_cm) || 0,
+    alto: Number(item.alto_cm) || 0,
+  },
+  supplier: item.id_proveedor
+    ? { id: Number(item.id_proveedor), name: String(item.proveedor_nombre ?? '') }
+    : null,
+  category: item.id_categoria
+    ? { id: Number(item.id_categoria), name: String(item.nombre_categoria ?? '') }
+    : undefined,
+  standard_tarima: item.inventario_standar_tarima !== undefined ? Number(item.inventario_standar_tarima) : undefined,
+});
 
 export function Productos() {
   useDarkMode();
@@ -38,58 +63,60 @@ export function Productos() {
 
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMsg,     setSyncMsg]     = useState<{ ok: boolean; text: string } | null>(null);
+  const [exportLoading, setExportLoading] = useState(false);
 
-  const handleExportExcel = () => {
-    const headers = [
-      "SKU",
-      "Nombre",
-      "Proveedor",
-      "Categoría",
-      "Peso (kg)",
-      "Stock",
-      "Precio",
-      "Costo",
-      "Estándar X Tarima",
-      "Largo (cm)",
-      "Ancho (cm)",
-      "Alto (cm)",
-    ];
+  const handleExportExcel = async () => {
+    setExportLoading(true);
+    setError(null);
+    try {
+      // Fetch ALL products (every page), not just the current page
+      const firstPageSize = 200;
+      const firstRes = await fetchAPI(
+        `/api/odoo/productos?page=1&pageSize=${firstPageSize}`
+      ) as { items?: Record<string, unknown>[]; total?: number; pageSize?: number };
 
-    const escape = (val: unknown) => {
-      const s = val === null || val === undefined ? "" : String(val);
-      return `"${s.replace(/"/g, '""')}"`;
-    };
+      const total = firstRes.total || 0;
+      const pageSize = firstRes.pageSize || firstPageSize;
+      const allItems: Record<string, unknown>[] = [...(firstRes.items || [])];
 
-    const rows = filteredProducts.map((p) => [
-      p.sku,
-      p.name,
-      p.supplier?.name ?? "",
-      typeof p.category === "object" ? p.category?.name ?? "" : p.category ?? "",
-      p.weight_kg,
-      p.stock,
-      p.price,
-      p.cost,
-      p.standard_tarima ?? "",
-      p.dimensions_cm?.largo ?? "",
-      p.dimensions_cm?.ancho ?? "",
-      p.dimensions_cm?.alto ?? "",
-    ]);
+      const totalPagesToFetch = Math.ceil(total / pageSize);
+      for (let p = 2; p <= totalPagesToFetch; p++) {
+        const res = await fetchAPI(
+          `/api/odoo/productos?page=${p}&pageSize=${pageSize}`
+        ) as { items?: Record<string, unknown>[] };
+        allItems.push(...(res.items || []));
+      }
 
-    const csv = [headers, ...rows]
-      .map((row) => row.map(escape).join(";"))
-      .join("\r\n");
+      const allProducts: Product[] = allItems.map(mapOdooProduct);
 
-    // BOM UTF-8 so Excel opens accents/ñ correctly
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    const date = new Date().toISOString().slice(0, 10);
-    link.href = url;
-    link.download = `productos_${date}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+      const rows = allProducts.map((p) => ({
+        SKU: p.sku,
+        Nombre: p.name,
+        Proveedor: p.supplier?.name ?? "",
+        Categoría:
+          typeof p.category === "object" ? p.category?.name ?? "" : p.category ?? "",
+        "Peso (kg)": p.weight_kg,
+        Stock: p.stock,
+        Precio: p.price,
+        Costo: p.cost,
+        "Estándar X Tarima": p.standard_tarima ?? "",
+        "Largo (cm)": p.dimensions_cm?.largo ?? "",
+        "Ancho (cm)": p.dimensions_cm?.ancho ?? "",
+        "Alto (cm)": p.dimensions_cm?.alto ?? "",
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Productos");
+
+      const date = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(workbook, `productos_${date}.xlsx`);
+    } catch (err) {
+      console.error("Error exporting products:", err);
+      setError(err instanceof Error ? err.message : "Error al exportar productos");
+    } finally {
+      setExportLoading(false);
+    }
   };
 
   const handleSyncOdoo = async () => {
@@ -128,28 +155,7 @@ export function Productos() {
       ) as { items?: Record<string, unknown>[]; total?: number; pageSize?: number };
 
       // Map Odoo raw DB fields to Product type
-      const mapped: Product[] = (response.items || []).map((item: Record<string, unknown>) => ({
-        id: item.id_articulo !== undefined ? Number(item.id_articulo) : undefined,
-        sku: String(item.master_sku ?? ''),
-        name: String(item.nombre_producto ?? ''),
-        price: Number(item.precio) || 0,
-        cost: Number(item.costo) || 0,
-        photo: null,
-        stock: Number(item.existencias) || 0,
-        weight_kg: Number(item.peso_kg) || 0,
-        dimensions_cm: {
-          largo: Number(item.largo_cm) || 0,
-          ancho: Number(item.ancho_cm) || 0,
-          alto: Number(item.alto_cm) || 0,
-        },
-        supplier: item.id_proveedor
-          ? { id: Number(item.id_proveedor), name: String(item.proveedor_nombre ?? '') }
-          : null,
-        category: item.id_categoria
-          ? { id: Number(item.id_categoria), name: String(item.nombre_categoria ?? '') }
-          : undefined,
-        standard_tarima: item.inventario_standar_tarima !== undefined ? Number(item.inventario_standar_tarima) : undefined,
-      }));
+      const mapped: Product[] = (response.items || []).map(mapOdooProduct);
 
       // Client-side search filter (Odoo endpoint doesn't support search param)
       const filtered = searchQuery.trim()
@@ -473,10 +479,15 @@ export function Productos() {
             </button>
             <button
               onClick={handleExportExcel}
-              disabled={filteredProducts.length === 0}
+              disabled={exportLoading}
               className="px-4 py-2 border border-green-600 dark:border-green-500 text-green-700 dark:text-green-400 hover:bg-green-600 hover:text-white dark:hover:bg-green-500 dark:hover:text-white transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              📊 Exportar Excel
+              {exportLoading ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+                  Exportando...
+                </>
+              ) : '📊 Exportar Excel'}
             </button>
             <button
               onClick={openCreateModal}
