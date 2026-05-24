@@ -6,6 +6,13 @@ import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 import type { Product } from "../lib/types";
 
+// Single source of truth for column widths so the header and every data row
+// line up exactly. Foto is a fixed width; the rest are proportional and use
+// minmax(0,…) so long values clip instead of pushing the column boundaries
+// out of alignment (the classic flexbox min-width:auto problem).
+const TABLE_GRID_COLUMNS =
+  "7rem minmax(0,3fr) minmax(0,1.5fr) minmax(0,2fr) minmax(0,2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.3fr) minmax(0,1.5fr)";
+
 // Map a raw Odoo DB row to the Product type
 const mapOdooProduct = (item: Record<string, unknown>): Product => ({
   id: item.id_articulo !== undefined ? Number(item.id_articulo) : undefined,
@@ -13,7 +20,7 @@ const mapOdooProduct = (item: Record<string, unknown>): Product => ({
   name: String(item.nombre_producto ?? ''),
   price: Number(item.precio) || 0,
   cost: Number(item.costo) || 0,
-  photo: null,
+  photo: item.foto ? String(item.foto) : null,
   stock: Number(item.existencias) || 0,
   weight_kg: Number(item.peso_kg) || 0,
   dimensions_cm: {
@@ -570,13 +577,16 @@ export function Productos() {
 
       <div className="flex-1 bg-white dark:bg-gray-800 mx-8 mt-4 border border-gray-400 dark:border-gray-700 overflow-hidden flex flex-col rounded-lg">
         {/* Excel-style header row with grid lines */}
-        <div className="flex flex-row bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-400 dark:border-gray-600">
+        <div
+          className="grid [&>*]:min-w-0 bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-400 dark:border-gray-600"
+          style={{ gridTemplateColumns: TABLE_GRID_COLUMNS }}
+        >
           <div className="w-28 py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center items-center">
             <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
               Foto
             </h3>
           </div>
-          <div className="flex-3 py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center items-center">
+          <div className="flex-[3] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center items-center">
             <button
               onClick={() => handleSort("name")}
               className="flex flex-row items-center gap-1 hover:opacity-75"
@@ -610,7 +620,7 @@ export function Productos() {
               </span>
             </button>
           </div>
-          <div className="flex-2 py-4 px-3 border-r border-gray-400 flex justify-center">
+          <div className="flex-[2] py-4 px-3 border-r border-gray-400 flex justify-center">
             <button
               onClick={() => handleSort("proveedor")}
               className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
@@ -627,7 +637,7 @@ export function Productos() {
               </span>
             </button>
           </div>
-          <div className="flex-2 py-4 px-3 border-r border-gray-400 flex justify-center">
+          <div className="flex-[2] py-4 px-3 border-r border-gray-400 flex justify-center">
             <button
               onClick={() => handleSort("categoria")}
               className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
@@ -755,9 +765,10 @@ export function Productos() {
             filteredProducts.map((product, index) => (
               <div
                 key={product.id}
-                className={`flex flex-row border-b border-gray-300 ${
+                className={`grid [&>*]:min-w-0 border-b border-gray-300 ${
                   index % 2 === 0 ? "bg-white" : "bg-gray-50"
                 } hover:bg-blue-50`}
+                style={{ gridTemplateColumns: TABLE_GRID_COLUMNS }}
               >
                 {/* Foto */}
                 <div className="w-28 py-2 px-2 border-r border-gray-300 flex justify-center items-center">
@@ -782,7 +793,7 @@ export function Productos() {
                   )}
                 </div>
                 {/* Nombre */}
-                <div className="flex-3 py-4 px-3 border-r border-gray-300 flex justify-center items-center">
+                <div className="flex-[3] py-4 px-3 border-r border-gray-300 flex justify-center items-center">
                   <p className="text-gray-900 font-robotoRegular text-base text-center line-clamp-2">
                     {product.name}
                   </p>
@@ -796,14 +807,14 @@ export function Productos() {
                 </div>
 
                 {/* Proveedor */}
-                <div className="flex-2 py-4 px-3 border-r border-gray-300 flex justify-center items-center">
+                <div className="flex-[2] py-4 px-3 border-r border-gray-300 flex justify-center items-center">
                   <p className="text-gray-900 font-robotoRegular text-base text-center truncate">
                     {product.supplier?.name || "—"}
                   </p>
                 </div>
 
                 {/* Categoría */}
-                <div className="flex-2 py-4 px-3 border-r border-gray-300 flex justify-center items-center">
+                <div className="flex-[2] py-4 px-3 border-r border-gray-300 flex justify-center items-center">
                   <p className="text-gray-900 font-robotoRegular text-base text-center truncate">
                     {typeof product.category === "object" && product.category?.name
                       ? product.category.name
@@ -819,7 +830,7 @@ export function Productos() {
                 </div>
 
                 {/* Stock */}
-                <div className="flex-1 py-4 px-3 border-r border-gray-300 flex justify-center items-center">
+                <div className="flex-[1.2] py-4 px-3 border-r border-gray-300 flex justify-center items-center">
                   <p className="text-gray-900 font-robotoRegular text-base text-center">
                     {product.stock}
                   </p>

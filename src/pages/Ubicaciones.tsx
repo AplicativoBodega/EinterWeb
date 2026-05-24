@@ -57,7 +57,7 @@ const AccordionItem: React.FC<AccordionItemProps> = ({
       {open && (
         <div className="p-6">
           {/* Header de la tabla con diseño más limpio */}
-          <div className="flex flex-row border-b border-gray-200 dark:border-gray-700 pb-3 mb-4">
+          <div className="flex flex-row [&>*]:min-w-0 border-b border-gray-200 dark:border-gray-700 pb-3 mb-4">
             <h4 className="w-2/5 text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
               Producto
             </h4>
@@ -78,7 +78,7 @@ const AccordionItem: React.FC<AccordionItemProps> = ({
               products.map((p, index) => (
                 <div
                   key={p.id}
-                  className={`flex flex-row items-start py-4 ${
+                  className={`flex flex-row [&>*]:min-w-0 items-start py-4 ${
                     index !== products.length - 1 ? "border-b border-gray-100 dark:border-gray-700" : ""
                   }`}
                 >

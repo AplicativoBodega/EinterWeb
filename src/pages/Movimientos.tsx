@@ -3,6 +3,12 @@ import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 import type { Movement as Movimiento } from "../lib/types";
 
+// Shared column widths so the header and every data row line up exactly,
+// using minmax(0,…) so long values clip instead of pushing columns out of
+// alignment (avoids the flexbox min-width:auto problem).
+const TABLE_GRID_COLUMNS =
+  "minmax(0,1.5fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.5fr) minmax(0,1.5fr) minmax(0,1fr) minmax(0,1.2fr)";
+
 export function Movimientos() {
   useDarkMode();
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
@@ -189,7 +195,10 @@ export function Movimientos() {
       </div>
 
       <div className="flex-1 bg-white dark:bg-gray-800 mx-8 mt-4 border border-gray-400 dark:border-gray-700 overflow-hidden flex flex-col rounded-lg">
-        <div className="flex bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-400 dark:border-gray-600">
+        <div
+          className="grid [&>*]:min-w-0 bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-400 dark:border-gray-600"
+          style={{ gridTemplateColumns: TABLE_GRID_COLUMNS }}
+        >
           <div className="flex-[1.5] py-4 px-4 border-r border-gray-400 flex items-center justify-center">
             <button
               onClick={() => handleSort("nombre")}
@@ -324,9 +333,10 @@ export function Movimientos() {
             filteredMovimientos.map((m, index) => (
               <div
                 key={m.id_movimiento}
-                className={`flex border-b border-gray-300 ${
+                className={`grid [&>*]:min-w-0 border-b border-gray-300 ${
                   index % 2 === 0 ? "bg-white" : "bg-gray-50"
                 }`}
+                style={{ gridTemplateColumns: TABLE_GRID_COLUMNS }}
               >
                 <div className="flex-[1.5] py-4 px-4 border-r border-gray-300 flex items-center justify-center">
                   <span className="text-gray-900 font-robotoRegular text-lg text-center">

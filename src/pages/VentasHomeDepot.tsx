@@ -23,6 +23,12 @@ interface VentasResponse {
   items: Venta[];
 }
 
+// Shared column widths so the header and every data row line up exactly,
+// using minmax(0,…) so long values clip instead of pushing columns out of
+// alignment (avoids the flexbox min-width:auto problem).
+const TABLE_GRID_COLUMNS =
+  "minmax(0,1fr) minmax(0,1fr) minmax(0,2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.2fr)";
+
 export function VentasHomeDepot() {
   useDarkMode();
   const [, setVentas] = useState<Venta[]>([]);
@@ -156,7 +162,10 @@ export function VentasHomeDepot() {
       </div>
 
       <div className="flex-1 bg-white dark:bg-gray-800 mx-8 mt-4 border border-gray-400 dark:border-gray-700 overflow-hidden flex flex-col rounded-lg">
-        <div className="flex bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-400 dark:border-gray-600">
+        <div
+          className="grid [&>*]:min-w-0 bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-400 dark:border-gray-600"
+          style={{ gridTemplateColumns: TABLE_GRID_COLUMNS }}
+        >
           <div className="flex-1 py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
             <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
               MOD
@@ -221,9 +230,10 @@ export function VentasHomeDepot() {
             filteredVentas.map((venta, index) => (
               <div
                 key={venta.id_venta}
-                className={`flex border-b border-gray-300 ${
+                className={`grid [&>*]:min-w-0 border-b border-gray-300 ${
                   index % 2 === 0 ? "bg-white" : "bg-gray-50"
                 } hover:bg-blue-50`}
+                style={{ gridTemplateColumns: TABLE_GRID_COLUMNS }}
               >
                 <div className="flex-1 py-4 px-3 border-r border-gray-300 flex items-center justify-center">
                   <span className="text-gray-900 font-robotoRegular text-base text-center">

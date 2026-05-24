@@ -42,9 +42,33 @@ export async function fetchAPI(path: string, options: RequestInit = {}): Promise
       headers,
     });
 
+    // Detect non-JSON responses (e.g. an SPA index.html or a gateway/timeout
+    // error page) so callers get a clear message instead of the cryptic
+    // "Unexpected token '<'" JSON parse error.
+    const contentType = response.headers.get('content-type') || '';
+    const isJson = contentType.includes('application/json');
+
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || error.message || `HTTP ${response.status}: ${response.statusText}`);
+      if (isJson) {
+        const error = await response.json();
+        throw new Error(error.error || error.message || `HTTP ${response.status}: ${response.statusText}`);
+      }
+      const body = await response.text();
+      throw new Error(
+        `HTTP ${response.status}: ${response.statusText}. ` +
+        `Expected JSON but got "${contentType || 'unknown'}" from ${url}. ` +
+        `Revisa que el backend esté corriendo y que /api esté ruteado al API (no al servidor del frontend). ` +
+        `Respuesta: ${body.slice(0, 120)}`
+      );
+    }
+
+    if (!isJson) {
+      const body = await response.text();
+      throw new Error(
+        `Expected JSON but got "${contentType || 'unknown'}" from ${url}. ` +
+        `Probablemente /api se está sirviendo desde el frontend (index.html) o un proxy devolvió un error. ` +
+        `Respuesta: ${body.slice(0, 120)}`
+      );
     }
 
     return await response.json();
