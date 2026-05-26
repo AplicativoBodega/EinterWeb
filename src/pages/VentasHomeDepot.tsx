@@ -1,8 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { VentaModal } from "../components/VentaModal";
 import type { OrdenVenta } from "../components/VentaModal";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
+
+const SYNC_STALE_MS = 15 * 60 * 1000; // 15 minutes
+const VENTAS_SYNC_KEY = "einter_ventas_homedepot_last_sync";
 
 interface Venta {
   id_venta: number;
@@ -39,47 +42,64 @@ export function VentasHomeDepot() {
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [autoSyncing, setAutoSyncing] = useState(false);
+  const isFirstRender = useRef(true);
 
-  const handleSync = async () => {
-    setSyncing(true);
-    setSyncMsg(null);
+  const fetchVentas = async (p = page, ps = pageSize) => {
+    setLoading(true);
+    setError(null);
     try {
-      const result = (await fetchAPI(`/api/odoo/pull/ventas`, { method: "POST" })) as { ok: boolean; upserted: number };
-      setSyncMsg(`Sincronizado: ${result.upserted} ventas actualizadas`);
       const response = (await fetchAPI(
-        `/api/odoo/ventas-homedepot?page=${page}&pageSize=${pageSize}`
+        `/api/odoo/ventas-homedepot?page=${p}&pageSize=${ps}`
       )) as VentasResponse;
       setVentas(response.items);
       setFilteredVentas(response.items);
       setTotal(response.total);
     } catch (err) {
-      setSyncMsg(`Error al sincronizar: ${(err as Error).message}`);
+      setError((err as Error).message);
+      console.error("Error fetching ventas Home Depot:", err);
     } finally {
-      setSyncing(false);
+      setLoading(false);
     }
   };
 
+  const handleSync = async (isAuto = false) => {
+    setSyncing(true);
+    if (isAuto) setAutoSyncing(true);
+    setSyncMsg(null);
+    try {
+      const result = (await fetchAPI(`/api/odoo/pull/ventas`, { method: "POST" })) as { ok: boolean; upserted: number };
+      localStorage.setItem(VENTAS_SYNC_KEY, Date.now().toString());
+      if (!isAuto) setSyncMsg(`Sincronizado: ${result.upserted} ventas actualizadas`);
+      await fetchVentas();
+    } catch (err) {
+      setSyncMsg(`Error al sincronizar: ${(err as Error).message}`);
+    } finally {
+      setSyncing(false);
+      setAutoSyncing(false);
+    }
+  };
+
+  // Auto-sync on mount if data is stale; otherwise just fetch local data
   useEffect(() => {
-    const fetchVentas = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = (await fetchAPI(
-          `/api/odoo/ventas-homedepot?page=${page}&pageSize=${pageSize}`
-        )) as VentasResponse;
+    const lastSync = localStorage.getItem(VENTAS_SYNC_KEY);
+    const isStale = !lastSync || Date.now() - Number(lastSync) > SYNC_STALE_MS;
+    if (isStale) {
+      handleSync(true);
+    } else {
+      fetchVentas();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-        setVentas(response.items);
-        setFilteredVentas(response.items);
-        setTotal(response.total);
-      } catch (err) {
-        setError((err as Error).message);
-        console.error("Error fetching ventas Home Depot:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchVentas();
+  // Re-fetch when page/pageSize changes, skipping the initial mount
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    fetchVentas(page, pageSize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize]);
 
   const formatDate = (dateValue: string | Date) => {
@@ -168,11 +188,16 @@ export function VentasHomeDepot() {
               <span className="text-sm text-gray-500 dark:text-gray-400">{syncMsg}</span>
             )}
             <button
-              onClick={handleSync}
+              onClick={() => handleSync()}
               disabled={syncing}
-              className="px-6 py-2 border border-blue-600 hover:bg-blue-600 hover:text-white transition-colors text-sm font-medium text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-2 border border-blue-600 hover:bg-blue-600 hover:text-white transition-colors text-sm font-medium text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              {syncing ? "Sincronizando..." : "↻ Sincronizar Odoo"}
+              {syncing ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                  Sincronizando...
+                </>
+              ) : "↻ Sincronizar Odoo"}
             </button>
             <button
               onClick={handleOpenCreateModal}
@@ -215,11 +240,11 @@ export function VentasHomeDepot() {
         </div>
 
         <div className="flex-1 overflow-auto">
-          {loading ? (
-            <div className="flex flex-1 items-center justify-center py-20">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          {loading || autoSyncing ? (
+            <div className="flex flex-col flex-1 items-center justify-center py-20">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
               <p className="text-gray-500 font-robotoRegular mt-4">
-                Cargando ventas Home Depot...
+                {autoSyncing ? "Sincronizando con Odoo..." : "Cargando ventas Home Depot..."}
               </p>
             </div>
           ) : error ? (

@@ -6,6 +6,9 @@ import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 import type { Product } from "../lib/types";
 
+const SYNC_STALE_MS = 15 * 60 * 1000; // 15 minutes
+const PRODUCTS_SYNC_KEY = "einter_productos_last_sync";
+
 // Single source of truth for column widths so the header and every data row
 // line up exactly. Foto is a fixed width; the rest are proportional and use
 // minmax(0,…) so long values clip instead of pushing the column boundaries
@@ -70,6 +73,7 @@ export function Productos() {
 
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMsg,     setSyncMsg]     = useState<{ ok: boolean; text: string } | null>(null);
+  const [autoSyncing, setAutoSyncing] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
 
   const handleExportExcel = async () => {
@@ -126,8 +130,9 @@ export function Productos() {
     }
   };
 
-  const handleSyncOdoo = async () => {
+  const handleSyncOdoo = async (isAuto = false) => {
     setSyncLoading(true);
+    if (isAuto) setAutoSyncing(true);
     setSyncMsg(null);
     try {
       const provRes = await fetchAPI('/api/odoo/pull/proveedores', { method: 'POST' }) as { upserted?: number };
@@ -135,15 +140,19 @@ export function Productos() {
       const provCount = provRes.upserted ?? 0;
       const prodCount = prodRes.upserted ?? 0;
       const mapped    = prodRes.suppliersMapped ?? 0;
-      setSyncMsg({
-        ok: true,
-        text: `Sync completado — ${provCount} proveedores, ${prodCount} productos (${mapped} con proveedor mapeado).`,
-      });
+      localStorage.setItem(PRODUCTS_SYNC_KEY, Date.now().toString());
+      if (!isAuto) {
+        setSyncMsg({
+          ok: true,
+          text: `Sync completado — ${provCount} proveedores, ${prodCount} productos (${mapped} con proveedor mapeado).`,
+        });
+      }
       await fetchProducts('', 1);
     } catch (err) {
       setSyncMsg({ ok: false, text: err instanceof Error ? err.message : 'Error al sincronizar' });
     } finally {
       setSyncLoading(false);
+      setAutoSyncing(false);
     }
   };
   
@@ -188,8 +197,16 @@ export function Productos() {
   }, []);
 
   useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
+    const lastSync = localStorage.getItem(PRODUCTS_SYNC_KEY);
+    const isStale = !lastSync || Date.now() - Number(lastSync) > SYNC_STALE_MS;
+    if (isStale) {
+      handleSyncOdoo(true);
+    } else {
+      fetchProducts();
+    }
+    // fetchProducts and handleSyncOdoo are stable refs — safe to omit
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const applyFilters = useCallback(() => {
     let filtered = [...products];
@@ -748,11 +765,11 @@ export function Productos() {
 
         {/* Excel-style data rows with grid lines */}
         <div className="flex-1 flex flex-col overflow-y-auto">
-          {loading && products.length === 0 ? (
+          {(loading && products.length === 0) || autoSyncing ? (
             <div className="flex flex-col items-center justify-center py-20">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
               <p className="text-gray-500 font-robotoRegular mt-4">
-                Cargando Productos...
+                {autoSyncing ? "Sincronizando con Odoo..." : "Cargando Productos..."}
               </p>
             </div>
           ) : filteredProducts.length === 0 ? (
