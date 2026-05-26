@@ -18,7 +18,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
     { id: "proveedores", label: "Proveedores", icon: "🚚" },
     { id: "ubicaciones", label: "Ubicaciones", icon: "📍" },
     { id: "movimientos", label: "Movimientos", icon: "🔄" },
-    { id: "ventas", label: "Ventas", icon: "💰" },
+    { id: "salidas", label: "Salidas", icon: "💰" },
     { id: "ventas-homedepot", label: "Ventas HD", icon: "🏬" },
     { id: "entradas", label: "Entradas", icon: "🧾" },
     { id: "inventario-inteligente", label: "Inv. Inteligente", icon: "🧠" },

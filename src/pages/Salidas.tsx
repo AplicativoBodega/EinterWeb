@@ -27,7 +27,7 @@ interface VentasResponse {
 const TABLE_GRID_COLUMNS =
   "3rem minmax(0,1.5fr) minmax(0,2fr) minmax(0,1.2fr) minmax(0,1.2fr)";
 
-export function Ventas() {
+export function Salidas() {
   useDarkMode();
   const [, setVentas] = useState<Venta[]>([]);
   const [filteredVentas, setFilteredVentas] = useState<Venta[]>([]);

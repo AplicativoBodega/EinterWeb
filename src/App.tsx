@@ -9,7 +9,7 @@ import { Productos } from './pages/Productos'
 import { Proveedores } from './pages/Proveedores'
 import { Ubicaciones } from './pages/Ubicaciones'
 import { Movimientos } from './pages/Movimientos'
-import { Ventas } from './pages/Ventas'
+import { Salidas } from './pages/Salidas'
 import { Entradas } from './pages/Entradas'
 import { VentasHomeDepot } from './pages/VentasHomeDepot'
 import { InventarioInteligente } from './pages/InventarioInteligente'
@@ -36,8 +36,8 @@ function App() {
         return <Ubicaciones/>
       case 'movimientos':
         return <Movimientos/>
-      case 'ventas':
-        return <Ventas/>
+      case 'salidas':
+        return <Salidas/>
       case 'ventas-homedepot':
         return <VentasHomeDepot/>
       case 'entradas':

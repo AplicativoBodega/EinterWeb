@@ -6,11 +6,9 @@ import { fetchAPI } from "../lib/fetch";
 
 interface Venta {
   id_venta: number;
-  mod: string | null;
-  sku: string | null;
-  descripcion: string | null;
-  ventas_semana: number | string | null;
-  total: number | string | null;
+  id_orden: string | number | null;
+  cliente: string | null;
+  total: number | string;
   fecha: string | Date;
   pdf_data: string | null;
   pdf_filename: string | null;
@@ -23,11 +21,8 @@ interface VentasResponse {
   items: Venta[];
 }
 
-// Shared column widths so the header and every data row line up exactly,
-// using minmax(0,…) so long values clip instead of pushing columns out of
-// alignment (avoids the flexbox min-width:auto problem).
 const TABLE_GRID_COLUMNS =
-  "minmax(0,1fr) minmax(0,1fr) minmax(0,2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.2fr)";
+  "3rem minmax(0,1.5fr) minmax(0,2fr) minmax(0,1.2fr) minmax(0,1.2fr)";
 
 export function VentasHomeDepot() {
   useDarkMode();
@@ -42,8 +37,28 @@ export function VentasHomeDepot() {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedOrden, setSelectedOrden] = useState<OrdenVenta | null>(null);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
-  // Fetch ventas Home Depot from API
+  const handleSync = async () => {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const result = (await fetchAPI(`/api/odoo/pull/ventas`, { method: "POST" })) as { ok: boolean; upserted: number };
+      setSyncMsg(`Sincronizado: ${result.upserted} ventas actualizadas`);
+      const response = (await fetchAPI(
+        `/api/odoo/ventas-homedepot?page=${page}&pageSize=${pageSize}`
+      )) as VentasResponse;
+      setVentas(response.items);
+      setFilteredVentas(response.items);
+      setTotal(response.total);
+    } catch (err) {
+      setSyncMsg(`Error al sincronizar: ${(err as Error).message}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   useEffect(() => {
     const fetchVentas = async () => {
       setLoading(true);
@@ -76,9 +91,12 @@ export function VentasHomeDepot() {
     });
   };
 
-  const formatCurrency = (value: number | string | null) => {
-    if (value === null || value === "") return "—";
+  const formatCurrency = (value: number | string) => {
     return `$${Number(value).toFixed(2)}`;
+  };
+
+  const handleOpenPdf = (ventaId: number) => {
+    window.open(`/api/ventas/${ventaId}/pdf`, "_blank");
   };
 
   const handleOpenCreateModal = () => {
@@ -105,14 +123,12 @@ export function VentasHomeDepot() {
         }
       }
 
-      // Calculate total price
       const total = ordenData.folios.reduce((sum, folio) => {
         return sum + folio.productos.reduce((folioSum, producto) => {
           return folioSum + (producto.cantidad * producto.precio);
         }, 0);
       }, 0);
 
-      // POST the order data to the API
       const payload = {
         id_orden: ordenData.id_orden,
         cliente: ordenData.cliente,
@@ -122,12 +138,11 @@ export function VentasHomeDepot() {
         pdf: ordenData.pdf || null,
       };
 
-      await fetchAPI(`/(api)/ventas-homedepot`, {
+      await fetchAPI(`/api/ventas`, {
         method: "POST",
         body: JSON.stringify(payload),
       });
 
-      // Refresh the ventas list
       const response = (await fetchAPI(
         `/api/odoo/ventas-homedepot?page=${page}&pageSize=${pageSize}`
       )) as VentasResponse;
@@ -137,20 +152,28 @@ export function VentasHomeDepot() {
       setTotal(response.total);
     } catch (err) {
       console.error("❌ Error al guardar:", err);
-
       throw err;
     }
   };
 
   const WebView = (
     <div className="w-full bg-gray-50 dark:bg-gray-900 flex flex-col min-h-screen">
-      {/* Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-6">
         <div className="flex flex-row items-center justify-between">
           <h1 className="text-3xl font-bold tracking-wide text-gray-900 dark:text-white">
             Ventas Home Depot
           </h1>
-          <div className="flex gap-3">
+          <div className="flex gap-3 items-center">
+            {syncMsg && (
+              <span className="text-sm text-gray-500 dark:text-gray-400">{syncMsg}</span>
+            )}
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="px-6 py-2 border border-blue-600 hover:bg-blue-600 hover:text-white transition-colors text-sm font-medium text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {syncing ? "Sincronizando..." : "↻ Sincronizar Odoo"}
+            </button>
             <button
               onClick={handleOpenCreateModal}
               className="px-6 py-2 border border-black dark:border-white hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-colors text-sm font-medium text-gray-900 dark:text-white"
@@ -166,24 +189,17 @@ export function VentasHomeDepot() {
           className="grid [&>*]:min-w-0 bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-400 dark:border-gray-600"
           style={{ gridTemplateColumns: TABLE_GRID_COLUMNS }}
         >
-          <div className="flex-1 py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
+          <div className="w-12 py-4 px-2 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
+            <span className="text-gray-700 dark:text-gray-300 font-bold text-sm" title="PDF disponible">📄</span>
+          </div>
+          <div className="flex-[1.5] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
             <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
-              MOD
+              Numero Orden
             </span>
           </div>
-          <div className="flex-1 py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
-            <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
-              SKU
-            </span>
-          </div>
-          <div className="flex-2 py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
-            <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
-              Descripción
-            </span>
-          </div>
-          <div className="flex-[1.2] py-4 px-3 border-r border-gray-400 flex items-center justify-center">
+          <div className="flex-2 py-4 px-3 border-r border-gray-400 flex items-center justify-center">
             <span className="font-robotoMedium text-gray-900 text-xl text-center">
-              Ventas por semana
+              Cliente
             </span>
           </div>
           <div className="flex-[1.2] py-4 px-3 border-r border-gray-400 flex items-center justify-center">
@@ -218,7 +234,7 @@ export function VentasHomeDepot() {
           ) : filteredVentas.length === 0 ? (
             <div className="flex flex-1 items-center justify-center py-20">
               <p className="text-gray-500 font-robotoRegular">
-                No hay ventas Home Depot disponibles
+                No hay ventas de Home Depot disponibles
               </p>
               {searchText && (
                 <p className="text-gray-400 font-robotoRegular text-sm mt-2">
@@ -235,30 +251,31 @@ export function VentasHomeDepot() {
                 } hover:bg-blue-50`}
                 style={{ gridTemplateColumns: TABLE_GRID_COLUMNS }}
               >
-                <div className="flex-1 py-4 px-3 border-r border-gray-300 flex items-center justify-center">
-                  <span className="text-gray-900 font-robotoRegular text-base text-center">
-                    {venta.mod || "—"}
-                  </span>
+                <div className="w-12 py-4 px-2 border-r border-gray-300 flex items-center justify-center">
+                  {venta.pdf_data ? (
+                    <button
+                      onClick={() => handleOpenPdf(venta.id_venta)}
+                      className="text-blue-600 hover:text-blue-800 hover:scale-110 text-lg cursor-pointer transition-all font-bold"
+                      title="Descargar PDF"
+                    >
+                      📄
+                    </button>
+                  ) : (
+                    <span className="text-gray-300 text-lg">📄</span>
+                  )}
                 </div>
-
-                <div className="flex-1 py-4 px-3 border-r border-gray-300 flex items-center justify-center">
+                <div className="flex-[1.5] py-4 px-3 border-r border-gray-300 flex items-center justify-center">
                   <span className="text-gray-900 font-robotoRegular text-base text-center">
-                    {venta.sku || "—"}
+                    {venta.id_orden || "—"}
                   </span>
                 </div>
 
                 <div className="flex-2 py-4 px-3 border-r border-gray-300 flex items-center justify-center">
                   <span
                     className="text-gray-900 font-robotoRegular text-base text-center truncate"
-                    title={venta.descripcion || ""}
+                    title={venta.cliente || ""}
                   >
-                    {venta.descripcion || "—"}
-                  </span>
-                </div>
-
-                <div className="flex-[1.2] py-4 px-3 border-r border-gray-300 flex items-center justify-center">
-                  <span className="text-gray-900 font-robotoRegular text-base text-center">
-                    {venta.ventas_semana ?? "—"}
+                    {venta.cliente || "—"}
                   </span>
                 </div>
 
