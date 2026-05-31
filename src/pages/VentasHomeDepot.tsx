@@ -11,10 +11,7 @@ interface Venta {
   id_venta: number;
   id_orden: string | number | null;
   cliente: string | null;
-  total: number | string;
   fecha: string | Date;
-  pdf_data: string | null;
-  pdf_filename: string | null;
 }
 
 interface VentasResponse {
@@ -25,7 +22,7 @@ interface VentasResponse {
 }
 
 const TABLE_GRID_COLUMNS =
-  "3rem minmax(0,1.5fr) minmax(0,2fr) minmax(0,1.2fr) minmax(0,1.2fr)";
+  "minmax(0,1.5fr) minmax(0,2fr) minmax(0,1.2fr)";
 
 export function VentasHomeDepot() {
   useDarkMode();
@@ -109,14 +106,6 @@ export function VentasHomeDepot() {
       month: "2-digit",
       day: "2-digit",
     });
-  };
-
-  const formatCurrency = (value: number | string) => {
-    return `$${Number(value).toFixed(2)}`;
-  };
-
-  const handleOpenPdf = (ventaId: number) => {
-    window.open(`/api/ventas/${ventaId}/pdf`, "_blank");
   };
 
   const handleOpenCreateModal = () => {
@@ -214,9 +203,6 @@ export function VentasHomeDepot() {
           className="grid [&>*]:min-w-0 bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-400 dark:border-gray-600"
           style={{ gridTemplateColumns: TABLE_GRID_COLUMNS }}
         >
-          <div className="w-12 py-4 px-2 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
-            <span className="text-gray-700 dark:text-gray-300 font-bold text-sm" title="PDF disponible">📄</span>
-          </div>
           <div className="flex-[1.5] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
             <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
               Numero Orden
@@ -225,11 +211,6 @@ export function VentasHomeDepot() {
           <div className="flex-2 py-4 px-3 border-r border-gray-400 flex items-center justify-center">
             <span className="font-robotoMedium text-gray-900 text-xl text-center">
               Cliente
-            </span>
-          </div>
-          <div className="flex-[1.2] py-4 px-3 border-r border-gray-400 flex items-center justify-center">
-            <span className="font-robotoMedium text-gray-900 text-xl text-center">
-              Total
             </span>
           </div>
           <div className="flex-[1.2] py-4 px-3 flex items-center justify-center">
@@ -276,19 +257,6 @@ export function VentasHomeDepot() {
                 } hover:bg-blue-50`}
                 style={{ gridTemplateColumns: TABLE_GRID_COLUMNS }}
               >
-                <div className="w-12 py-4 px-2 border-r border-gray-300 flex items-center justify-center">
-                  {venta.pdf_data ? (
-                    <button
-                      onClick={() => handleOpenPdf(venta.id_venta)}
-                      className="text-blue-600 hover:text-blue-800 hover:scale-110 text-lg cursor-pointer transition-all font-bold"
-                      title="Descargar PDF"
-                    >
-                      📄
-                    </button>
-                  ) : (
-                    <span className="text-gray-300 text-lg">📄</span>
-                  )}
-                </div>
                 <div className="flex-[1.5] py-4 px-3 border-r border-gray-300 flex items-center justify-center">
                   <span className="text-gray-900 font-robotoRegular text-base text-center">
                     {venta.id_orden || "—"}
@@ -301,12 +269,6 @@ export function VentasHomeDepot() {
                     title={venta.cliente || ""}
                   >
                     {venta.cliente || "—"}
-                  </span>
-                </div>
-
-                <div className="flex-[1.2] py-4 px-3 border-r border-gray-300 flex items-center justify-center">
-                  <span className="text-gray-900 font-robotoRegular text-base text-center">
-                    {formatCurrency(venta.total)}
                   </span>
                 </div>
 
