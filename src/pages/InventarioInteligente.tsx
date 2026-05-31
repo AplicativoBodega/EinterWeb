@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useDarkMode } from '../context/DarkModeContext';
-import { fetchAPI } from '../lib/fetch';
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useDarkMode } from "../context/DarkModeContext";
+import { fetchAPI } from "../lib/fetch";
 import {
   calcularResultados,
   calcularResumenContenedores,
@@ -10,63 +10,75 @@ import {
   type ProductoResultado,
   type ResumenContenedor,
   type SemaforoStatus,
-} from '../lib/inventoryModel';
+} from "../lib/inventoryModel";
 
 // ─── localStorage keys ────────────────────────────────────────────────────────
-const LS_DEMAND  = 'einter_inv_demanda';
-const LS_TRANSIT = 'einter_inv_transito';
-const LS_PARAMS  = 'einter_inv_params';
+const LS_DEMAND = "einter_inv_demanda";
+const LS_TRANSIT = "einter_inv_transito";
+const LS_PARAMS = "einter_inv_params";
 
 // ─── Helpers de estilo por estado ────────────────────────────────────────────
-const STATUS_CFG: Record<SemaforoStatus, {
-  label: string; dot: string;
-  rowBg: string; badgeBg: string; badgeText: string; border: string;
-}> = {
+const STATUS_CFG: Record<
+  SemaforoStatus,
+  {
+    label: string;
+    dot: string;
+    rowBg: string;
+    badgeBg: string;
+    badgeText: string;
+    border: string;
+  }
+> = {
   rojo: {
-    label: 'Crítico', dot: '🔴',
-    rowBg:    'bg-red-50 dark:bg-red-950/30',
-    badgeBg:  'bg-red-100 dark:bg-red-900/50',
-    badgeText:'text-red-700 dark:text-red-300',
-    border:   'border-l-4 border-l-red-500',
+    label: "Crítico",
+    dot: "🔴",
+    rowBg: "bg-red-50 dark:bg-red-950/30",
+    badgeBg: "bg-red-100 dark:bg-red-900/50",
+    badgeText: "text-red-700 dark:text-red-300",
+    border: "border-l-4 border-l-red-500",
   },
   amarillo: {
-    label: 'Alerta', dot: '🟡',
-    rowBg:    'bg-yellow-50 dark:bg-yellow-950/20',
-    badgeBg:  'bg-yellow-100 dark:bg-yellow-900/40',
-    badgeText:'text-yellow-700 dark:text-yellow-300',
-    border:   'border-l-4 border-l-yellow-400',
+    label: "Alerta",
+    dot: "🟡",
+    rowBg: "bg-yellow-50 dark:bg-yellow-950/20",
+    badgeBg: "bg-yellow-100 dark:bg-yellow-900/40",
+    badgeText: "text-yellow-700 dark:text-yellow-300",
+    border: "border-l-4 border-l-yellow-400",
   },
   verde: {
-    label: 'OK', dot: '🟢',
-    rowBg:    '',
-    badgeBg:  'bg-green-100 dark:bg-green-900/40',
-    badgeText:'text-green-700 dark:text-green-300',
-    border:   'border-l-4 border-l-green-400',
+    label: "OK",
+    dot: "🟢",
+    rowBg: "",
+    badgeBg: "bg-green-100 dark:bg-green-900/40",
+    badgeText: "text-green-700 dark:text-green-300",
+    border: "border-l-4 border-l-green-400",
   },
   sin_datos: {
-    label: 'Sin datos', dot: '⚫',
-    rowBg:    'bg-gray-50 dark:bg-gray-800/30',
-    badgeBg:  'bg-gray-100 dark:bg-gray-700',
-    badgeText:'text-gray-500 dark:text-gray-400',
-    border:   'border-l-4 border-l-gray-300',
+    label: "Sin datos",
+    dot: "⚫",
+    rowBg: "bg-gray-50 dark:bg-gray-800/30",
+    badgeBg: "bg-gray-100 dark:bg-gray-700",
+    badgeText: "text-gray-500 dark:text-gray-400",
+    border: "border-l-4 border-l-gray-300",
   },
   sobrestock: {
-    label: 'Sobrestock', dot: '🔵',
-    rowBg:    'bg-blue-50 dark:bg-blue-950/20',
-    badgeBg:  'bg-blue-100 dark:bg-blue-900/40',
-    badgeText:'text-blue-700 dark:text-blue-300',
-    border:   'border-l-4 border-l-blue-400',
+    label: "Sobrestock",
+    dot: "🔵",
+    rowBg: "bg-blue-50 dark:bg-blue-950/20",
+    badgeBg: "bg-blue-100 dark:bg-blue-900/40",
+    badgeText: "text-blue-700 dark:text-blue-300",
+    border: "border-l-4 border-l-blue-400",
   },
 };
 
 function fmt(n: number, dec = 0) {
-  return n.toLocaleString('es-MX', { maximumFractionDigits: dec });
+  return n.toLocaleString("es-MX", { maximumFractionDigits: dec });
 }
 
 function fmtDias(d: number) {
-  if (d >= 9999) return '—';
-  if (d > 999)   return '+999';
-  return fmt(d, 1) + 'd';
+  if (d >= 9999) return "—";
+  if (d > 999) return "+999";
+  return fmt(d, 1) + "d";
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -75,39 +87,47 @@ export function InventarioInteligente() {
   useDarkMode();
 
   // ── State ──────────────────────────────────────────────────────────────────
-  const [rawItems, setRawItems]   = useState<unknown[]>([]);
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState<string | null>(null);
+  const [rawItems, setRawItems] = useState<unknown[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Overrides almacenados en localStorage
-  const [demanda, setDemanda]     = useState<Record<string, number>>(() => {
-    try { return JSON.parse(localStorage.getItem(LS_DEMAND) || '{}'); }
-    catch { return {}; }
-  });
-  const [transit, setTransit]     = useState<Record<string, number>>(() => {
-    try { return JSON.parse(localStorage.getItem(LS_TRANSIT) || '{}'); }
-    catch { return {}; }
-  });
-  const [params, setParams]       = useState<ModelParams>(() => {
+  const [demanda, setDemanda] = useState<Record<string, number>>(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem(LS_PARAMS) || 'null');
+      return JSON.parse(localStorage.getItem(LS_DEMAND) || "{}");
+    } catch {
+      return {};
+    }
+  });
+  const [transit, setTransit] = useState<Record<string, number>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(LS_TRANSIT) || "{}");
+    } catch {
+      return {};
+    }
+  });
+  const [params, setParams] = useState<ModelParams>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LS_PARAMS) || "null");
       return saved ? { ...DEFAULT_PARAMS, ...saved } : DEFAULT_PARAMS;
-    } catch { return DEFAULT_PARAMS; }
+    } catch {
+      return DEFAULT_PARAMS;
+    }
   });
 
   // UI state
-  const [tab, setTab]               = useState<'semaforo' | 'contenedores'>('semaforo');
+  const [tab, setTab] = useState<"semaforo" | "contenedores">("semaforo");
   const [showConfig, setShowConfig] = useState(false);
-  const [search, setSearch]       = useState('');
-  const [filterSupplier, setFilterSupplier] = useState('');
-  const [filterStatus, setFilterStatus]     = useState<SemaforoStatus | ''>('');
-  const [page, setPage]           = useState(1);
+  const [search, setSearch] = useState("");
+  const [filterSupplier, setFilterSupplier] = useState("");
+  const [filterStatus, setFilterStatus] = useState<SemaforoStatus | "">("");
+  const [page, setPage] = useState(1);
   const PAGE_SIZE = 50;
 
   // Inline editing
-  const [editingSku, setEditingSku]   = useState<string | null>(null);
-  const [editField, setEditField]     = useState<'demanda' | 'transito'>('demanda');
-  const [editValue, setEditValue]     = useState('');
+  const [editingSku, setEditingSku] = useState<string | null>(null);
+  const [editField, setEditField] = useState<"demanda" | "transito">("demanda");
+  const [editValue, setEditValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   // ── Fetch todos los productos ──────────────────────────────────────────────
@@ -118,7 +138,9 @@ export function InventarioInteligente() {
       const all: unknown[] = [];
       let pg = 1;
       while (true) {
-        const res = await fetchAPI(`/api/odoo/productos?page=${pg}&pageSize=100`) as { items?: unknown[]; total?: number };
+        const res = (await fetchAPI(
+          `/api/odoo/productos?page=${pg}&pageSize=100`,
+        )) as { items?: unknown[]; total?: number };
         const items: unknown[] = res.items || [];
         all.push(...items);
         const total: number = res.total || 0;
@@ -135,35 +157,46 @@ export function InventarioInteligente() {
     }
   }, []);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
 
   // ── Persistir cambios en localStorage ────────────────────────────────────
-  useEffect(() => { localStorage.setItem(LS_DEMAND,  JSON.stringify(demanda));  }, [demanda]);
-  useEffect(() => { localStorage.setItem(LS_TRANSIT, JSON.stringify(transit));  }, [transit]);
-  useEffect(() => { localStorage.setItem(LS_PARAMS,  JSON.stringify(params));   }, [params]);
+  useEffect(() => {
+    localStorage.setItem(LS_DEMAND, JSON.stringify(demanda));
+  }, [demanda]);
+  useEffect(() => {
+    localStorage.setItem(LS_TRANSIT, JSON.stringify(transit));
+  }, [transit]);
+  useEffect(() => {
+    localStorage.setItem(LS_PARAMS, JSON.stringify(params));
+  }, [params]);
 
   // ── Calcular resultados ────────────────────────────────────────────────────
   const resultados: ProductoResultado[] = useMemo(() => {
     const inputs = rawItems.map((item) => {
       const i = item as Record<string, unknown>;
       return {
-        sku:           String(i.master_sku ?? i.id_articulo ?? ''),
-        name:          String(i.nombre_producto ?? ''),
-        supplier:      String(i.proveedor_nombre || 'Sin proveedor'),
-        supplierId:    i.id_proveedor !== undefined ? Number(i.id_proveedor) : undefined,
-        stock:         Number(i.existencias) || 0,
-        weightKg:      Number(i.peso_kg) || 0,
+        sku: String(i.master_sku ?? i.id_articulo ?? ""),
+        name: String(i.nombre_producto ?? ""),
+        supplier: String(i.proveedor_nombre || "Sin proveedor"),
+        supplierId:
+          i.id_proveedor !== undefined ? Number(i.id_proveedor) : undefined,
+        stock: Number(i.existencias) || 0,
+        weightKg: Number(i.peso_kg) || 0,
         standardTarima: i.inventario_standar_tarima
-                          ? Number(i.inventario_standar_tarima)
-                          : undefined,
+          ? Number(i.inventario_standar_tarima)
+          : undefined,
         dimensionsCm:
           i.largo_cm || i.ancho_cm || i.alto_cm
-            ? { largo: Number(i.largo_cm) || 0,
+            ? {
+                largo: Number(i.largo_cm) || 0,
                 ancho: Number(i.ancho_cm) || 0,
-                alto:  Number(i.alto_cm)  || 0 }
+                alto: Number(i.alto_cm) || 0,
+              }
             : undefined,
-        pzsEnTransito: transit[String(i.master_sku ?? '')] || 0,
-        demandaDiaria: demanda[String(i.master_sku ?? '')] || 0,
+        pzsEnTransito: transit[String(i.master_sku ?? "")] || 0,
+        demandaDiaria: demanda[String(i.master_sku ?? "")] || 0,
       };
     });
     return sortResultados(calcularResultados(inputs, params));
@@ -179,41 +212,45 @@ export function InventarioInteligente() {
   // ── Lista de proveedores únicos ───────────────────────────────────────────
   const suppliers = useMemo(
     () => [...new Set(resultados.map((r) => r.supplier))].sort(),
-    [resultados]
+    [resultados],
   );
 
   // ── Filtrado ──────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let list = resultados;
     if (filterStatus) list = list.filter((r) => r.semaforo === filterStatus);
-    if (filterSupplier) list = list.filter((r) => r.supplier === filterSupplier);
+    if (filterSupplier)
+      list = list.filter((r) => r.supplier === filterSupplier);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter(
-        (r) => r.sku.toLowerCase().includes(q) || r.name.toLowerCase().includes(q)
+        (r) =>
+          r.sku.toLowerCase().includes(q) || r.name.toLowerCase().includes(q),
       );
     }
     return list;
   }, [resultados, filterStatus, filterSupplier, search]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // Reset page when filters change
-  useEffect(() => { setPage(1); }, [filterStatus, filterSupplier, search]);
+  useEffect(() => {
+    setPage(1);
+  }, [filterStatus, filterSupplier, search]);
 
   // ── Resumen contenedores ──────────────────────────────────────────────────
   const contenedores: ResumenContenedor[] = useMemo(
     () => calcularResumenContenedores(resultados),
-    [resultados]
+    [resultados],
   );
 
   // ── Inline editing ────────────────────────────────────────────────────────
-  const startEdit = (sku: string, field: 'demanda' | 'transito') => {
+  const startEdit = (sku: string, field: "demanda" | "transito") => {
     setEditingSku(sku);
     setEditField(field);
     setEditValue(
-      String(field === 'demanda' ? (demanda[sku] || '') : (transit[sku] || ''))
+      String(field === "demanda" ? demanda[sku] || "" : transit[sku] || ""),
     );
     setTimeout(() => inputRef.current?.focus(), 30);
   };
@@ -222,7 +259,7 @@ export function InventarioInteligente() {
     if (!editingSku) return;
     const val = parseFloat(editValue);
     if (!isNaN(val) && val >= 0) {
-      if (editField === 'demanda') {
+      if (editField === "demanda") {
         setDemanda((prev) => ({ ...prev, [editingSku]: val }));
       } else {
         setTransit((prev) => ({ ...prev, [editingSku]: Math.round(val) }));
@@ -244,7 +281,6 @@ export function InventarioInteligente() {
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="w-full bg-gray-50 dark:bg-gray-900 flex flex-col min-h-screen">
-
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between px-6 py-4">
@@ -253,7 +289,8 @@ export function InventarioInteligente() {
               🧠 Inventario Inteligente
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-              Modelo predictivo de reabastecimiento · {rawItems.length} productos cargados
+              Modelo predictivo de reabastecimiento · {rawItems.length}{" "}
+              productos cargados
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -261,8 +298,8 @@ export function InventarioInteligente() {
               onClick={() => setShowConfig(!showConfig)}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                 showConfig
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  ? "bg-blue-500 text-white"
+                  : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
               }`}
             >
               ⚙️ Parámetros
@@ -272,7 +309,7 @@ export function InventarioInteligente() {
               disabled={loading}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium transition-all disabled:opacity-60"
             >
-              {loading ? '⏳ Cargando…' : '🔄 Actualizar'}
+              {loading ? "⏳ Cargando…" : "🔄 Actualizar"}
             </button>
           </div>
         </div>
@@ -286,15 +323,17 @@ export function InventarioInteligente() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               {(
                 [
-                  { key: 'leadTimeDias',    label: 'Lead time (días)'        },
-                  { key: 'diasObjetivo',    label: 'Cobertura objetivo (días)'},
-                  { key: 'alertaRojo',      label: 'Umbral crítico (días)'   },
-                  { key: 'alertaAmarillo',  label: 'Umbral alerta (días)'    },
-                  { key: 'minPzsSku',       label: 'Mín. piezas / SKU'       },
+                  { key: "leadTimeDias", label: "Lead time (días)" },
+                  { key: "diasObjetivo", label: "Cobertura objetivo (días)" },
+                  { key: "alertaRojo", label: "Umbral crítico (días)" },
+                  { key: "alertaAmarillo", label: "Umbral alerta (días)" },
+                  { key: "minPzsSku", label: "Mín. piezas / SKU" },
                 ] as { key: keyof ModelParams; label: string }[]
               ).map(({ key, label }) => (
                 <div key={key}>
-                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{label}</label>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                    {label}
+                  </label>
                   <input
                     type="number"
                     value={params[key] as number}
@@ -305,7 +344,8 @@ export function InventarioInteligente() {
               ))}
             </div>
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">
-              * Peso y volumen son estimados. Para mayor precisión se requieren datos logísticos (piezas/caja, peso/caja).
+              * Peso y volumen son estimados. Para mayor precisión se requieren
+              datos logísticos (piezas/caja, peso/caja).
             </p>
           </div>
         )}
@@ -315,11 +355,11 @@ export function InventarioInteligente() {
       <div className="px-6 py-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {(
           [
-            { key: 'rojo',       label: 'Crítico',    color: 'red'   },
-            { key: 'amarillo',   label: 'Alerta',     color: 'yellow'},
-            { key: 'verde',      label: 'OK',         color: 'green' },
-            { key: 'sin_datos',  label: 'Sin datos',  color: 'gray'  },
-            { key: 'sobrestock', label: 'Sobrestock', color: 'blue'  },
+            { key: "rojo", label: "Crítico", color: "red" },
+            { key: "amarillo", label: "Alerta", color: "yellow" },
+            { key: "verde", label: "OK", color: "green" },
+            { key: "sin_datos", label: "Sin datos", color: "gray" },
+            { key: "sobrestock", label: "Sobrestock", color: "blue" },
           ] as { key: SemaforoStatus; label: string; color: string }[]
         ).map(({ key, label }) => {
           const cfg = STATUS_CFG[key];
@@ -327,11 +367,11 @@ export function InventarioInteligente() {
           return (
             <button
               key={key}
-              onClick={() => setFilterStatus(active ? '' : key)}
+              onClick={() => setFilterStatus(active ? "" : key)}
               className={`rounded-xl p-4 text-left transition-all hover:scale-[1.02] border-2 ${
                 active
                   ? `${cfg.badgeBg} border-current`
-                  : 'bg-white dark:bg-gray-800 border-transparent hover:border-gray-200 dark:hover:border-gray-600 shadow-sm'
+                  : "bg-white dark:bg-gray-800 border-transparent hover:border-gray-200 dark:hover:border-gray-600 shadow-sm"
               }`}
             >
               <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">
@@ -348,26 +388,28 @@ export function InventarioInteligente() {
       {/* ── Info banner: sin datos de demanda ─────────────────────────────── */}
       {sinDatosCount > 0 && (
         <div className="mx-6 mb-2 px-4 py-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-800 dark:text-amber-300">
-          <strong>ℹ️ {sinDatosCount} productos sin demanda configurada.</strong>{' '}
-          Haz clic en la columna <em>Dem./día</em> de cualquier fila para ingresar la demanda diaria (piezas/día) y activar el modelo.
-          Para conectar el historial de ventas automáticamente, se requiere un endpoint <code>/api/odoo/ventas-por-sku</code>.
+          <strong>ℹ️ {sinDatosCount} productos sin demanda configurada.</strong>{" "}
+          Haz clic en la columna <em>Dem./día</em> de cualquier fila para
+          ingresar la demanda diaria (piezas/día) y activar el modelo.
         </div>
       )}
 
       {/* ── Tabs ───────────────────────────────────────────────────────────── */}
       <div className="px-6 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         <div className="flex gap-1">
-          {([
-            { id: 'semaforo',     label: '📊 Semáforo'    },
-            { id: 'contenedores', label: '🚢 Contenedores' },
-          ] as { id: 'semaforo' | 'contenedores'; label: string }[]).map(({ id, label }) => (
+          {(
+            [
+              { id: "semaforo", label: "📊 Semáforo" },
+              { id: "contenedores", label: "🚢 Contenedores" },
+            ] as { id: "semaforo" | "contenedores"; label: string }[]
+          ).map(({ id, label }) => (
             <button
               key={id}
               onClick={() => setTab(id)}
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                 tab === id
-                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                  : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
               }`}
             >
               {label}
@@ -386,12 +428,14 @@ export function InventarioInteligente() {
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <div className="text-4xl mb-4 animate-bounce">🧠</div>
-            <p className="text-gray-500 dark:text-gray-400">Cargando productos…</p>
+            <p className="text-gray-500 dark:text-gray-400">
+              Cargando productos…
+            </p>
           </div>
         </div>
       ) : (
         <>
-          {tab === 'semaforo' && (
+          {tab === "semaforo" && (
             <SemaforoTab
               paginated={paginated}
               filtered={filtered}
@@ -408,7 +452,7 @@ export function InventarioInteligente() {
               inputRef={inputRef}
               onSearchChange={(v) => setSearch(v)}
               onSupplierChange={(v) => setFilterSupplier(v)}
-              onStatusChange={(v) => setFilterStatus(v as SemaforoStatus | '')}
+              onStatusChange={(v) => setFilterStatus(v as SemaforoStatus | "")}
               onStartEdit={startEdit}
               onEditValueChange={setEditValue}
               onCommitEdit={commitEdit}
@@ -416,7 +460,7 @@ export function InventarioInteligente() {
               onPageChange={setPage}
             />
           )}
-          {tab === 'contenedores' && (
+          {tab === "contenedores" && (
             <ContenedoresTab contenedores={contenedores} />
           )}
         </>
@@ -432,19 +476,19 @@ interface SemaforoTabProps {
   filtered: ProductoResultado[];
   suppliers: string[];
   filterSupplier: string;
-  filterStatus: SemaforoStatus | '';
+  filterStatus: SemaforoStatus | "";
   search: string;
   page: number;
   totalPages: number;
   PAGE_SIZE: number;
   editingSku: string | null;
-  editField: 'demanda' | 'transito';
+  editField: "demanda" | "transito";
   editValue: string;
   inputRef: React.RefObject<HTMLInputElement | null>;
   onSearchChange: (v: string) => void;
   onSupplierChange: (v: string) => void;
   onStatusChange: (v: string) => void;
-  onStartEdit: (sku: string, field: 'demanda' | 'transito') => void;
+  onStartEdit: (sku: string, field: "demanda" | "transito") => void;
   onEditValueChange: (v: string) => void;
   onCommitEdit: () => void;
   onCancelEdit: () => void;
@@ -452,12 +496,27 @@ interface SemaforoTabProps {
 }
 
 function SemaforoTab({
-  paginated, filtered, suppliers,
-  filterSupplier, filterStatus, search,
-  page, totalPages, PAGE_SIZE,
-  editingSku, editField, editValue, inputRef,
-  onSearchChange, onSupplierChange, onStatusChange,
-  onStartEdit, onEditValueChange, onCommitEdit, onCancelEdit, onPageChange,
+  paginated,
+  filtered,
+  suppliers,
+  filterSupplier,
+  filterStatus,
+  search,
+  page,
+  totalPages,
+  PAGE_SIZE,
+  editingSku,
+  editField,
+  editValue,
+  inputRef,
+  onSearchChange,
+  onSupplierChange,
+  onStatusChange,
+  onStartEdit,
+  onEditValueChange,
+  onCommitEdit,
+  onCancelEdit,
+  onPageChange,
 }: SemaforoTabProps) {
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
@@ -477,7 +536,9 @@ function SemaforoTab({
         >
           <option value="">Todos los proveedores</option>
           {suppliers.map((s) => (
-            <option key={s} value={s}>{s}</option>
+            <option key={s} value={s}>
+              {s}
+            </option>
           ))}
         </select>
         <select
@@ -487,7 +548,9 @@ function SemaforoTab({
         >
           <option value="">Todos los estados</option>
           {Object.entries(STATUS_CFG).map(([k, v]) => (
-            <option key={k} value={k}>{v.dot} {v.label}</option>
+            <option key={k} value={k}>
+              {v.dot} {v.label}
+            </option>
           ))}
         </select>
         <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 self-center">
@@ -500,20 +563,42 @@ function SemaforoTab({
         <table className="w-full text-sm border-collapse">
           <thead className="sticky top-0 z-10">
             <tr className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs uppercase tracking-wide">
-              <th className="px-3 py-2.5 text-left border-b border-r border-gray-300 dark:border-gray-600 w-8">#</th>
-              <th className="px-3 py-2.5 text-left border-b border-r border-gray-300 dark:border-gray-600 min-w-[80px]">SKU</th>
-              <th className="px-3 py-2.5 text-left border-b border-r border-gray-300 dark:border-gray-600 min-w-[200px]">Nombre</th>
-              <th className="px-3 py-2.5 text-left border-b border-r border-gray-300 dark:border-gray-600 min-w-[100px]">Proveedor</th>
-              <th className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600">Stock</th>
-              <th className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600" title="Piezas en tránsito — clic para editar">
+              <th className="px-3 py-2.5 text-left border-b border-r border-gray-300 dark:border-gray-600 w-8">
+                #
+              </th>
+              <th className="px-3 py-2.5 text-left border-b border-r border-gray-300 dark:border-gray-600 min-w-[80px]">
+                SKU
+              </th>
+              <th className="px-3 py-2.5 text-left border-b border-r border-gray-300 dark:border-gray-600 min-w-[200px]">
+                Nombre
+              </th>
+              <th className="px-3 py-2.5 text-left border-b border-r border-gray-300 dark:border-gray-600 min-w-[100px]">
+                Proveedor
+              </th>
+              <th className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600">
+                Stock
+              </th>
+              <th
+                className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600"
+                title="Piezas en tránsito — clic para editar"
+              >
                 Tránsito ✏️
               </th>
-              <th className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600">Inv. ef.</th>
-              <th className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600" title="Demanda diaria (piezas/día) — clic en celda para editar">
+              <th className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600">
+                Inv. ef.
+              </th>
+              <th
+                className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600"
+                title="Demanda diaria (piezas/día) — clic en celda para editar"
+              >
                 Dem./día ✏️
               </th>
-              <th className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600">Días cob.</th>
-              <th className="px-3 py-2.5 text-center border-b border-gray-300 dark:border-gray-600 min-w-[100px]">Estado</th>
+              <th className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600">
+                Días cob.
+              </th>
+              <th className="px-3 py-2.5 text-center border-b border-gray-300 dark:border-gray-600 min-w-[100px]">
+                Estado
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -531,7 +616,10 @@ function SemaforoTab({
                   <td className="px-3 py-2 font-mono text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 whitespace-nowrap">
                     {r.sku}
                   </td>
-                  <td className="px-3 py-2 text-gray-800 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700 max-w-xs truncate" title={r.name}>
+                  <td
+                    className="px-3 py-2 text-gray-800 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700 max-w-xs truncate"
+                    title={r.name}
+                  >
                     {r.name}
                   </td>
                   <td className="px-3 py-2 text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 whitespace-nowrap">
@@ -544,9 +632,9 @@ function SemaforoTab({
                   {/* Tránsito — editable */}
                   <td
                     className="px-3 py-2 text-right border-r border-gray-200 dark:border-gray-700 cursor-pointer"
-                    onClick={() => onStartEdit(r.sku, 'transito')}
+                    onClick={() => onStartEdit(r.sku, "transito")}
                   >
-                    {editingSku === r.sku && editField === 'transito' ? (
+                    {editingSku === r.sku && editField === "transito" ? (
                       <input
                         ref={inputRef}
                         type="number"
@@ -555,15 +643,21 @@ function SemaforoTab({
                         onChange={(e) => onEditValueChange(e.target.value)}
                         onBlur={onCommitEdit}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') onCommitEdit();
-                          if (e.key === 'Escape') onCancelEdit();
+                          if (e.key === "Enter") onCommitEdit();
+                          if (e.key === "Escape") onCancelEdit();
                         }}
                         className="w-20 px-1 py-0.5 text-right border border-blue-400 rounded text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                         onClick={(e) => e.stopPropagation()}
                       />
                     ) : (
-                      <span className={r.pzsEnTransito > 0 ? 'text-indigo-600 dark:text-indigo-400 font-medium' : 'text-gray-300 dark:text-gray-600'}>
-                        {r.pzsEnTransito > 0 ? fmt(r.pzsEnTransito) : '—'}
+                      <span
+                        className={
+                          r.pzsEnTransito > 0
+                            ? "text-indigo-600 dark:text-indigo-400 font-medium"
+                            : "text-gray-300 dark:text-gray-600"
+                        }
+                      >
+                        {r.pzsEnTransito > 0 ? fmt(r.pzsEnTransito) : "—"}
                       </span>
                     )}
                   </td>
@@ -575,10 +669,10 @@ function SemaforoTab({
                   {/* Demanda diaria — editable */}
                   <td
                     className="px-3 py-2 text-right border-r border-gray-200 dark:border-gray-700 cursor-pointer"
-                    onClick={() => onStartEdit(r.sku, 'demanda')}
+                    onClick={() => onStartEdit(r.sku, "demanda")}
                     title="Clic para editar demanda diaria"
                   >
-                    {editingSku === r.sku && editField === 'demanda' ? (
+                    {editingSku === r.sku && editField === "demanda" ? (
                       <input
                         ref={inputRef}
                         type="number"
@@ -588,8 +682,8 @@ function SemaforoTab({
                         onChange={(e) => onEditValueChange(e.target.value)}
                         onBlur={onCommitEdit}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') onCommitEdit();
-                          if (e.key === 'Escape') onCancelEdit();
+                          if (e.key === "Enter") onCommitEdit();
+                          if (e.key === "Escape") onCancelEdit();
                         }}
                         className="w-20 px-1 py-0.5 text-right border border-blue-400 rounded text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                         onClick={(e) => e.stopPropagation()}
@@ -598,25 +692,29 @@ function SemaforoTab({
                       <span
                         className={
                           r.demandaDiaria > 0
-                            ? 'text-gray-800 dark:text-gray-200 font-medium'
-                            : 'text-gray-300 dark:text-gray-600 italic text-xs'
+                            ? "text-gray-800 dark:text-gray-200 font-medium"
+                            : "text-gray-300 dark:text-gray-600 italic text-xs"
                         }
                       >
                         {r.demandaDiaria > 0
                           ? r.demandaDiaria.toFixed(1)
-                          : 'editar'}
+                          : "editar"}
                       </span>
                     )}
                   </td>
 
                   {/* Días cobertura */}
-                  <td className={`px-3 py-2 text-right font-semibold border-r border-gray-200 dark:border-gray-700 ${cfg.badgeText}`}>
+                  <td
+                    className={`px-3 py-2 text-right font-semibold border-r border-gray-200 dark:border-gray-700 ${cfg.badgeText}`}
+                  >
                     {fmtDias(r.diasInventario)}
                   </td>
 
                   {/* Estado badge */}
                   <td className="px-3 py-2 text-center">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.badgeBg} ${cfg.badgeText}`}>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.badgeBg} ${cfg.badgeText}`}
+                    >
                       {cfg.dot} {cfg.label}
                     </span>
                   </td>
@@ -656,8 +754,8 @@ function SemaforoTab({
                   onClick={() => onPageChange(pg)}
                   className={`px-3 py-1 text-sm rounded border ${
                     pg === page
-                      ? 'bg-blue-500 text-white border-blue-500'
-                      : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                      ? "bg-blue-500 text-white border-blue-500"
+                      : "border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
                   }`}
                 >
                   {pg}
@@ -680,7 +778,11 @@ function SemaforoTab({
 
 // ─── Contenedores Tab ─────────────────────────────────────────────────────────
 
-function ContenedoresTab({ contenedores }: { contenedores: ResumenContenedor[] }) {
+function ContenedoresTab({
+  contenedores,
+}: {
+  contenedores: ResumenContenedor[];
+}) {
   // selectedTipo: proveedor → tipo de contenedor seleccionado por el usuario
   const [selectedTipo, setSelectedTipo] = useState<Record<string, string>>({});
 
@@ -689,7 +791,9 @@ function ContenedoresTab({ contenedores }: { contenedores: ResumenContenedor[] }
       <div className="flex flex-col items-center justify-center flex-1 py-20 text-gray-400 dark:text-gray-500">
         <div className="text-5xl mb-3">🚢</div>
         <p className="text-lg">Sin pedidos pendientes.</p>
-        <p className="text-sm mt-1">Configura la demanda diaria para ver el llenado de contenedores.</p>
+        <p className="text-sm mt-1">
+          Configura la demanda diaria para ver el llenado de contenedores.
+        </p>
       </div>
     );
   }
@@ -697,19 +801,27 @@ function ContenedoresTab({ contenedores }: { contenedores: ResumenContenedor[] }
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        Estimación de llenado por proveedor. Cambia el tipo de contenedor para comparar opciones —
-        el modelo resalta su recomendación con <span className="text-green-600 dark:text-green-400 font-semibold">✦ Recomendado</span>.
+        Estimación de llenado por proveedor. Cambia el tipo de contenedor para
+        comparar opciones — el modelo resalta su recomendación con{" "}
+        <span className="text-green-600 dark:text-green-400 font-semibold">
+          ✦ Recomendado
+        </span>
+        .
       </p>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {contenedores.map((c) => {
           const tipoActual = selectedTipo[c.supplier] ?? c.tipoRecomendado;
-          const opcion = c.opciones.find((o) => o.tipo === tipoActual) ?? c.opciones[0];
+          const opcion =
+            c.opciones.find((o) => o.tipo === tipoActual) ?? c.opciones[0];
 
           const barColor = (pct: number) =>
-            pct > 100 ? 'bg-red-500'
-            : pct >= 80 ? 'bg-green-500'
-            : pct >= 50 ? 'bg-yellow-500'
-            : 'bg-orange-400';
+            pct > 100
+              ? "bg-red-500"
+              : pct >= 80
+                ? "bg-green-500"
+                : pct >= 50
+                  ? "bg-yellow-500"
+                  : "bg-orange-400";
 
           return (
             <div
@@ -733,11 +845,16 @@ function ContenedoresTab({ contenedores }: { contenedores: ResumenContenedor[] }
                   return (
                     <button
                       key={o.tipo}
-                      onClick={() => setSelectedTipo((prev) => ({ ...prev, [c.supplier]: o.tipo }))}
+                      onClick={() =>
+                        setSelectedTipo((prev) => ({
+                          ...prev,
+                          [c.supplier]: o.tipo,
+                        }))
+                      }
                       className={`relative flex-1 py-2 px-3 rounded-lg text-sm font-medium border-2 transition-all ${
                         active
-                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                          : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
+                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                          : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500"
                       }`}
                     >
                       {o.tipo}&apos;
@@ -756,8 +873,16 @@ function ContenedoresTab({ contenedores }: { contenedores: ResumenContenedor[] }
                 <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
                   <span>⚖️ Peso</span>
                   <span>
-                    {fmt(c.pesoTotalKg, 1)} / {fmt(opcion.pesoMaxKg)} kg{' '}
-                    <strong className={opcion.pctPeso > 100 ? 'text-red-500' : opcion.pctPeso >= 80 ? 'text-green-600 dark:text-green-400' : 'text-orange-500'}>
+                    {fmt(c.pesoTotalKg, 1)} / {fmt(opcion.pesoMaxKg)} kg{" "}
+                    <strong
+                      className={
+                        opcion.pctPeso > 100
+                          ? "text-red-500"
+                          : opcion.pctPeso >= 80
+                            ? "text-green-600 dark:text-green-400"
+                            : "text-orange-500"
+                      }
+                    >
                       {opcion.pctPeso}%
                     </strong>
                   </span>
@@ -775,8 +900,16 @@ function ContenedoresTab({ contenedores }: { contenedores: ResumenContenedor[] }
                 <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
                   <span>📦 Volumen</span>
                   <span>
-                    {fmt(c.volumenTotalM3, 2)} / {fmt(opcion.volMaxM3)} m³{' '}
-                    <strong className={opcion.pctVol > 100 ? 'text-red-500' : opcion.pctVol >= 80 ? 'text-green-600 dark:text-green-400' : 'text-orange-500'}>
+                    {fmt(c.volumenTotalM3, 2)} / {fmt(opcion.volMaxM3)} m³{" "}
+                    <strong
+                      className={
+                        opcion.pctVol > 100
+                          ? "text-red-500"
+                          : opcion.pctVol >= 80
+                            ? "text-green-600 dark:text-green-400"
+                            : "text-orange-500"
+                      }
+                    >
                       {opcion.pctVol}%
                     </strong>
                   </span>
@@ -792,7 +925,8 @@ function ContenedoresTab({ contenedores }: { contenedores: ResumenContenedor[] }
               {/* Aviso overflow */}
               {opcion.pctMax > 100 && (
                 <p className="text-xs text-red-600 dark:text-red-400 mb-3">
-                  🚨 El pedido supera la capacidad ({opcion.pctMax}%). Divide el envío en múltiples contenedores.
+                  🚨 El pedido supera la capacidad ({opcion.pctMax}%). Divide el
+                  envío en múltiples contenedores.
                 </p>
               )}
 
@@ -811,8 +945,12 @@ function ContenedoresTab({ contenedores }: { contenedores: ResumenContenedor[] }
                       >
                         <div className="flex items-center gap-1.5 min-w-0">
                           <span>{cfg.dot}</span>
-                          <span className="font-mono text-gray-600 dark:text-gray-400 shrink-0">{p.sku}</span>
-                          <span className="text-gray-700 dark:text-gray-300 truncate">{p.name}</span>
+                          <span className="font-mono text-gray-600 dark:text-gray-400 shrink-0">
+                            {p.sku}
+                          </span>
+                          <span className="text-gray-700 dark:text-gray-300 truncate">
+                            {p.name}
+                          </span>
                         </div>
                         <div className="flex gap-3 shrink-0 ml-2 text-gray-500 dark:text-gray-400">
                           <span>{fmt(p.pzsAPedir)} pzs</span>
@@ -830,4 +968,3 @@ function ContenedoresTab({ contenedores }: { contenedores: ResumenContenedor[] }
     </div>
   );
 }
-

@@ -216,17 +216,19 @@ export function PedidoPersonalizado() {
     ? proveedores.map(p => p.nombre).sort()
     : Array.from(new Set(catalogo.map(s => s.supplier))).sort();
 
-  const supplierStats = supplierNames.map(sup => {
-    const skus = catalogo.filter(s => s.supplier === sup);
-    return {
-      supplier:   sup,
-      total:      skus.length,
-      critico:    skus.filter(s => s.semaforo === 'CRITICO').length,
-      alerta:     skus.filter(s => s.semaforo === 'ALERTA').length,
-      ok:         skus.filter(s => s.semaforo === 'OK').length,
-      sobrestock: skus.filter(s => s.semaforo === 'SOBRESTOCK').length,
-    };
-  });
+  const supplierStats = supplierNames
+    .map(sup => {
+      const skus = catalogo.filter(s => s.supplier === sup);
+      return {
+        supplier:   sup,
+        total:      skus.length,
+        critico:    skus.filter(s => s.semaforo === 'CRITICO').length,
+        alerta:     skus.filter(s => s.semaforo === 'ALERTA').length,
+        ok:         skus.filter(s => s.semaforo === 'OK').length,
+        sobrestock: skus.filter(s => s.semaforo === 'SOBRESTOCK').length,
+      };
+    })
+    .filter(s => s.total > 0);
 
   // ── Catálogo del proveedor seleccionado ───────────────────────────────────
   const catalogoProv = catalogo.filter(s => s.supplier === supplier);
