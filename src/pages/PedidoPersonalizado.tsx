@@ -38,7 +38,7 @@ interface SkuCatalogo {
   supplier:    string;
   supplierId:  number;
   invActual:   number;
-  pzsCaja:     number;   // inventario_standar_tarima
+  pzsCaja:     number;   // cantidad_x_ctn
   pesoCaja:    number;   // kg/caja
   volCaja:     number;   // m³/caja
   dI:          number;   // demanda piezas/día
@@ -158,14 +158,10 @@ export function PedidoPersonalizado() {
       }
 
       const skus: SkuCatalogo[] = items
-        .filter(item => {
-          const std = Number(item.inventario_standar_tarima) || 0;
-          return std > 0;
-        })
         .map(item => {
           const skuStr     = String(item.master_sku ?? item.id_articulo ?? '');
           const skuNum     = parseInt(skuStr, 10) || 0;
-          const pzsCaja    = Number(item.inventario_standar_tarima) || 1;
+          const pzsCaja    = Number(item.cantidad_x_ctn) || 1;
           const pesoUnitKg = Number(item.peso_kg) || 0;
           const pesoCaja   = pesoUnitKg * pzsCaja;
           const largo      = Number(item.largo_cm) || 0;
