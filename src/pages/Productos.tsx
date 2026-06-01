@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { ProductModal } from "../components/ProductModal";
 import { DeleteConfirmModal } from "../components/DeleteConfirmModal";
 import { useDarkMode } from "../context/DarkModeContext";
@@ -116,12 +116,25 @@ export function Productos() {
         "Alto (cm)": p.dimensions_cm?.alto ?? "",
       }));
 
-      const worksheet = XLSX.utils.json_to_sheet(rows);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Productos");
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Productos");
+
+      if (rows.length > 0) {
+        worksheet.columns = Object.keys(rows[0]).map((key) => ({ header: key, key }));
+        worksheet.addRows(rows);
+      }
 
       const date = new Date().toISOString().slice(0, 10);
-      XLSX.writeFile(workbook, `productos_${date}.xlsx`);
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `productos_${date}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Error exporting products:", err);
       setError(err instanceof Error ? err.message : "Error al exportar productos");

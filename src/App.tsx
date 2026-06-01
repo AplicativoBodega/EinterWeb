@@ -89,9 +89,9 @@ function App() {
     <DarkModeProvider>
       <div className="flex flex-col min-h-screen transition-colors duration-300">
         <Navbar onNavigateToProfile={() => setCurrentPage('profile')} />
-        <div className="flex flex-1 pt-16">
+        <div className="flex flex-1 pt-16 min-h-0">
           <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} />
-          <main className="flex-1 md:ml-64 transition-all duration-300">
+          <main className="flex-1 md:ml-64 transition-all duration-300 flex flex-col min-h-0 overflow-hidden">
             {renderPage()}
           </main>
         </div>
