@@ -172,6 +172,7 @@ export function InventarioInteligente() {
         standardTarima: i.inventario_standar_tarima
           ? Number(i.inventario_standar_tarima)
           : undefined,
+        qtyPerCarton: i.cantidad_x_ctn != null ? Number(i.cantidad_x_ctn) : null,
         dimensionsCm:
           i.largo_cm || i.ancho_cm || i.alto_cm
             ? {
@@ -644,10 +645,19 @@ function ContenedoresTab({ contenedores }: { contenedores: ResumenContenedor[] }
                 <h3 className="font-bold text-gray-800 dark:text-gray-100 text-base leading-tight">
                   🏭 {c.supplier}
                 </h3>
-                <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
-                  {c.pesoTotalKg.toLocaleString("es-MX", { maximumFractionDigits: 1 })} kg ·{" "}
-                  {c.volumenTotalM3.toLocaleString("es-MX", { maximumFractionDigits: 2 })} m³
-                </span>
+                <div className="text-xs text-gray-400 dark:text-gray-500 shrink-0 text-right">
+                  <div>
+                    {c.pesoTotalKg.toLocaleString("es-MX", { maximumFractionDigits: 1 })} kg ·{" "}
+                    {c.volumenTotalM3.toLocaleString("es-MX", { maximumFractionDigits: 2 })} m³
+                  </div>
+                  {(() => {
+                    const totalCtns = c.productos.reduce((sum, p) =>
+                      sum + (p.qtyPerCarton && p.qtyPerCarton > 0 ? Math.ceil(p.pzsAPedir / p.qtyPerCarton) : 0), 0);
+                    return totalCtns > 0 ? (
+                      <div className="text-blue-500 dark:text-blue-400 font-medium">{totalCtns.toLocaleString("es-MX")} CTN total</div>
+                    ) : null;
+                  })()}
+                </div>
               </div>
 
               <div className="flex gap-2 mb-4">
@@ -720,6 +730,11 @@ function ContenedoresTab({ contenedores }: { contenedores: ResumenContenedor[] }
                           <span className="text-gray-700 dark:text-gray-300 truncate">{p.name}</span>
                         </div>
                         <div className="flex gap-3 shrink-0 ml-2 text-gray-500 dark:text-gray-400">
+                          {p.qtyPerCarton && p.qtyPerCarton > 0 && (
+                            <span className="text-blue-600 dark:text-blue-400 font-medium">
+                              {Math.ceil(p.pzsAPedir / p.qtyPerCarton)} CTN
+                            </span>
+                          )}
                           <span>{p.pzsAPedir.toLocaleString("es-MX")} pzs</span>
                           {p.pesoKg > 0 && <span>{Math.round(p.pesoKg).toLocaleString("es-MX")} kg</span>}
                         </div>

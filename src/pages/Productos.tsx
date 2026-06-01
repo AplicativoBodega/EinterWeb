@@ -148,16 +148,18 @@ export function Productos() {
     if (isAuto) setAutoSyncing(true);
     setSyncMsg(null);
     try {
-      const provRes = await fetchAPI('/api/odoo/pull/proveedores', { method: 'POST' }) as { upserted?: number };
+      const provRes = await fetchAPI('/api/odoo/pull/proveedores', { method: 'POST' }) as { upserted?: number; deleted?: number };
       const prodRes = await fetchAPI('/api/odoo/pull/productos',   { method: 'POST' }) as { upserted?: number; suppliersMapped?: number };
       const provCount = provRes.upserted ?? 0;
+      const provDeleted = provRes.deleted ?? 0;
       const prodCount = prodRes.upserted ?? 0;
       const mapped    = prodRes.suppliersMapped ?? 0;
       localStorage.setItem(PRODUCTS_SYNC_KEY, Date.now().toString());
       if (!isAuto) {
+        const deletedMsg = provDeleted > 0 ? `, ${provDeleted} proveedores eliminados` : '';
         setSyncMsg({
           ok: true,
-          text: `Sync completado — ${provCount} proveedores, ${prodCount} productos (${mapped} con proveedor mapeado).`,
+          text: `Sync completado — ${provCount} proveedores${deletedMsg}, ${prodCount} productos (${mapped} con proveedor mapeado).`,
         });
       }
       await fetchProducts('', 1);

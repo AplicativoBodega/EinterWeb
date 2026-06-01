@@ -44,6 +44,7 @@ export interface ProductoInput {
   stock: number;
   weightKg: number;
   standardTarima?: number;
+  qtyPerCarton?: number | null;
   dimensionsCm?: { largo: number; ancho: number; alto: number };
   pzsEnTransito: number;
   demandaDiaria: number; // piezas/día — 0 si no se conoce
@@ -145,12 +146,15 @@ export function calcularResultados(
         0,
         demanda * params.diasObjetivo - invEnRecepcion
       );
-      // Aplicar mínimo y redondear a múltiplo de tarima
+      // Aplicar mínimo y redondear: primero a CTN, luego a tarima
       pzsAPedir = Math.max(pzsNecesarias, params.minPzsSku);
+      if (p.qtyPerCarton && p.qtyPerCarton > 0) {
+        pzsAPedir = Math.ceil(pzsAPedir / p.qtyPerCarton) * p.qtyPerCarton;
+      }
       if (p.standardTarima && p.standardTarima > 0) {
         pzsAPedir =
           Math.ceil(pzsAPedir / p.standardTarima) * p.standardTarima;
-      } else {
+      } else if (!p.qtyPerCarton) {
         pzsAPedir = Math.ceil(pzsAPedir);
       }
       pesoKg = Math.round(pzsAPedir * p.weightKg * 100) / 100;
