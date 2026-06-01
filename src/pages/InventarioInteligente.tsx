@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 import {
@@ -11,11 +11,6 @@ import {
   type ResumenContenedor,
   type SemaforoStatus,
 } from "../lib/inventoryModel";
-
-// ─── localStorage keys ────────────────────────────────────────────────────────
-const LS_DEMAND = "einter_inv_demanda";
-const LS_TRANSIT = "einter_inv_transito";
-const LS_PARAMS = "einter_inv_params";
 
 // ─── Helpers de estilo por estado ────────────────────────────────────────────
 const STATUS_CFG: Record<
@@ -91,46 +86,23 @@ export function InventarioInteligente() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Overrides almacenados en localStorage
-  const [demanda, setDemanda] = useState<Record<string, number>>(() => {
-    try {
-      return JSON.parse(localStorage.getItem(LS_DEMAND) || "{}");
-    } catch {
-      return {};
-    }
-  });
-  const [transit, setTransit] = useState<Record<string, number>>(() => {
-    try {
-      return JSON.parse(localStorage.getItem(LS_TRANSIT) || "{}");
-    } catch {
-      return {};
-    }
-  });
-  const [params, setParams] = useState<ModelParams>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(LS_PARAMS) || "null");
-      return saved ? { ...DEFAULT_PARAMS, ...saved } : DEFAULT_PARAMS;
-    } catch {
-      return DEFAULT_PARAMS;
-    }
-  });
+  // Demanda calculada automáticamente desde ventas Home Depot
+  const [demandaHD, setDemandaHD] = useState<Record<string, number>>({});
+  const [loadingHD, setLoadingHD] = useState(false);
 
-  // UI state
-  const [tab, setTab] = useState<"semaforo" | "contenedores">("semaforo");
+  // Parámetros del modelo (solo configuración global, no edición por fila)
+  const [params, setParams] = useState<ModelParams>(DEFAULT_PARAMS);
   const [showConfig, setShowConfig] = useState(false);
+
+  // UI
+  const [tab, setTab] = useState<"semaforo" | "contenedores">("semaforo");
   const [search, setSearch] = useState("");
   const [filterSupplier, setFilterSupplier] = useState("");
   const [filterStatus, setFilterStatus] = useState<SemaforoStatus | "">("");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 50;
 
-  // Inline editing
-  const [editingSku, setEditingSku] = useState<string | null>(null);
-  const [editField, setEditField] = useState<"demanda" | "transito">("demanda");
-  const [editValue, setEditValue] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // ── Fetch todos los productos ──────────────────────────────────────────────
+  // ── Fetch productos desde Odoo ────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -146,7 +118,7 @@ export function InventarioInteligente() {
         const total: number = res.total || 0;
         if (all.length >= total || items.length === 0) break;
         pg++;
-        if (pg > 30) break; // safety
+        if (pg > 30) break;
       }
       setRawItems(all);
       setPage(1);
@@ -157,27 +129,40 @@ export function InventarioInteligente() {
     }
   }, []);
 
+  // ── Fetch demanda diaria desde ventas Home Depot ──────────────────────────
+  // El cruce es por MOD (= master_sku en articulos = default_code en Odoo)
+  const fetchDemandaHD = useCallback(async () => {
+    setLoadingHD(true);
+    try {
+      const data = (await fetchAPI("/api/ventas-hd/demanda-diaria")) as {
+        mod: string;
+        demanda_diaria: number;
+      }[];
+      const map: Record<string, number> = {};
+      for (const item of data) {
+        if (item.demanda_diaria > 0) map[item.mod] = item.demanda_diaria;
+      }
+      setDemandaHD(map);
+    } catch {
+      // silencioso — el modelo muestra sin_datos para esos MODs
+    } finally {
+      setLoadingHD(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchAll();
-  }, [fetchAll]);
-
-  // ── Persistir cambios en localStorage ────────────────────────────────────
-  useEffect(() => {
-    localStorage.setItem(LS_DEMAND, JSON.stringify(demanda));
-  }, [demanda]);
-  useEffect(() => {
-    localStorage.setItem(LS_TRANSIT, JSON.stringify(transit));
-  }, [transit]);
-  useEffect(() => {
-    localStorage.setItem(LS_PARAMS, JSON.stringify(params));
-  }, [params]);
+    fetchDemandaHD();
+  }, [fetchAll, fetchDemandaHD]);
 
   // ── Calcular resultados ────────────────────────────────────────────────────
   const resultados: ProductoResultado[] = useMemo(() => {
     const inputs = rawItems.map((item) => {
       const i = item as Record<string, unknown>;
+      // master_sku en articulos = default_code en Odoo = MOD del producto
+      const mod = String(i.master_sku ?? i.id_articulo ?? "");
       return {
-        sku: String(i.master_sku ?? i.id_articulo ?? ""),
+        sku: mod,
         name: String(i.nombre_producto ?? ""),
         supplier: String(i.proveedor_nombre || "Sin proveedor"),
         supplierId:
@@ -195,12 +180,13 @@ export function InventarioInteligente() {
                 alto: Number(i.alto_cm) || 0,
               }
             : undefined,
-        pzsEnTransito: transit[String(i.master_sku ?? "")] || 0,
-        demandaDiaria: demanda[String(i.master_sku ?? "")] || 0,
+        pzsEnTransito: 0,
+        // Cruce por MOD: demandaHD tiene keys = String(mod)
+        demandaDiaria: demandaHD[mod] || 0,
       };
     });
     return sortResultados(calcularResultados(inputs, params));
-  }, [rawItems, demanda, transit, params]);
+  }, [rawItems, demandaHD, params]);
 
   // ── Conteos de semáforo ───────────────────────────────────────────────────
   const counts = useMemo(() => {
@@ -209,7 +195,7 @@ export function InventarioInteligente() {
     return c;
   }, [resultados]);
 
-  // ── Lista de proveedores únicos ───────────────────────────────────────────
+  // ── Proveedores únicos ────────────────────────────────────────────────────
   const suppliers = useMemo(
     () => [...new Set(resultados.map((r) => r.supplier))].sort(),
     [resultados],
@@ -234,53 +220,25 @@ export function InventarioInteligente() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  // Reset page when filters change
-  useEffect(() => {
-    setPage(1);
-  }, [filterStatus, filterSupplier, search]);
+  useEffect(() => { setPage(1); }, [filterStatus, filterSupplier, search]);
 
-  // ── Resumen contenedores ──────────────────────────────────────────────────
+  // ── Contenedores ──────────────────────────────────────────────────────────
   const contenedores: ResumenContenedor[] = useMemo(
     () => calcularResumenContenedores(resultados),
     [resultados],
   );
 
-  // ── Inline editing ────────────────────────────────────────────────────────
-  const startEdit = (sku: string, field: "demanda" | "transito") => {
-    setEditingSku(sku);
-    setEditField(field);
-    setEditValue(
-      String(field === "demanda" ? demanda[sku] || "" : transit[sku] || ""),
-    );
-    setTimeout(() => inputRef.current?.focus(), 30);
-  };
-
-  const commitEdit = () => {
-    if (!editingSku) return;
-    const val = parseFloat(editValue);
-    if (!isNaN(val) && val >= 0) {
-      if (editField === "demanda") {
-        setDemanda((prev) => ({ ...prev, [editingSku]: val }));
-      } else {
-        setTransit((prev) => ({ ...prev, [editingSku]: Math.round(val) }));
-      }
-    }
-    setEditingSku(null);
-  };
-
-  const cancelEdit = () => setEditingSku(null);
-
-  // ── Actualizar params ─────────────────────────────────────────────────────
   const updateParam = (key: keyof ModelParams, value: string) => {
     const num = parseFloat(value);
     setParams((prev) => ({ ...prev, [key]: isNaN(num) ? prev[key] : num }));
   };
 
-  const sinDatosCount = counts.sin_datos;
+  const isLoadingAny = loading || loadingHD;
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="w-full bg-gray-50 dark:bg-gray-900 flex flex-col min-h-screen">
+
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between px-6 py-4">
@@ -289,8 +247,10 @@ export function InventarioInteligente() {
               🧠 Inventario Inteligente
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-              Modelo predictivo de reabastecimiento · {rawItems.length}{" "}
-              productos cargados
+              Demanda calculada de ventas Home Depot · {rawItems.length} productos
+              {loadingHD && (
+                <span className="ml-2 text-blue-500 animate-pulse">· cargando demanda HD…</span>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -305,11 +265,11 @@ export function InventarioInteligente() {
               ⚙️ Parámetros
             </button>
             <button
-              onClick={fetchAll}
-              disabled={loading}
+              onClick={() => { fetchAll(); fetchDemandaHD(); }}
+              disabled={isLoadingAny}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium transition-all disabled:opacity-60"
             >
-              {loading ? "⏳ Cargando…" : "🔄 Actualizar"}
+              {isLoadingAny ? "⏳ Cargando…" : "🔄 Actualizar"}
             </button>
           </div>
         </div>
@@ -320,7 +280,7 @@ export function InventarioInteligente() {
             <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
               Parámetros del modelo
             </p>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
               {(
                 [
                   { key: "leadTimeDias", label: "Lead time (días)" },
@@ -343,10 +303,6 @@ export function InventarioInteligente() {
                 </div>
               ))}
             </div>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">
-              * Peso y volumen son estimados. Para mayor precisión se requieren
-              datos logísticos (piezas/caja, peso/caja).
-            </p>
           </div>
         )}
       </div>
@@ -355,12 +311,12 @@ export function InventarioInteligente() {
       <div className="px-6 py-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {(
           [
-            { key: "rojo", label: "Crítico", color: "red" },
-            { key: "amarillo", label: "Alerta", color: "yellow" },
-            { key: "verde", label: "OK", color: "green" },
-            { key: "sin_datos", label: "Sin datos", color: "gray" },
-            { key: "sobrestock", label: "Sobrestock", color: "blue" },
-          ] as { key: SemaforoStatus; label: string; color: string }[]
+            { key: "rojo", label: "Crítico" },
+            { key: "amarillo", label: "Alerta" },
+            { key: "verde", label: "OK" },
+            { key: "sin_datos", label: "Sin datos HD" },
+            { key: "sobrestock", label: "Sobrestock" },
+          ] as { key: SemaforoStatus; label: string }[]
         ).map(({ key, label }) => {
           const cfg = STATUS_CFG[key];
           const active = filterStatus === key;
@@ -385,12 +341,12 @@ export function InventarioInteligente() {
         })}
       </div>
 
-      {/* ── Info banner: sin datos de demanda ─────────────────────────────── */}
-      {sinDatosCount > 0 && (
+      {/* ── Banner sin datos HD ────────────────────────────────────────────── */}
+      {counts.sin_datos > 0 && !loadingHD && (
         <div className="mx-6 mb-2 px-4 py-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-800 dark:text-amber-300">
-          <strong>ℹ️ {sinDatosCount} productos sin demanda configurada.</strong>{" "}
-          Haz clic en la columna <em>Dem./día</em> de cualquier fila para
-          ingresar la demanda diaria (piezas/día) y activar el modelo.
+          <strong>ℹ️ {counts.sin_datos} productos sin ventas HD registradas.</strong>{" "}
+          Estos SKUs no tienen historial en la tabla de ventas semanales de Home Depot
+          y no pueden ser evaluados por el modelo.
         </div>
       )}
 
@@ -424,13 +380,11 @@ export function InventarioInteligente() {
         </div>
       )}
 
-      {loading && rawItems.length === 0 ? (
+      {isLoadingAny && rawItems.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <div className="text-4xl mb-4 animate-bounce">🧠</div>
-            <p className="text-gray-500 dark:text-gray-400">
-              Cargando productos…
-            </p>
+            <p className="text-gray-500 dark:text-gray-400">Cargando datos…</p>
           </div>
         </div>
       ) : (
@@ -446,17 +400,10 @@ export function InventarioInteligente() {
               page={page}
               totalPages={totalPages}
               PAGE_SIZE={PAGE_SIZE}
-              editingSku={editingSku}
-              editField={editField}
-              editValue={editValue}
-              inputRef={inputRef}
-              onSearchChange={(v) => setSearch(v)}
-              onSupplierChange={(v) => setFilterSupplier(v)}
+              demandaHD={demandaHD}
+              onSearchChange={setSearch}
+              onSupplierChange={setFilterSupplier}
               onStatusChange={(v) => setFilterStatus(v as SemaforoStatus | "")}
-              onStartEdit={startEdit}
-              onEditValueChange={setEditValue}
-              onCommitEdit={commitEdit}
-              onCancelEdit={cancelEdit}
               onPageChange={setPage}
             />
           )}
@@ -481,17 +428,10 @@ interface SemaforoTabProps {
   page: number;
   totalPages: number;
   PAGE_SIZE: number;
-  editingSku: string | null;
-  editField: "demanda" | "transito";
-  editValue: string;
-  inputRef: React.RefObject<HTMLInputElement | null>;
+  demandaHD: Record<string, number>;
   onSearchChange: (v: string) => void;
   onSupplierChange: (v: string) => void;
   onStatusChange: (v: string) => void;
-  onStartEdit: (sku: string, field: "demanda" | "transito") => void;
-  onEditValueChange: (v: string) => void;
-  onCommitEdit: () => void;
-  onCancelEdit: () => void;
   onPageChange: (p: number) => void;
 }
 
@@ -505,17 +445,10 @@ function SemaforoTab({
   page,
   totalPages,
   PAGE_SIZE,
-  editingSku,
-  editField,
-  editValue,
-  inputRef,
+  demandaHD,
   onSearchChange,
   onSupplierChange,
   onStatusChange,
-  onStartEdit,
-  onEditValueChange,
-  onCommitEdit,
-  onCancelEdit,
   onPageChange,
 }: SemaforoTabProps) {
   return (
@@ -536,9 +469,7 @@ function SemaforoTab({
         >
           <option value="">Todos los proveedores</option>
           {suppliers.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
+            <option key={s} value={s}>{s}</option>
           ))}
         </select>
         <select
@@ -548,9 +479,7 @@ function SemaforoTab({
         >
           <option value="">Todos los estados</option>
           {Object.entries(STATUS_CFG).map(([k, v]) => (
-            <option key={k} value={k}>
-              {v.dot} {v.label}
-            </option>
+            <option key={k} value={k}>{v.dot} {v.label}</option>
           ))}
         </select>
         <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 self-center">
@@ -563,48 +492,22 @@ function SemaforoTab({
         <table className="w-full text-sm border-collapse">
           <thead className="sticky top-0 z-10">
             <tr className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs uppercase tracking-wide">
-              <th className="px-3 py-2.5 text-left border-b border-r border-gray-300 dark:border-gray-600 w-8">
-                #
-              </th>
-              <th className="px-3 py-2.5 text-left border-b border-r border-gray-300 dark:border-gray-600 min-w-[80px]">
-                SKU
-              </th>
-              <th className="px-3 py-2.5 text-left border-b border-r border-gray-300 dark:border-gray-600 min-w-[200px]">
-                Nombre
-              </th>
-              <th className="px-3 py-2.5 text-left border-b border-r border-gray-300 dark:border-gray-600 min-w-[100px]">
-                Proveedor
-              </th>
-              <th className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600">
-                Stock
-              </th>
-              <th
-                className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600"
-                title="Piezas en tránsito — clic para editar"
-              >
-                Tránsito ✏️
-              </th>
-              <th className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600">
-                Inv. ef.
-              </th>
-              <th
-                className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600"
-                title="Demanda diaria (piezas/día) — clic en celda para editar"
-              >
-                Dem./día ✏️
-              </th>
-              <th className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600">
-                Días cob.
-              </th>
-              <th className="px-3 py-2.5 text-center border-b border-gray-300 dark:border-gray-600 min-w-[100px]">
-                Estado
-              </th>
+              <th className="px-3 py-2.5 text-left border-b border-r border-gray-300 dark:border-gray-600 w-8">#</th>
+              <th className="px-3 py-2.5 text-left border-b border-r border-gray-300 dark:border-gray-600 min-w-[80px]">SKU</th>
+              <th className="px-3 py-2.5 text-left border-b border-r border-gray-300 dark:border-gray-600 min-w-[200px]">Nombre</th>
+              <th className="px-3 py-2.5 text-left border-b border-r border-gray-300 dark:border-gray-600 min-w-[100px]">Proveedor</th>
+              <th className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600">Stock</th>
+              <th className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600">Dem./día HD</th>
+              <th className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600">Días cob.</th>
+              <th className="px-3 py-2.5 text-center border-b border-gray-300 dark:border-gray-600 min-w-[100px]">Estado</th>
             </tr>
           </thead>
           <tbody>
             {paginated.map((r, idx) => {
               const cfg = STATUS_CFG[r.semaforo];
               const globalIdx = (page - 1) * PAGE_SIZE + idx + 1;
+              // r.sku contiene el MOD (master_sku del artículo)
+              const hdDem = demandaHD[r.sku];
               return (
                 <tr
                   key={r.sku}
@@ -616,10 +519,7 @@ function SemaforoTab({
                   <td className="px-3 py-2 font-mono text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 whitespace-nowrap">
                     {r.sku}
                   </td>
-                  <td
-                    className="px-3 py-2 text-gray-800 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700 max-w-xs truncate"
-                    title={r.name}
-                  >
+                  <td className="px-3 py-2 text-gray-800 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700 max-w-xs truncate" title={r.name}>
                     {r.name}
                   </td>
                   <td className="px-3 py-2 text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 whitespace-nowrap">
@@ -628,93 +528,23 @@ function SemaforoTab({
                   <td className="px-3 py-2 text-right font-medium text-gray-800 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700">
                     {fmt(r.stock)}
                   </td>
-
-                  {/* Tránsito — editable */}
-                  <td
-                    className="px-3 py-2 text-right border-r border-gray-200 dark:border-gray-700 cursor-pointer"
-                    onClick={() => onStartEdit(r.sku, "transito")}
-                  >
-                    {editingSku === r.sku && editField === "transito" ? (
-                      <input
-                        ref={inputRef}
-                        type="number"
-                        min="0"
-                        value={editValue}
-                        onChange={(e) => onEditValueChange(e.target.value)}
-                        onBlur={onCommitEdit}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") onCommitEdit();
-                          if (e.key === "Escape") onCancelEdit();
-                        }}
-                        className="w-20 px-1 py-0.5 text-right border border-blue-400 rounded text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    ) : (
-                      <span
-                        className={
-                          r.pzsEnTransito > 0
-                            ? "text-indigo-600 dark:text-indigo-400 font-medium"
-                            : "text-gray-300 dark:text-gray-600"
-                        }
-                      >
-                        {r.pzsEnTransito > 0 ? fmt(r.pzsEnTransito) : "—"}
+                  {/* Demanda diaria — solo lectura, calculada de HD */}
+                  <td className="px-3 py-2 text-right border-r border-gray-200 dark:border-gray-700">
+                    {hdDem ? (
+                      <span className="font-medium text-blue-700 dark:text-blue-400">
+                        {hdDem.toFixed(1)}
                       </span>
+                    ) : (
+                      <span className="text-gray-300 dark:text-gray-600 italic text-xs">sin datos</span>
                     )}
                   </td>
-
-                  <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">
-                    {fmt(r.invEfectivo)}
-                  </td>
-
-                  {/* Demanda diaria — editable */}
-                  <td
-                    className="px-3 py-2 text-right border-r border-gray-200 dark:border-gray-700 cursor-pointer"
-                    onClick={() => onStartEdit(r.sku, "demanda")}
-                    title="Clic para editar demanda diaria"
-                  >
-                    {editingSku === r.sku && editField === "demanda" ? (
-                      <input
-                        ref={inputRef}
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={editValue}
-                        onChange={(e) => onEditValueChange(e.target.value)}
-                        onBlur={onCommitEdit}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") onCommitEdit();
-                          if (e.key === "Escape") onCancelEdit();
-                        }}
-                        className="w-20 px-1 py-0.5 text-right border border-blue-400 rounded text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    ) : (
-                      <span
-                        className={
-                          r.demandaDiaria > 0
-                            ? "text-gray-800 dark:text-gray-200 font-medium"
-                            : "text-gray-300 dark:text-gray-600 italic text-xs"
-                        }
-                      >
-                        {r.demandaDiaria > 0
-                          ? r.demandaDiaria.toFixed(1)
-                          : "editar"}
-                      </span>
-                    )}
-                  </td>
-
                   {/* Días cobertura */}
-                  <td
-                    className={`px-3 py-2 text-right font-semibold border-r border-gray-200 dark:border-gray-700 ${cfg.badgeText}`}
-                  >
+                  <td className={`px-3 py-2 text-right font-semibold border-r border-gray-200 dark:border-gray-700 ${cfg.badgeText}`}>
                     {fmtDias(r.diasInventario)}
                   </td>
-
                   {/* Estado badge */}
                   <td className="px-3 py-2 text-center">
-                    <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.badgeBg} ${cfg.badgeText}`}
-                    >
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.badgeBg} ${cfg.badgeText}`}>
                       {cfg.dot} {cfg.label}
                     </span>
                   </td>
@@ -778,12 +608,7 @@ function SemaforoTab({
 
 // ─── Contenedores Tab ─────────────────────────────────────────────────────────
 
-function ContenedoresTab({
-  contenedores,
-}: {
-  contenedores: ResumenContenedor[];
-}) {
-  // selectedTipo: proveedor → tipo de contenedor seleccionado por el usuario
+function ContenedoresTab({ contenedores }: { contenedores: ResumenContenedor[] }) {
   const [selectedTipo, setSelectedTipo] = useState<Record<string, string>>({});
 
   if (contenedores.length === 0) {
@@ -792,7 +617,7 @@ function ContenedoresTab({
         <div className="text-5xl mb-3">🚢</div>
         <p className="text-lg">Sin pedidos pendientes.</p>
         <p className="text-sm mt-1">
-          Configura la demanda diaria para ver el llenado de contenedores.
+          Cuando haya productos en alerta con datos de ventas HD, aparecerán aquí.
         </p>
       </div>
     );
@@ -801,136 +626,85 @@ function ContenedoresTab({
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        Estimación de llenado por proveedor. Cambia el tipo de contenedor para
-        comparar opciones — el modelo resalta su recomendación con{" "}
-        <span className="text-green-600 dark:text-green-400 font-semibold">
-          ✦ Recomendado
-        </span>
-        .
+        Estimación de llenado por proveedor basada en demanda de ventas Home Depot.
+        El modelo resalta su recomendación con{" "}
+        <span className="text-green-600 dark:text-green-400 font-semibold">✦ Recomendado</span>.
       </p>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {contenedores.map((c) => {
           const tipoActual = selectedTipo[c.supplier] ?? c.tipoRecomendado;
-          const opcion =
-            c.opciones.find((o) => o.tipo === tipoActual) ?? c.opciones[0];
+          const opcion = c.opciones.find((o) => o.tipo === tipoActual) ?? c.opciones[0];
 
           const barColor = (pct: number) =>
-            pct > 100
-              ? "bg-red-500"
-              : pct >= 80
-                ? "bg-green-500"
-                : pct >= 50
-                  ? "bg-yellow-500"
-                  : "bg-orange-400";
+            pct > 100 ? "bg-red-500" : pct >= 80 ? "bg-green-500" : pct >= 50 ? "bg-yellow-500" : "bg-orange-400";
 
           return (
-            <div
-              key={c.supplier}
-              className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5"
-            >
-              {/* Header */}
+            <div key={c.supplier} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
               <div className="flex items-start justify-between mb-4 gap-2">
                 <h3 className="font-bold text-gray-800 dark:text-gray-100 text-base leading-tight">
                   🏭 {c.supplier}
                 </h3>
                 <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
-                  {fmt(c.pesoTotalKg, 1)} kg · {fmt(c.volumenTotalM3, 2)} m³
+                  {c.pesoTotalKg.toLocaleString("es-MX", { maximumFractionDigits: 1 })} kg ·{" "}
+                  {c.volumenTotalM3.toLocaleString("es-MX", { maximumFractionDigits: 2 })} m³
                 </span>
               </div>
 
-              {/* Selector de contenedor */}
               <div className="flex gap-2 mb-4">
-                {c.opciones.map((o) => {
-                  const active = o.tipo === tipoActual;
-                  return (
-                    <button
-                      key={o.tipo}
-                      onClick={() =>
-                        setSelectedTipo((prev) => ({
-                          ...prev,
-                          [c.supplier]: o.tipo,
-                        }))
-                      }
-                      className={`relative flex-1 py-2 px-3 rounded-lg text-sm font-medium border-2 transition-all ${
-                        active
-                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                          : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500"
-                      }`}
-                    >
-                      {o.tipo}&apos;
-                      {o.recomendado && (
-                        <span className="absolute -top-2 -right-1 text-[10px] bg-green-500 text-white px-1 rounded-full leading-4">
-                          ✦
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
+                {c.opciones.map((o) => (
+                  <button
+                    key={o.tipo}
+                    onClick={() => setSelectedTipo((prev) => ({ ...prev, [c.supplier]: o.tipo }))}
+                    className={`relative flex-1 py-2 px-3 rounded-lg text-sm font-medium border-2 transition-all ${
+                      o.tipo === tipoActual
+                        ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                        : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-300"
+                    }`}
+                  >
+                    {o.tipo}&apos;
+                    {o.recomendado && (
+                      <span className="absolute -top-2 -right-1 text-[10px] bg-green-500 text-white px-1 rounded-full leading-4">✦</span>
+                    )}
+                  </button>
+                ))}
               </div>
 
-              {/* Barra peso */}
               <div className="mb-3">
                 <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
                   <span>⚖️ Peso</span>
                   <span>
-                    {fmt(c.pesoTotalKg, 1)} / {fmt(opcion.pesoMaxKg)} kg{" "}
-                    <strong
-                      className={
-                        opcion.pctPeso > 100
-                          ? "text-red-500"
-                          : opcion.pctPeso >= 80
-                            ? "text-green-600 dark:text-green-400"
-                            : "text-orange-500"
-                      }
-                    >
+                    {c.pesoTotalKg.toLocaleString("es-MX", { maximumFractionDigits: 1 })} / {opcion.pesoMaxKg.toLocaleString("es-MX")} kg{" "}
+                    <strong className={opcion.pctPeso > 100 ? "text-red-500" : opcion.pctPeso >= 80 ? "text-green-600 dark:text-green-400" : "text-orange-500"}>
                       {opcion.pctPeso}%
                     </strong>
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
-                  <div
-                    className={`h-3 rounded-full transition-all ${barColor(opcion.pctPeso)}`}
-                    style={{ width: `${Math.min(opcion.pctPeso, 100)}%` }}
-                  />
+                  <div className={`h-3 rounded-full transition-all ${barColor(opcion.pctPeso)}`} style={{ width: `${Math.min(opcion.pctPeso, 100)}%` }} />
                 </div>
               </div>
 
-              {/* Barra volumen */}
               <div className="mb-4">
                 <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
                   <span>📦 Volumen</span>
                   <span>
-                    {fmt(c.volumenTotalM3, 2)} / {fmt(opcion.volMaxM3)} m³{" "}
-                    <strong
-                      className={
-                        opcion.pctVol > 100
-                          ? "text-red-500"
-                          : opcion.pctVol >= 80
-                            ? "text-green-600 dark:text-green-400"
-                            : "text-orange-500"
-                      }
-                    >
+                    {c.volumenTotalM3.toLocaleString("es-MX", { maximumFractionDigits: 2 })} / {opcion.volMaxM3} m³{" "}
+                    <strong className={opcion.pctVol > 100 ? "text-red-500" : opcion.pctVol >= 80 ? "text-green-600 dark:text-green-400" : "text-orange-500"}>
                       {opcion.pctVol}%
                     </strong>
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
-                  <div
-                    className={`h-3 rounded-full transition-all ${barColor(opcion.pctVol)}`}
-                    style={{ width: `${Math.min(opcion.pctVol, 100)}%` }}
-                  />
+                  <div className={`h-3 rounded-full transition-all ${barColor(opcion.pctVol)}`} style={{ width: `${Math.min(opcion.pctVol, 100)}%` }} />
                 </div>
               </div>
 
-              {/* Aviso overflow */}
               {opcion.pctMax > 100 && (
                 <p className="text-xs text-red-600 dark:text-red-400 mb-3">
-                  🚨 El pedido supera la capacidad ({opcion.pctMax}%). Divide el
-                  envío en múltiples contenedores.
+                  🚨 El pedido supera la capacidad ({opcion.pctMax}%). Divide el envío en múltiples contenedores.
                 </p>
               )}
 
-              {/* Lista productos */}
               <div>
                 <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
                   {c.productos.length} SKUs incluidos
@@ -939,22 +713,15 @@ function ContenedoresTab({
                   {c.productos.map((p) => {
                     const cfg = STATUS_CFG[p.semaforo];
                     return (
-                      <div
-                        key={p.sku}
-                        className="flex items-center justify-between text-xs bg-gray-50 dark:bg-gray-700/50 rounded px-2 py-1.5"
-                      >
+                      <div key={p.sku} className="flex items-center justify-between text-xs bg-gray-50 dark:bg-gray-700/50 rounded px-2 py-1.5">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <span>{cfg.dot}</span>
-                          <span className="font-mono text-gray-600 dark:text-gray-400 shrink-0">
-                            {p.sku}
-                          </span>
-                          <span className="text-gray-700 dark:text-gray-300 truncate">
-                            {p.name}
-                          </span>
+                          <span className="font-mono text-gray-600 dark:text-gray-400 shrink-0">{p.sku}</span>
+                          <span className="text-gray-700 dark:text-gray-300 truncate">{p.name}</span>
                         </div>
                         <div className="flex gap-3 shrink-0 ml-2 text-gray-500 dark:text-gray-400">
-                          <span>{fmt(p.pzsAPedir)} pzs</span>
-                          {p.pesoKg > 0 && <span>{fmt(p.pesoKg, 0)} kg</span>}
+                          <span>{p.pzsAPedir.toLocaleString("es-MX")} pzs</span>
+                          {p.pesoKg > 0 && <span>{Math.round(p.pesoKg).toLocaleString("es-MX")} kg</span>}
                         </div>
                       </div>
                     );
