@@ -34,6 +34,29 @@ function formatImporte(v: number): string {
   return v.toLocaleString("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 2 });
 }
 
+const MESES_ES = [
+  "Enero","Febrero","Marzo","Abril","Mayo","Junio",
+  "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
+];
+
+function isoWeekMonday(anio: number, semana: number): Date {
+  // Jan 4 is always in ISO week 1 of its year
+  const jan4 = new Date(anio, 0, 4);
+  const dow = jan4.getDay() || 7; // 1=Mon … 7=Sun
+  const monday = new Date(jan4);
+  monday.setDate(jan4.getDate() - (dow - 1) + (semana - 1) * 7);
+  return monday;
+}
+
+function generarSemanaLabel(anio: number, semana: number): string {
+  const monday = isoWeekMonday(anio, semana);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const d1 = String(monday.getDate()).padStart(2, "0");
+  const d2 = String(sunday.getDate()).padStart(2, "0");
+  return `${d1}-${d2} ${MESES_ES[sunday.getMonth()]}`;
+}
+
 // ─── Edit modal ──────────────────────────────────────────────────────────────
 
 interface CeldaEditada {
@@ -139,30 +162,78 @@ function EditModal({ celda, onClose, onSave }: EditModalProps) {
   );
 }
 
-// ─── Add-product modal ────────────────────────────────────────────────────────
+// ─── Nueva-venta modal ────────────────────────────────────────────────────────
 
-interface AddProductModalProps {
+interface NuevaVentaModalProps {
   anio: number;
+  semanas: Semana[];
+  productos: Producto[];
   onClose: () => void;
-  onSave: (data: { mod: number; sku: string; descripcion: string }) => Promise<void>;
+  onSave: (data: {
+    semana_num: number;
+    semana_label: string;
+    mod: number;
+    sku: string;
+    descripcion: string;
+    cantidad: number;
+    importe: number;
+  }) => Promise<void>;
 }
 
-function AddProductModal({ anio, onClose, onSave }: AddProductModalProps) {
-  const [mod, setMod] = useState("");
-  const [sku, setSku] = useState("");
-  const [descripcion, setDescripcion] = useState("");
+function NuevaVentaModal({ anio, semanas, productos, onClose, onSave }: NuevaVentaModalProps) {
+  const [semanaMode, setSemanaMode] = useState<"existente" | "nueva">(
+    semanas.length > 0 ? "existente" : "nueva"
+  );
+  const [semanaSeleccionada, setSemanaSeleccionada] = useState<string>(
+    semanas.length > 0 ? String(semanas[semanas.length - 1].semana_num) : ""
+  );
+  const [nuevaSemanaNum, setNuevaSemanaNum] = useState("");
+  const [modSeleccionado, setModSeleccionado] = useState<string>(
+    productos.length > 0 ? String(productos[0].mod) : ""
+  );
+  const [cantidad, setCantidad] = useState("0");
+  const [importe, setImporte] = useState("0");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const productoActual = productos.find((p) => p.mod === Number(modSeleccionado));
+
   const handleSave = async () => {
-    const modNum = Number(mod);
-    if (!mod || isNaN(modNum) || modNum <= 0) { setError("MOD inválido"); return; }
-    if (!sku.trim()) { setError("SKU requerido"); return; }
-    if (!descripcion.trim()) { setError("Descripción requerida"); return; }
+    let semana_num: number;
+    let semana_label: string;
+
+    if (semanaMode === "existente") {
+      const sem = semanas.find((s) => s.semana_num === Number(semanaSeleccionada));
+      if (!sem) { setError("Selecciona una semana"); return; }
+      semana_num = sem.semana_num;
+      semana_label = sem.semana_label;
+    } else {
+      semana_num = Number(nuevaSemanaNum);
+      if (!nuevaSemanaNum || isNaN(semana_num) || semana_num < 1 || semana_num > 53) {
+        setError("Número de semana inválido (1–53)"); return;
+      }
+      semana_label = generarSemanaLabel(anio, semana_num);
+    }
+
+    if (!productoActual) { setError("Selecciona un producto"); return; }
+
+    const c = Number(cantidad);
+    const i = Number(importe);
+    if (isNaN(c) || c < 0) { setError("Cantidad inválida"); return; }
+    if (isNaN(i) || i < 0) { setError("Importe inválido"); return; }
+
     setSaving(true);
     setError(null);
     try {
-      await onSave({ mod: modNum, sku: sku.trim(), descripcion: descripcion.trim() });
+      await onSave({
+        semana_num,
+        semana_label,
+        mod: productoActual.mod,
+        sku: productoActual.sku,
+        descripcion: productoActual.descripcion,
+        cantidad: c,
+        importe: i,
+      });
       onClose();
     } catch (err) {
       setError((err as Error).message);
@@ -173,29 +244,130 @@ function AddProductModal({ anio, onClose, onSave }: AddProductModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-          Nuevo producto — {anio}
+          Nueva venta — {anio}
         </h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
-          Se añadirá con 0 piezas y $0 en todas las semanas registradas.
+          Registra la venta de un producto para una semana específica.
         </p>
 
         <div className="space-y-4">
+          {/* Semana */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Semana</label>
+            <div className="flex rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600 mb-3">
+              {semanas.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSemanaMode("existente")}
+                  className={`flex-1 px-3 py-1.5 text-sm font-medium transition-colors ${
+                    semanaMode === "existente"
+                      ? "bg-blue-600 text-white"
+                      : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  Semana existente
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setSemanaMode("nueva")}
+                className={`flex-1 px-3 py-1.5 text-sm font-medium transition-colors ${
+                  semanaMode === "nueva"
+                    ? "bg-blue-600 text-white"
+                    : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                }`}
+              >
+                Nueva semana
+              </button>
+            </div>
+
+            {semanaMode === "existente" ? (
+              <select
+                value={semanaSeleccionada}
+                onChange={(e) => setSemanaSeleccionada(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                {semanas.map((s) => (
+                  <option key={s.semana_num} value={s.semana_num}>
+                    Sem {s.semana_num} — {s.semana_label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min="1"
+                    max="53"
+                    placeholder="# semana"
+                    value={nuevaSemanaNum}
+                    onChange={(e) => setNuevaSemanaNum(e.target.value)}
+                    className="w-28 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                  {nuevaSemanaNum && !isNaN(Number(nuevaSemanaNum)) &&
+                   Number(nuevaSemanaNum) >= 1 && Number(nuevaSemanaNum) <= 53 && (
+                    <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                      {generarSemanaLabel(anio, Number(nuevaSemanaNum))}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* MOD */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">MOD</label>
-            <input type="number" min="1" value={mod} onChange={(e) => setMod(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <select
+              value={modSeleccionado}
+              onChange={(e) => setModSeleccionado(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            >
+              {productos.map((p) => (
+                <option key={p.mod} value={p.mod}>
+                  {p.mod} — {p.descripcion}
+                </option>
+              ))}
+            </select>
           </div>
+
+          {/* SKU (autorrelleno) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SKU</label>
-            <input type="text" value={sku} onChange={(e) => setSku(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input
+              type="text"
+              readOnly
+              value={productoActual?.sku ?? ""}
+              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-100 dark:bg-gray-900 text-gray-500 dark:text-gray-400 text-sm cursor-default"
+            />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción</label>
-            <input type="text" value={descripcion} onChange={(e) => setDescripcion(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+
+          {/* Cantidad e Importe */}
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cantidad (pzas)</label>
+              <input
+                type="number"
+                min="0"
+                value={cantidad}
+                onChange={(e) => setCantidad(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Importe (MXN)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={importe}
+                onChange={(e) => setImporte(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
           </div>
         </div>
 
@@ -208,7 +380,7 @@ function AddProductModal({ anio, onClose, onSave }: AddProductModalProps) {
           </button>
           <button onClick={handleSave} disabled={saving}
             className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors">
-            {saving ? "Guardando…" : "Agregar"}
+            {saving ? "Guardando…" : "Registrar venta"}
           </button>
         </div>
       </div>
@@ -229,7 +401,7 @@ export function VentasHomeDepot() {
   const [error, setError] = useState<string | null>(null);
 
   const [editCelda, setEditCelda] = useState<CeldaEditada | null>(null);
-  const [showAddProduct, setShowAddProduct] = useState(false);
+  const [showNuevaVenta, setShowNuevaVenta] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const msgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -296,25 +468,22 @@ export function VentasHomeDepot() {
     await fetchMatriz(anio);
   };
 
-  // ── Add product ────────────────────────────────────────────────────────────
+  // ── Nueva venta ────────────────────────────────────────────────────────────
 
-  const handleAddProduct = async (data: { mod: number; sku: string; descripcion: string }) => {
-    const semanas = matriz?.semanas ?? [];
-    // Insert a zero-row for the first available semana so the product appears in the matrix
-    const firstSemana = semanas[0];
-    if (!firstSemana) throw new Error("No hay semanas registradas aún para este año");
+  const handleNuevaVenta = async (data: {
+    semana_num: number;
+    semana_label: string;
+    mod: number;
+    sku: string;
+    descripcion: string;
+    cantidad: number;
+    importe: number;
+  }) => {
     await fetchAPI("/api/ventas-hd", {
       method: "POST",
-      body: JSON.stringify({
-        anio,
-        semana_num: firstSemana.semana_num,
-        semana_label: firstSemana.semana_label,
-        ...data,
-        cantidad: 0,
-        importe: 0,
-      }),
+      body: JSON.stringify({ anio, ...data }),
     });
-    flashMsg("Producto agregado");
+    flashMsg("Venta registrada");
     await fetchMatriz(anio);
   };
 
@@ -390,10 +559,10 @@ export function VentasHomeDepot() {
           </div>
 
           <button
-            onClick={() => setShowAddProduct(true)}
+            onClick={() => setShowNuevaVenta(true)}
             className="px-4 py-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
           >
-            + Producto
+            + Nueva venta
           </button>
 
           <button
@@ -596,11 +765,13 @@ export function VentasHomeDepot() {
         />
       )}
 
-      {showAddProduct && (
-        <AddProductModal
+      {showNuevaVenta && (
+        <NuevaVentaModal
           anio={anio}
-          onClose={() => setShowAddProduct(false)}
-          onSave={handleAddProduct}
+          semanas={semanas}
+          productos={productos}
+          onClose={() => setShowNuevaVenta(false)}
+          onSave={handleNuevaVenta}
         />
       )}
     </div>
