@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import ExcelJS from "exceljs";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 
@@ -487,6 +488,263 @@ export function VentasHomeDepot() {
     await fetchMatriz(anio);
   };
 
+  // ── Export Excel ───────────────────────────────────────────────────────────
+
+  const exportExcel = async () => {
+    if (!matriz) return;
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "EinterWeb";
+    const ws = wb.addWorksheet(`Ventas HD ${anio}`);
+
+    const sems = matriz.semanas;
+    const prods = matriz.productos;
+
+    // Column index helpers (1-based)
+    // Fixed: 1=MOD, 2=SKU, 3=Desc
+    // Per semana: col 4 + i*2 = Pzas,  col 5 + i*2 = $MXN
+    // Total: col 4 + N*2 = Pzas total, col 5 + N*2 = Importe total
+    const FIXED = 3;
+    const semCol = (i: number) => FIXED + i * 2 + 1;
+    const totalCantCol = FIXED + sems.length * 2 + 1;
+    const totalImpCol  = FIXED + sems.length * 2 + 2;
+    const lastCol = totalImpCol;
+
+    // ── Styles ──────────────────────────────────────────────────────────────
+    const headerFill = (argb: string): ExcelJS.Fill =>
+      ({ type: "pattern", pattern: "solid", fgColor: { argb } });
+    const border: ExcelJS.Borders = {
+      top:    { style: "thin", color: { argb: "FFD1D5DB" } },
+      bottom: { style: "thin", color: { argb: "FFD1D5DB" } },
+      left:   { style: "thin", color: { argb: "FFD1D5DB" } },
+      right:  { style: "thin", color: { argb: "FFD1D5DB" } },
+    };
+    const thickBorderRight: Partial<ExcelJS.Border> = { style: "medium", color: { argb: "FF9CA3AF" } };
+
+    const applyHeader = (cell: ExcelJS.Cell, value: string | number, bgArgb = "FFF3F4F6") => {
+      cell.value = value;
+      cell.fill = headerFill(bgArgb);
+      cell.font = { bold: true, size: 10 };
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.border = border;
+    };
+
+    // ── Row 1: "Sem N" merged headers ────────────────────────────────────────
+    const r1 = ws.getRow(1);
+    r1.height = 20;
+    applyHeader(r1.getCell(1), "MOD");
+    applyHeader(r1.getCell(2), "SKU");
+    applyHeader(r1.getCell(3), "Descripción");
+
+    sems.forEach((s, i) => {
+      const c = semCol(i);
+      applyHeader(r1.getCell(c), `Sem ${s.semana_num}`);
+      ws.mergeCells(1, c, 1, c + 1);
+    });
+    applyHeader(r1.getCell(totalCantCol), "Total", "FFFEF9C3");
+    ws.mergeCells(1, totalCantCol, 1, totalImpCol);
+
+    // ── Row 2: week labels ───────────────────────────────────────────────────
+    const r2 = ws.getRow(2);
+    r2.height = 18;
+    [1, 2, 3].forEach((c) => {
+      r2.getCell(c).fill = headerFill("FFF3F4F6");
+      r2.getCell(c).border = border;
+    });
+    sems.forEach((s, i) => {
+      const c = semCol(i);
+      const cell = r2.getCell(c);
+      cell.value = s.semana_label;
+      cell.fill = headerFill("FFF3F4F6");
+      cell.font = { bold: true, size: 9 };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.border = border;
+      ws.mergeCells(2, c, 2, c + 1);
+    });
+    const r2total = r2.getCell(totalCantCol);
+    r2total.fill = headerFill("FFFEF9C3");
+    r2total.border = border;
+    ws.mergeCells(2, totalCantCol, 2, totalImpCol);
+
+    // ── Row 3: "Pzas" / "$MXN" sub-headers ──────────────────────────────────
+    const r3 = ws.getRow(3);
+    r3.height = 16;
+    [1, 2, 3].forEach((c) => {
+      r3.getCell(c).fill = headerFill("FFF3F4F6");
+      r3.getCell(c).border = border;
+    });
+    sems.forEach((_, i) => {
+      const c = semCol(i);
+      applyHeader(r3.getCell(c),     "Pzas");
+      applyHeader(r3.getCell(c + 1), "$MXN");
+    });
+    applyHeader(r3.getCell(totalCantCol), "Pzas",  "FFFEF9C3");
+    applyHeader(r3.getCell(totalImpCol),  "$MXN",  "FFFEF9C3");
+
+    // Fix thick right-border on col 3 (Desc) in all 3 header rows
+    [1, 2, 3].forEach((r) => {
+      ws.getRow(r).getCell(3).border = { ...border, right: thickBorderRight };
+    });
+
+    // ── Data rows ────────────────────────────────────────────────────────────
+    const cantFill: Record<string, string> = {
+      zero:  "FFF9FAFB", // gray-50
+      low:   "FFFFFFFF", // white
+      mid:   "FFEFF6FF", // blue-50
+      high:  "FFF0FDF4", // green-50
+    };
+    const cantBg = (c: number) =>
+      c === 0 ? cantFill.zero : c >= 200 ? cantFill.high : c >= 100 ? cantFill.mid : cantFill.low;
+
+    prods.forEach((p, idx) => {
+      const rowBg = idx % 2 === 0 ? "FFFFFFFF" : "FFF9FAFB";
+      const row = ws.addRow([]);
+      row.height = 18;
+
+      const setFixed = (col: number, val: string | number) => {
+        const cell = row.getCell(col);
+        cell.value = val;
+        cell.fill = headerFill(rowBg);
+        cell.font = { size: 10 };
+        cell.border = border;
+        cell.alignment = { vertical: "middle" };
+      };
+      setFixed(1, p.mod);
+      setFixed(2, p.sku);
+      const descCell = row.getCell(3);
+      descCell.value = p.descripcion;
+      descCell.fill = headerFill(rowBg);
+      descCell.font = { size: 10 };
+      descCell.border = { ...border, right: thickBorderRight };
+      descCell.alignment = { vertical: "middle" };
+
+      let totalCant = 0;
+      let totalImp  = 0;
+
+      sems.forEach((s, i) => {
+        const v    = p.ventas[s.semana_num];
+        const cant = v?.cantidad ?? 0;
+        const imp  = v?.importe  ?? 0;
+        totalCant += cant;
+        totalImp  += imp;
+        const c = semCol(i);
+
+        const cantCell = row.getCell(c);
+        cantCell.value = cant;
+        cantCell.fill  = headerFill(cantBg(cant));
+        cantCell.font  = { bold: cant > 0, size: 10 };
+        cantCell.alignment = { horizontal: "center", vertical: "middle" };
+        cantCell.border = border;
+
+        const impCell = row.getCell(c + 1);
+        impCell.value = imp;
+        impCell.numFmt = '"$"#,##0.00';
+        impCell.fill   = headerFill(cantBg(cant));
+        impCell.font   = { size: 10, color: { argb: "FF16A34A" } };
+        impCell.alignment = { horizontal: "right", vertical: "middle" };
+        impCell.border = border;
+      });
+
+      const tcCell = row.getCell(totalCantCol);
+      tcCell.value = totalCant;
+      tcCell.fill  = headerFill("FFFEFCE8");
+      tcCell.font  = { bold: true, size: 10 };
+      tcCell.alignment = { horizontal: "center", vertical: "middle" };
+      tcCell.border = { ...border, left: thickBorderRight };
+
+      const tiCell = row.getCell(totalImpCol);
+      tiCell.value = totalImp;
+      tiCell.numFmt = '"$"#,##0.00';
+      tiCell.fill   = headerFill("FFFEFCE8");
+      tiCell.font   = { bold: true, size: 10, color: { argb: "FF15803D" } };
+      tiCell.alignment = { horizontal: "right", vertical: "middle" };
+      tiCell.border = border;
+    });
+
+    // ── Totals row ───────────────────────────────────────────────────────────
+    const totRow = ws.addRow([]);
+    totRow.height = 20;
+    [1, 2].forEach((c) => {
+      totRow.getCell(c).fill   = headerFill("FFFEFCE8");
+      totRow.getCell(c).border = border;
+    });
+    const totDescCell = totRow.getCell(3);
+    totDescCell.value = "TOTALES";
+    totDescCell.fill  = headerFill("FFFEFCE8");
+    totDescCell.font  = { bold: true, size: 10 };
+    totDescCell.alignment = { vertical: "middle" };
+    totDescCell.border = { ...border, right: thickBorderRight };
+
+    let grandCant = 0;
+    let grandImp  = 0;
+    sems.forEach((s, i) => {
+      const cant = prods.reduce((sum, p) => sum + (p.ventas[s.semana_num]?.cantidad ?? 0), 0);
+      const imp  = prods.reduce((sum, p) => sum + (p.ventas[s.semana_num]?.importe  ?? 0), 0);
+      grandCant += cant;
+      grandImp  += imp;
+      const c = semCol(i);
+
+      const cc = totRow.getCell(c);
+      cc.value = cant;
+      cc.fill  = headerFill("FFFEFCE8");
+      cc.font  = { bold: true, size: 10 };
+      cc.alignment = { horizontal: "center", vertical: "middle" };
+      cc.border = { ...border, top: thickBorderRight };
+
+      const ic = totRow.getCell(c + 1);
+      ic.value = imp;
+      ic.numFmt = '"$"#,##0.00';
+      ic.fill   = headerFill("FFFEFCE8");
+      ic.font   = { bold: true, size: 10, color: { argb: "FF15803D" } };
+      ic.alignment = { horizontal: "right", vertical: "middle" };
+      ic.border = { ...border, top: thickBorderRight };
+    });
+
+    const gcCell = totRow.getCell(totalCantCol);
+    gcCell.value = grandCant;
+    gcCell.fill  = headerFill("FFFDE68A");
+    gcCell.font  = { bold: true, size: 10 };
+    gcCell.alignment = { horizontal: "center", vertical: "middle" };
+    gcCell.border = { ...border, top: thickBorderRight, left: thickBorderRight };
+
+    const giCell = totRow.getCell(totalImpCol);
+    giCell.value = grandImp;
+    giCell.numFmt = '"$"#,##0.00';
+    giCell.fill   = headerFill("FFFDE68A");
+    giCell.font   = { bold: true, size: 10, color: { argb: "FF15803D" } };
+    giCell.alignment = { horizontal: "right", vertical: "middle" };
+    giCell.border = { ...border, top: thickBorderRight };
+
+    // ── Column widths ────────────────────────────────────────────────────────
+    ws.getColumn(1).width = 8;
+    ws.getColumn(2).width = 16;
+    ws.getColumn(3).width = 38;
+    for (let i = 0; i < sems.length; i++) {
+      ws.getColumn(semCol(i)).width     = 8;
+      ws.getColumn(semCol(i) + 1).width = 12;
+    }
+    ws.getColumn(totalCantCol).width = 9;
+    ws.getColumn(totalImpCol).width  = 13;
+
+    // ── Freeze: first 3 cols + first 3 header rows ───────────────────────────
+    ws.views = [{ state: "frozen", xSplit: 3, ySplit: 3, activeCell: "D4" }];
+
+    // ── Auto-filter on row 3 ─────────────────────────────────────────────────
+    ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: lastCol } };
+
+    // ── Download ─────────────────────────────────────────────────────────────
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ventas_hd_${anio}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // ── Totals ─────────────────────────────────────────────────────────────────
 
   const semanas = matriz?.semanas ?? [];
@@ -563,6 +821,14 @@ export function VentasHomeDepot() {
             className="px-4 py-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
           >
             + Nueva venta
+          </button>
+
+          <button
+            onClick={exportExcel}
+            disabled={!matriz || loading}
+            className="px-4 py-2 border border-green-600 text-green-600 hover:bg-green-600 hover:text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+          >
+            ↓ Excel
           </button>
 
           <button
