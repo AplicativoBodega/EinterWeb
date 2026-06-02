@@ -26,8 +26,7 @@ import {
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 
-const LS_DEMAND      = 'einter_inv_demanda';
-const LS_TRANSIT     = 'einter_inv_transito';
+const LS_TRANSIT = 'einter_inv_transito';
 
 // ─── Tipos internos ────────────────────────────────────────────────────────────
 
@@ -38,7 +37,7 @@ interface SkuCatalogo {
   supplier:    string;
   supplierId:  number;
   invActual:   number;
-  pzsCaja:     number;   // inventario_standar_tarima
+  pzsCaja:     number;   // cantidad_x_ctn
   pesoCaja:    number;   // kg/caja
   volCaja:     number;   // m³/caja
   dI:          number;   // demanda piezas/día
@@ -128,17 +127,20 @@ export function PedidoPersonalizado() {
     setLoading(true);
     setError(null);
     try {
-      // Cargar overrides de localStorage
-      let demanda: Record<string, number> = {};
       let transit: Record<string, number> = {};
-      try { demanda = JSON.parse(localStorage.getItem(LS_DEMAND)  || '{}'); } catch { /* ignore */ }
       try { transit = JSON.parse(localStorage.getItem(LS_TRANSIT) || '{}'); } catch { /* ignore */ }
 
-      // Cargar proveedores y productos en paralelo
-      const [provRes, ...productBatches] = await Promise.all([
+      // Cargar demanda HD, proveedores y productos en paralelo
+      const [demandaRes, provRes, ...productBatches] = await Promise.all([
+        fetchAPI('/api/ventas-hd/demanda-diaria'),
         fetchAPI('/api/odoo/proveedores?pageSize=500'),
         fetchAPI('/api/odoo/productos?page=1&pageSize=100'),
-      ]) as [{ items?: Record<string, unknown>[] }, ...unknown[]];
+      ]) as [{ mod: string; demanda_diaria: number }[], { items?: Record<string, unknown>[] }, ...unknown[]];
+
+      const demanda: Record<string, number> = {};
+      for (const d of (demandaRes || [])) {
+        if (d.demanda_diaria > 0) demanda[d.mod] = d.demanda_diaria;
+      }
 
       setProveedores(
         (provRes.items || []).map((p: Record<string, unknown>) => ({ id: p.id_proveedor as number, nombre: p.nombre as string }))
@@ -158,14 +160,10 @@ export function PedidoPersonalizado() {
       }
 
       const skus: SkuCatalogo[] = items
-        .filter(item => {
-          const std = Number(item.inventario_standar_tarima) || 0;
-          return std > 0;
-        })
         .map(item => {
           const skuStr     = String(item.master_sku ?? item.id_articulo ?? '');
           const skuNum     = parseInt(skuStr, 10) || 0;
-          const pzsCaja    = Number(item.inventario_standar_tarima) || 1;
+          const pzsCaja    = Number(item.cantidad_x_ctn) || 1;
           const pesoUnitKg = Number(item.peso_kg) || 0;
           const pesoCaja   = pesoUnitKg * pzsCaja;
           const largo      = Number(item.largo_cm) || 0;
@@ -690,8 +688,8 @@ export function PedidoPersonalizado() {
                             {s.cobDias >= 9999 ? '—' : s.cobDias > 999 ? '+999d' : `${s.cobDias.toFixed(0)}d`}
                           </td>
                           <td className="px-4 py-2.5 text-center">
-                            <span className={`inline-block px-1.5 py-0.5 rounded-full text-xs font-medium ${sem.badge} ${sem.text}`}>
-                              {sem.dot}
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${sem.badge} ${sem.text}`}>
+                              {sem.dot} {sem.label}
                             </span>
                           </td>
                           <td className="px-5 py-2.5 text-right text-gray-600 dark:text-gray-400 tabular-nums">{fmt(s.pzsCaja)}</td>

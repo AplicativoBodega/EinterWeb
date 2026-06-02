@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { ProductModal } from "../components/ProductModal";
 import { DeleteConfirmModal } from "../components/DeleteConfirmModal";
 import { useDarkMode } from "../context/DarkModeContext";
@@ -116,12 +116,25 @@ export function Productos() {
         "Alto (cm)": p.dimensions_cm?.alto ?? "",
       }));
 
-      const worksheet = XLSX.utils.json_to_sheet(rows);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Productos");
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Productos");
+
+      if (rows.length > 0) {
+        worksheet.columns = Object.keys(rows[0]).map((key) => ({ header: key, key }));
+        worksheet.addRows(rows);
+      }
 
       const date = new Date().toISOString().slice(0, 10);
-      XLSX.writeFile(workbook, `productos_${date}.xlsx`);
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `productos_${date}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Error exporting products:", err);
       setError(err instanceof Error ? err.message : "Error al exportar productos");
@@ -135,16 +148,18 @@ export function Productos() {
     if (isAuto) setAutoSyncing(true);
     setSyncMsg(null);
     try {
-      const provRes = await fetchAPI('/api/odoo/pull/proveedores', { method: 'POST' }) as { upserted?: number };
+      const provRes = await fetchAPI('/api/odoo/pull/proveedores', { method: 'POST' }) as { upserted?: number; deleted?: number };
       const prodRes = await fetchAPI('/api/odoo/pull/productos',   { method: 'POST' }) as { upserted?: number; suppliersMapped?: number };
       const provCount = provRes.upserted ?? 0;
+      const provDeleted = provRes.deleted ?? 0;
       const prodCount = prodRes.upserted ?? 0;
       const mapped    = prodRes.suppliersMapped ?? 0;
       localStorage.setItem(PRODUCTS_SYNC_KEY, Date.now().toString());
       if (!isAuto) {
+        const deletedMsg = provDeleted > 0 ? `, ${provDeleted} proveedores eliminados` : '';
         setSyncMsg({
           ok: true,
-          text: `Sync completado — ${provCount} proveedores, ${prodCount} productos (${mapped} con proveedor mapeado).`,
+          text: `Sync completado — ${provCount} proveedores${deletedMsg}, ${prodCount} productos (${mapped} con proveedor mapeado).`,
         });
       }
       await fetchProducts('', 1);

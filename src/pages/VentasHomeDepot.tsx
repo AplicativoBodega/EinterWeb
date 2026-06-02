@@ -1,79 +1,250 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 
-type ComparativoStatus = "completo" | "parcial" | "sin_entrega" | "sin_pedido";
+// ─── Types ──────────────────────────────────────────────────────────────────
 
-interface ComparativoRow {
-  master_sku: string;
-  sku_thd: string;
+interface Semana {
+  semana_num: number;
+  semana_label: string;
+}
+
+interface VentaSemana {
+  id: number;
+  cantidad: number;
+  importe: number;
+}
+
+interface Producto {
+  mod: number;
+  sku: string;
   descripcion: string;
-  total_pedido: number;
-  total_salida: number;
-  diferencia: number;
-  pct_cumplimiento: number;
-  status: ComparativoStatus;
+  ventas: Record<number, VentaSemana>;
 }
 
-const STATUS_CFG: Record<
-  ComparativoStatus,
-  { label: string; rowBg: string; badgeBg: string; badgeText: string }
-> = {
-  completo: {
-    label: "Completo",
-    rowBg: "bg-green-50 dark:bg-green-950/30",
-    badgeBg: "bg-green-100 dark:bg-green-900/50",
-    badgeText: "text-green-700 dark:text-green-300",
-  },
-  parcial: {
-    label: "Parcial",
-    rowBg: "bg-amber-50 dark:bg-amber-950/20",
-    badgeBg: "bg-amber-100 dark:bg-amber-900/40",
-    badgeText: "text-amber-700 dark:text-amber-300",
-  },
-  sin_entrega: {
-    label: "Sin Entrega",
-    rowBg: "bg-red-50 dark:bg-red-950/30",
-    badgeBg: "bg-red-100 dark:bg-red-900/50",
-    badgeText: "text-red-700 dark:text-red-300",
-  },
-  sin_pedido: {
-    label: "Sin Pedido",
-    rowBg: "",
-    badgeBg: "bg-gray-100 dark:bg-gray-700",
-    badgeText: "text-gray-600 dark:text-gray-400",
-  },
-};
-
-const TABLE_GRID = "6rem 7rem minmax(0,3fr) 7rem 7rem 7rem 9rem 7rem";
-
-function pctTextColor(pct: number) {
-  if (pct >= 100) return "text-green-600 dark:text-green-400";
-  if (pct >= 50) return "text-amber-600 dark:text-amber-400";
-  return "text-red-600 dark:text-red-400";
+interface MatrizResponse {
+  anio: number;
+  semanas: Semana[];
+  productos: Producto[];
 }
 
-function pctBarColor(pct: number) {
-  if (pct >= 100) return "bg-green-500";
-  if (pct >= 50) return "bg-amber-500";
-  return "bg-red-500";
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function formatImporte(v: number): string {
+  return v.toLocaleString("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 2 });
 }
+
+// ─── Edit modal ──────────────────────────────────────────────────────────────
+
+interface CeldaEditada {
+  id: number | null;
+  anio: number;
+  semana_num: number;
+  semana_label: string;
+  mod: number;
+  sku: string;
+  descripcion: string;
+  cantidad: number;
+  importe: number;
+}
+
+interface EditModalProps {
+  celda: CeldaEditada;
+  onClose: () => void;
+  onSave: (celda: CeldaEditada) => Promise<void>;
+}
+
+function EditModal({ celda, onClose, onSave }: EditModalProps) {
+  const [cantidad, setCantidad] = useState(String(celda.cantidad));
+  const [importe, setImporte] = useState(String(celda.importe));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSave = async () => {
+    const c = Number(cantidad);
+    const i = Number(importe);
+    if (isNaN(c) || c < 0) { setError("Cantidad inválida"); return; }
+    if (isNaN(i) || i < 0) { setError("Importe inválido"); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave({ ...celda, cantidad: c, importe: i });
+      onClose();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+          Editar semana {celda.semana_label}
+        </h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-5 truncate">
+          {celda.descripcion}
+        </p>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Cantidad (piezas)
+            </label>
+            <input
+              type="number"
+              min="0"
+              value={cantidad}
+              onChange={(e) => setCantidad(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Importe (MXN)
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={importe}
+              onChange={(e) => setImporte(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+
+        {error && (
+          <p className="mt-3 text-sm text-red-500">{error}</p>
+        )}
+
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            {saving ? "Guardando…" : "Guardar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Add-product modal ────────────────────────────────────────────────────────
+
+interface AddProductModalProps {
+  anio: number;
+  onClose: () => void;
+  onSave: (data: { mod: number; sku: string; descripcion: string }) => Promise<void>;
+}
+
+function AddProductModal({ anio, onClose, onSave }: AddProductModalProps) {
+  const [mod, setMod] = useState("");
+  const [sku, setSku] = useState("");
+  const [descripcion, setDescripcion] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSave = async () => {
+    const modNum = Number(mod);
+    if (!mod || isNaN(modNum) || modNum <= 0) { setError("MOD inválido"); return; }
+    if (!sku.trim()) { setError("SKU requerido"); return; }
+    if (!descripcion.trim()) { setError("Descripción requerida"); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave({ mod: modNum, sku: sku.trim(), descripcion: descripcion.trim() });
+      onClose();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+          Nuevo producto — {anio}
+        </h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
+          Se añadirá con 0 piezas y $0 en todas las semanas registradas.
+        </p>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">MOD</label>
+            <input type="number" min="1" value={mod} onChange={(e) => setMod(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SKU</label>
+            <input type="text" value={sku} onChange={(e) => setSku(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción</label>
+            <input type="text" value={descripcion} onChange={(e) => setDescripcion(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+        </div>
+
+        {error && <p className="mt-3 text-sm text-red-500">{error}</p>}
+
+        <div className="flex gap-3 mt-6">
+          <button onClick={onClose}
+            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium transition-colors">
+            Cancelar
+          </button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors">
+            {saving ? "Guardando…" : "Agregar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
+const ANIOS_DISPONIBLES = [2025, 2026];
 
 export function VentasHomeDepot() {
   useDarkMode();
-  const [data, setData] = useState<ComparativoRow[]>([]);
+
+  const [anio, setAnio] = useState<number>(new Date().getFullYear());
+  const [matriz, setMatriz] = useState<MatrizResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = async () => {
+  const [editCelda, setEditCelda] = useState<CeldaEditada | null>(null);
+  const [showAddProduct, setShowAddProduct] = useState(false);
+  const [actionMsg, setActionMsg] = useState<string | null>(null);
+  const msgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flashMsg = (msg: string) => {
+    setActionMsg(msg);
+    if (msgTimerRef.current) clearTimeout(msgTimerRef.current);
+    msgTimerRef.current = setTimeout(() => setActionMsg(null), 3000);
+  };
+
+  const fetchMatriz = async (a = anio) => {
     setLoading(true);
     setError(null);
     try {
-      const raw = (await fetchAPI(
-        `/api/thd/comparativo?anio=2026&categoria=baños`
-      )) as Record<string, unknown>;
-      const rows = (raw.data ?? raw.rows ?? raw.items ?? []) as ComparativoRow[];
-      setData(Array.isArray(rows) ? rows : []);
+      const data = await fetchAPI(`/api/ventas-hd?anio=${a}`) as MatrizResponse;
+      setMatriz(data);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -81,152 +252,357 @@ export function VentasHomeDepot() {
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchMatriz(anio); }, [anio]);
+
+  // ── Edit cell ──────────────────────────────────────────────────────────────
+
+  const handleCellClick = (producto: Producto, semana: Semana) => {
+    const venta = producto.ventas[semana.semana_num];
+    setEditCelda({
+      id: venta?.id ?? null,
+      anio,
+      semana_num: semana.semana_num,
+      semana_label: semana.semana_label,
+      mod: producto.mod,
+      sku: producto.sku,
+      descripcion: producto.descripcion,
+      cantidad: venta?.cantidad ?? 0,
+      importe: venta?.importe ?? 0,
+    });
+  };
+
+  const handleSaveEdit = async (celda: CeldaEditada) => {
+    if (celda.id) {
+      await fetchAPI(`/api/ventas-hd/${celda.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ cantidad: celda.cantidad, importe: celda.importe }),
+      });
+    } else {
+      await fetchAPI("/api/ventas-hd", {
+        method: "POST",
+        body: JSON.stringify({
+          anio: celda.anio,
+          semana_num: celda.semana_num,
+          semana_label: celda.semana_label,
+          mod: celda.mod,
+          sku: celda.sku,
+          descripcion: celda.descripcion,
+          cantidad: celda.cantidad,
+          importe: celda.importe,
+        }),
+      });
+    }
+    flashMsg("Guardado correctamente");
+    await fetchMatriz(anio);
+  };
+
+  // ── Add product ────────────────────────────────────────────────────────────
+
+  const handleAddProduct = async (data: { mod: number; sku: string; descripcion: string }) => {
+    const semanas = matriz?.semanas ?? [];
+    // Insert a zero-row for the first available semana so the product appears in the matrix
+    const firstSemana = semanas[0];
+    if (!firstSemana) throw new Error("No hay semanas registradas aún para este año");
+    await fetchAPI("/api/ventas-hd", {
+      method: "POST",
+      body: JSON.stringify({
+        anio,
+        semana_num: firstSemana.semana_num,
+        semana_label: firstSemana.semana_label,
+        ...data,
+        cantidad: 0,
+        importe: 0,
+      }),
+    });
+    flashMsg("Producto agregado");
+    await fetchMatriz(anio);
+  };
+
+  // ── Totals ─────────────────────────────────────────────────────────────────
+
+  const semanas = matriz?.semanas ?? [];
+  const productos = matriz?.productos ?? [];
+
+  const totalPorSemana = (semana_num: number) =>
+    productos.reduce((s, p) => s + (p.ventas[semana_num]?.cantidad ?? 0), 0);
+
+  const importePorSemana = (semana_num: number) =>
+    productos.reduce((s, p) => s + (p.ventas[semana_num]?.importe ?? 0), 0);
+
+  const totalPorProducto = (p: Producto) =>
+    semanas.reduce((s, sem) => s + (p.ventas[sem.semana_num]?.cantidad ?? 0), 0);
+
+  const importePorProducto = (p: Producto) =>
+    semanas.reduce((s, sem) => s + (p.ventas[sem.semana_num]?.importe ?? 0), 0);
+
+  const granTotal = productos.reduce(
+    (s, p) => s + semanas.reduce((ss, sem) => ss + (p.ventas[sem.semana_num]?.cantidad ?? 0), 0),
+    0
+  );
+  const granImporte = productos.reduce(
+    (s, p) => s + semanas.reduce((ss, sem) => ss + (p.ventas[sem.semana_num]?.importe ?? 0), 0),
+    0
+  );
+
+  // ── Cell style ─────────────────────────────────────────────────────────────
+
+  const cellBg = (cantidad: number) => {
+    if (cantidad === 0) return "bg-gray-50 dark:bg-gray-800/50";
+    if (cantidad >= 200) return "bg-green-50 dark:bg-green-900/20";
+    if (cantidad >= 100) return "bg-blue-50 dark:bg-blue-900/20";
+    return "";
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="w-full bg-gray-50 dark:bg-gray-900 flex flex-col min-h-screen">
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-6">
-        <h1 className="text-3xl font-bold tracking-wide text-gray-900 dark:text-white">
-          Ventas Home Depot
-        </h1>
-      </div>
+    <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900" style={{ minHeight: 0 }}>
 
-      <div className="flex-1 bg-white dark:bg-gray-800 mx-8 mt-4 mb-8 border border-gray-400 dark:border-gray-700 overflow-hidden flex flex-col rounded-lg">
-        {/* Column headers */}
-        <div
-          className="grid [&>*]:min-w-0 bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-400 dark:border-gray-600"
-          style={{ gridTemplateColumns: TABLE_GRID }}
-        >
-          {(
-            [
-              "MOD",
-              "SKU THD",
-              "Descripción",
-              "Pedido",
-              "Salida",
-              "Diferencia",
-              "% Cumplimiento",
-              "Status",
-            ] as const
-          ).map((label, i, arr) => (
-            <div
-              key={label}
-              className={`py-4 px-3 flex items-center ${
-                label === "Descripción" ? "justify-start" : "justify-center"
-              } ${i < arr.length - 1 ? "border-r border-gray-400 dark:border-gray-600" : ""}`}
-            >
-              <span className="font-robotoMedium text-gray-900 dark:text-white text-sm">
-                {label}
-              </span>
-            </div>
-          ))}
+      {/* ── Header ── */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Ventas Home Depot</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+            Ventas semanales por producto — vista matricial
+          </p>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-auto">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-20">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-              <p className="text-gray-500 dark:text-gray-400 font-robotoRegular mt-4">
-                Cargando ventas Home Depot...
-              </p>
-            </div>
-          ) : error ? (
-            <div className="flex flex-col items-center justify-center py-20">
-              <p className="text-red-500 font-robotoMedium">Error al cargar datos</p>
-              <p className="text-gray-400 dark:text-gray-500 font-robotoRegular text-sm mt-2">
-                {error}
-              </p>
-              <button
-                onClick={fetchData}
-                className="mt-4 px-4 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-colors text-sm"
-              >
-                Reintentar
-              </button>
-            </div>
-          ) : data.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-2">
-              <p className="text-gray-500 dark:text-gray-400 font-robotoMedium text-lg mt-2">
-                Sin datos para mostrar
-              </p>
-            </div>
-          ) : (
-            data.map((row) => {
-              const cfg = STATUS_CFG[row.status] ?? STATUS_CFG.sin_pedido;
-              const isNegDiff = row.diferencia < 0;
-              return (
-                <div
-                  key={`${row.master_sku}-${row.sku_thd}`}
-                  className={`grid [&>*]:min-w-0 border-b border-gray-200 dark:border-gray-700 ${cfg.rowBg} hover:opacity-90 transition-opacity`}
-                  style={{ gridTemplateColumns: TABLE_GRID }}
-                >
-                  <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
-                    <span className="text-gray-700 dark:text-gray-300 text-sm font-mono">
-                      {row.master_sku}
-                    </span>
-                  </div>
-                  <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
-                    <span className="text-gray-700 dark:text-gray-300 text-sm font-mono">
-                      {row.sku_thd}
-                    </span>
-                  </div>
-                  <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center">
-                    <span
-                      className="text-gray-900 dark:text-gray-100 text-sm truncate"
-                      title={row.descripcion}
-                    >
-                      {row.descripcion}
-                    </span>
-                  </div>
-                  <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
-                    <span className="text-gray-900 dark:text-gray-100 text-sm">
-                      {row.total_pedido.toLocaleString("es-MX")}
-                    </span>
-                  </div>
-                  <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
-                    <span className="text-gray-900 dark:text-gray-100 text-sm">
-                      {row.total_salida.toLocaleString("es-MX")}
-                    </span>
-                  </div>
-                  <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
-                    <span
-                      className={`text-sm font-medium ${
-                        isNegDiff
-                          ? "text-red-600 dark:text-red-400"
-                          : "text-green-600 dark:text-green-400"
-                      }`}
-                    >
-                      {row.diferencia.toLocaleString("es-MX")}
-                    </span>
-                  </div>
-                  <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
-                    <div className="flex flex-col items-center gap-1 w-full px-1">
-                      <span className={`text-sm font-bold ${pctTextColor(row.pct_cumplimiento)}`}>
-                        {row.pct_cumplimiento.toFixed(1)}%
-                      </span>
-                      <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${pctBarColor(row.pct_cumplimiento)}`}
-                          style={{ width: `${Math.min(100, row.pct_cumplimiento)}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="py-3 px-3 flex items-center justify-center">
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cfg.badgeBg} ${cfg.badgeText}`}
-                    >
-                      {cfg.label}
-                    </span>
-                  </div>
-                </div>
-              );
-            })
+        <div className="flex items-center gap-3 flex-wrap">
+          {actionMsg && (
+            <span className="text-sm text-green-600 dark:text-green-400 font-medium">{actionMsg}</span>
           )}
+
+          {/* Year selector */}
+          <div className="flex rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600">
+            {ANIOS_DISPONIBLES.map((a) => (
+              <button
+                key={a}
+                onClick={() => setAnio(a)}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                  anio === a
+                    ? "bg-blue-600 text-white"
+                    : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                }`}
+              >
+                {a}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => setShowAddProduct(true)}
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+          >
+            + Producto
+          </button>
+
+          <button
+            onClick={() => fetchMatriz(anio)}
+            disabled={loading}
+            className="px-4 py-2 border border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+          >
+            {loading ? "Cargando…" : "↻ Actualizar"}
+          </button>
         </div>
       </div>
+
+      {/* ── Stats bar ── */}
+      {matriz && !loading && (
+        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3 flex gap-8 text-sm">
+          <span className="text-gray-500 dark:text-gray-400">
+            <span className="font-semibold text-gray-900 dark:text-white">{productos.length}</span> productos
+          </span>
+          <span className="text-gray-500 dark:text-gray-400">
+            <span className="font-semibold text-gray-900 dark:text-white">{semanas.length}</span> semanas
+          </span>
+          <span className="text-gray-500 dark:text-gray-400">
+            Total piezas:{" "}
+            <span className="font-semibold text-gray-900 dark:text-white">
+              {granTotal.toLocaleString("es-MX")}
+            </span>
+          </span>
+          <span className="text-gray-500 dark:text-gray-400">
+            Total importe:{" "}
+            <span className="font-semibold text-green-600 dark:text-green-400">
+              {formatImporte(granImporte)}
+            </span>
+          </span>
+        </div>
+      )}
+
+      {/* ── Loading / Error ── */}
+      {loading && (
+        <div className="flex-1 flex items-center justify-center py-20">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+          <p className="ml-4 text-gray-500 dark:text-gray-400">Cargando datos…</p>
+        </div>
+      )}
+
+      {!loading && error && (
+        <div className="flex-1 flex flex-col items-center justify-center py-20 gap-2">
+          <p className="text-red-500 font-semibold">Error al cargar datos</p>
+          <p className="text-gray-400 text-sm">{error}</p>
+        </div>
+      )}
+
+      {!loading && !error && matriz && semanas.length === 0 && (
+        <div className="flex-1 flex flex-col items-center justify-center py-20 gap-2">
+          <p className="text-gray-500 dark:text-gray-400 text-lg">No hay datos para {anio}</p>
+          <p className="text-gray-400 text-sm">Importa datos desde el Excel o agrega un producto para comenzar.</p>
+        </div>
+      )}
+
+      {/* ── Matrix Table ── */}
+      {!loading && !error && matriz && semanas.length > 0 && (
+        <div className="flex-1 overflow-auto mx-4 my-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm" style={{ minHeight: 0 }}>
+          <table className="border-collapse min-w-max text-sm">
+            <thead>
+              {/* ── Row 1: week numbers ── */}
+              <tr className="bg-gray-100 dark:bg-gray-700">
+                <th className="sticky left-0 z-20 bg-gray-100 dark:bg-gray-700 border-b-2 border-r-2 border-gray-300 dark:border-gray-600 px-3 py-2 text-left text-xs text-gray-500 dark:text-gray-400 min-w-[3rem]">
+                  MOD
+                </th>
+                <th className="sticky left-12 z-20 bg-gray-100 dark:bg-gray-700 border-b-2 border-r border-gray-300 dark:border-gray-600 px-3 py-2 text-left text-xs text-gray-500 dark:text-gray-400 min-w-[6rem]">
+                  SKU
+                </th>
+                <th className="sticky left-36 z-20 bg-gray-100 dark:bg-gray-700 border-b-2 border-r-2 border-gray-300 dark:border-gray-600 px-3 py-2 text-left text-xs text-gray-500 dark:text-gray-400 min-w-[14rem] max-w-[16rem]">
+                  Descripción
+                </th>
+                {semanas.map((s) => (
+                  <th
+                    key={s.semana_num}
+                    colSpan={1}
+                    className="border-b-2 border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-center text-xs font-normal text-gray-400 dark:text-gray-500 min-w-[6rem]"
+                  >
+                    Sem {s.semana_num}
+                  </th>
+                ))}
+                <th className="border-b-2 border-l-2 border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-xs text-gray-500 dark:text-gray-400 min-w-[7rem] bg-yellow-50 dark:bg-yellow-900/20">
+                  Total
+                </th>
+              </tr>
+
+              {/* ── Row 2: week labels ── */}
+              <tr className="bg-gray-100 dark:bg-gray-700">
+                <th className="sticky left-0 z-20 bg-gray-100 dark:bg-gray-700 border-b border-r-2 border-gray-300 dark:border-gray-600 px-3 py-1" />
+                <th className="sticky left-12 z-20 bg-gray-100 dark:bg-gray-700 border-b border-r border-gray-300 dark:border-gray-600 px-3 py-1" />
+                <th className="sticky left-36 z-20 bg-gray-100 dark:bg-gray-700 border-b border-r-2 border-gray-300 dark:border-gray-600 px-3 py-1" />
+                {semanas.map((s) => (
+                  <th
+                    key={s.semana_num}
+                    className="border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap"
+                  >
+                    {s.semana_label}
+                  </th>
+                ))}
+                <th className="border-b border-l-2 border-gray-300 dark:border-gray-600 px-3 py-1 bg-yellow-50 dark:bg-yellow-900/20" />
+              </tr>
+            </thead>
+
+            <tbody>
+              {productos.map((producto, idx) => (
+                <tr
+                  key={producto.mod}
+                  className={idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}
+                >
+                  {/* Sticky: MOD */}
+                  <td className={`sticky left-0 z-10 border-b border-r-2 border-gray-200 dark:border-gray-700 px-3 py-2 text-center font-mono text-xs font-semibold text-gray-700 dark:text-gray-300 ${idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}`}>
+                    {producto.mod}
+                  </td>
+                  {/* Sticky: SKU */}
+                  <td className={`sticky left-12 z-10 border-b border-r border-gray-200 dark:border-gray-700 px-3 py-2 font-mono text-xs text-gray-500 dark:text-gray-400 ${idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}`}>
+                    {producto.sku}
+                  </td>
+                  {/* Sticky: Descripción */}
+                  <td className={`sticky left-36 z-10 border-b border-r-2 border-gray-200 dark:border-gray-700 px-3 py-2 text-xs text-gray-800 dark:text-gray-200 max-w-[16rem] ${idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}`}>
+                    <span className="line-clamp-2" title={producto.descripcion}>
+                      {producto.descripcion}
+                    </span>
+                  </td>
+
+                  {/* Week cells */}
+                  {semanas.map((s) => {
+                    const v = producto.ventas[s.semana_num];
+                    const cant = v?.cantidad ?? 0;
+                    const imp = v?.importe ?? 0;
+                    return (
+                      <td
+                        key={s.semana_num}
+                        onClick={() => handleCellClick(producto, s)}
+                        className={`border-b border-r border-gray-200 dark:border-gray-700 px-2 py-1.5 text-center cursor-pointer hover:ring-2 hover:ring-blue-400 hover:z-10 hover:relative transition-all ${cellBg(cant)}`}
+                      >
+                        <div className="font-semibold text-gray-800 dark:text-gray-200 text-xs leading-none">
+                          {cant.toLocaleString("es-MX")}
+                        </div>
+                        <div className="text-[10px] text-green-600 dark:text-green-400 leading-none mt-0.5 whitespace-nowrap">
+                          {imp > 0 ? formatImporte(imp) : "—"}
+                        </div>
+                      </td>
+                    );
+                  })}
+
+                  {/* Row total */}
+                  <td className="border-b border-l-2 border-gray-200 dark:border-gray-700 px-3 py-1.5 text-center bg-yellow-50 dark:bg-yellow-900/20">
+                    <div className="font-bold text-gray-900 dark:text-white text-xs">
+                      {totalPorProducto(producto).toLocaleString("es-MX")}
+                    </div>
+                    <div className="text-[10px] text-green-700 dark:text-green-400 whitespace-nowrap">
+                      {formatImporte(importePorProducto(producto))}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+
+              {/* ── Totals row ── */}
+              <tr className="bg-yellow-50 dark:bg-yellow-900/20 font-bold">
+                <td className="sticky left-0 z-10 bg-yellow-50 dark:bg-yellow-900/20 border-t-2 border-r-2 border-gray-300 dark:border-gray-600 px-3 py-2 text-xs text-gray-700 dark:text-gray-300" />
+                <td className="sticky left-12 z-10 bg-yellow-50 dark:bg-yellow-900/20 border-t-2 border-r border-gray-300 dark:border-gray-600 px-3 py-2" />
+                <td className="sticky left-36 z-10 bg-yellow-50 dark:bg-yellow-900/20 border-t-2 border-r-2 border-gray-300 dark:border-gray-600 px-3 py-2 text-xs font-bold text-gray-800 dark:text-gray-200">
+                  TOTALES
+                </td>
+                {semanas.map((s) => (
+                  <td
+                    key={s.semana_num}
+                    className="border-t-2 border-r border-gray-300 dark:border-gray-600 px-2 py-1.5 text-center"
+                  >
+                    <div className="text-xs font-bold text-gray-900 dark:text-white">
+                      {totalPorSemana(s.semana_num).toLocaleString("es-MX")}
+                    </div>
+                    <div className="text-[10px] text-green-700 dark:text-green-400 whitespace-nowrap">
+                      {formatImporte(importePorSemana(s.semana_num))}
+                    </div>
+                  </td>
+                ))}
+                <td className="border-t-2 border-l-2 border-gray-300 dark:border-gray-600 px-3 py-1.5 text-center">
+                  <div className="text-xs font-bold text-gray-900 dark:text-white">
+                    {granTotal.toLocaleString("es-MX")}
+                  </div>
+                  <div className="text-[10px] text-green-700 dark:text-green-400 whitespace-nowrap">
+                    {formatImporte(granImporte)}
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── Modals ── */}
+      {editCelda && (
+        <EditModal
+          celda={editCelda}
+          onClose={() => setEditCelda(null)}
+          onSave={handleSaveEdit}
+        />
+      )}
+
+      {showAddProduct && (
+        <AddProductModal
+          anio={anio}
+          onClose={() => setShowAddProduct(false)}
+          onSave={handleAddProduct}
+        />
+      )}
     </div>
   );
 }
