@@ -132,5 +132,7 @@ export const api = {
     body: JSON.stringify({ is_active: isActive })
   }),
 
-  // Add more endpoints as needed
+  // Dashboard
+  getDashboard: () => apiRequest('/api/misc/dashboard'),
+  getProductosCatalogo: (pageSize = 50) => apiRequest(`/api/productos?pageSize=${pageSize}`),
 };

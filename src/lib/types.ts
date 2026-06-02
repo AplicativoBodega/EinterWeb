@@ -112,6 +112,7 @@ export interface Product {
   category?: string | { id: number; name: string };
   description?: string;
   standard_tarima?: number;
+  qty_per_carton?: number | null;
 }
 
 export interface ProductCreateRequest {

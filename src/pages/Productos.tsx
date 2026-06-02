@@ -373,6 +373,7 @@ export function Productos() {
         id_proveedor: productData.supplier?.id || null,
         id_categoria: productData.category ? parseInt(String(productData.category)) : null,
         inventario_standar_tarima: productData.standard_tarima || null,
+        cantidad_x_ctn: productData.qty_per_carton ?? null,
       };
 
       const result = await fetchAPI("/(api)/productos", {
@@ -430,6 +431,8 @@ export function Productos() {
         apiData.id_proveedor = productData.supplier.id;
       if (productData.standard_tarima !== undefined)
         apiData.inventario_standar_tarima = productData.standard_tarima;
+      if (productData.qty_per_carton !== undefined)
+        apiData.cantidad_x_ctn = productData.qty_per_carton;
       if (productData.category !== undefined)
         apiData.id_categoria = productData.category ? parseInt(String(productData.category)) : null;
 
