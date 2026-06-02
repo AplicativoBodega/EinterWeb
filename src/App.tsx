@@ -18,6 +18,7 @@ import { Perfiles } from './pages/Perfiles'
 import { Categorias } from './pages/Categorias'
 import Profile from './components/Profile'
 import { UserManagement } from './pages/UserManagement'
+import { THDComparativo } from './pages/THDComparativo'
 import { RoleGuard } from './components/RoleGuard'
 
 function App() {
@@ -46,6 +47,8 @@ function App() {
         return <InventarioInteligente />
       case 'pedido-personalizado':
         return <PedidoPersonalizado />
+      case 'thd-comparativo':
+        return <THDComparativo />
       case 'categorias':
         return <Categorias/>
       case 'perfiles':
