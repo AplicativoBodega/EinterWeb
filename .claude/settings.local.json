@@ -11,7 +11,12 @@
       "Bash(Get-ChildItem -Path \"D:\\\\1.SQM\\\\3.PERSONAL\\\\EINTER\\\\CODE\\\\EinterWeb\\\\EinterWeb\")",
       "Bash(Select-Object Name, PSIsContainer)",
       "Bash(git *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(npx tsc *)",
+      "Bash(Get-ChildItem -Path \"D:\\\\1.SQM\\\\3.PERSONAL\\\\EINTER\\\\CODE\\\\EinterWeb\\\\EinterWeb\\\\src\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object)",
+      "Bash(Get-ChildItem -Path \"D:\\\\1.SQM\\\\3.PERSONAL\\\\EINTER\\\\CODE\\\\EinterWeb\" -Recurse -Directory)"
     ]
   }
 }
