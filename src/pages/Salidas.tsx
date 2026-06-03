@@ -51,9 +51,6 @@ const MONTHS = [
   { value: 12, label: "Diciembre" },
 ];
 
-const CURRENT_YEAR = new Date().getFullYear();
-const YEARS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - i);
-
 export function Salidas() {
   useDarkMode();
   const [filteredVentas, setFilteredVentas] = useState<Venta[]>([]);
@@ -66,6 +63,7 @@ export function Salidas() {
   // Filters
   const [filterYear, setFilterYear] = useState<number | "">("");
   const [filterMonth, setFilterMonth] = useState<number | "">("");
+  const [availableYears, setAvailableYears] = useState<number[]>([]);
   const [searchOrden, setSearchOrden] = useState("");
   const [searchInput, setSearchInput] = useState("");
 
@@ -75,6 +73,12 @@ export function Salidas() {
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [detailVenta, setDetailVenta] = useState<VentaDetail | null>(null);
   const [detailVisible, setDetailVisible] = useState(false);
+
+  useEffect(() => {
+    fetchAPI("/api/odoo/ventas/years")
+      .then((data: any) => setAvailableYears(data.years ?? []))
+      .catch(() => {});
+  }, []);
 
   const buildQuery = useCallback(() => {
     const params = new URLSearchParams({
@@ -265,7 +269,7 @@ export function Salidas() {
                 className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-1.5 text-sm rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
                 <option value="">Todos los años</option>
-                {YEARS.map((y) => (
+                {availableYears.map((y) => (
                   <option key={y} value={y}>
                     {y}
                   </option>
