@@ -514,10 +514,11 @@ export function VentasHomeDepot() {
     const headerFill = (argb: string): ExcelJS.Fill =>
       ({ type: "pattern", pattern: "solid", fgColor: { argb } });
     const border: ExcelJS.Borders = {
-      top:    { style: "thin", color: { argb: "FFD1D5DB" } },
-      bottom: { style: "thin", color: { argb: "FFD1D5DB" } },
-      left:   { style: "thin", color: { argb: "FFD1D5DB" } },
-      right:  { style: "thin", color: { argb: "FFD1D5DB" } },
+      top:      { style: "thin", color: { argb: "FFD1D5DB" } },
+      bottom:   { style: "thin", color: { argb: "FFD1D5DB" } },
+      left:     { style: "thin", color: { argb: "FFD1D5DB" } },
+      right:    { style: "thin", color: { argb: "FFD1D5DB" } },
+      diagonal: {},
     };
     const thickBorderRight: Partial<ExcelJS.Border> = { style: "medium", color: { argb: "FF9CA3AF" } };
 

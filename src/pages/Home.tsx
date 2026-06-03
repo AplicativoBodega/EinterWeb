@@ -11,7 +11,6 @@ type DashboardKpi = {
   productosEnAlerta: number;
 };
 
-type VentaSemana = { semana_num: number; semana_label: string; monto: number };
 type VentaMes = { mes: string; monto: number };
 type TopProducto = { nombre: string; unidades: number };
 type ProductoAlerta = { nombre: string; diasCobertura: number; semaforo: "CRITICO" | "ALERTA" };
