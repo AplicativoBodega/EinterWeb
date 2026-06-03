@@ -66,6 +66,8 @@ export function Salidas() {
   const [availableYears, setAvailableYears] = useState<number[]>([]);
   const [searchOrden, setSearchOrden] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [filterCliente, setFilterCliente] = useState("");
+  const [availableClientes, setAvailableClientes] = useState<string[]>([]);
 
   // Modals
   const [modalVisible, setModalVisible] = useState(false);
@@ -78,6 +80,18 @@ export function Salidas() {
     fetchAPI("/api/odoo/ventas/years")
       .then((data: any) => setAvailableYears(data.years ?? []))
       .catch(() => {});
+    fetchAPI("/api/odoo/ventas?pageSize=9999&page=1")
+      .then((data: any) => {
+        const clientes = Array.from(
+          new Set<string>(
+            (data.items as Venta[])
+              .map((v) => v.cliente)
+              .filter((c): c is string => !!c)
+          )
+        ).sort();
+        setAvailableClientes(clientes);
+      })
+      .catch(() => {});
   }, []);
 
   const buildQuery = useCallback(() => {
@@ -88,8 +102,9 @@ export function Salidas() {
     if (filterYear) params.set("year", String(filterYear));
     if (filterMonth) params.set("month", String(filterMonth));
     if (searchOrden) params.set("orden", searchOrden);
+    if (filterCliente) params.set("cliente", filterCliente);
     return params.toString();
-  }, [page, pageSize, filterYear, filterMonth, searchOrden]);
+  }, [page, pageSize, filterYear, filterMonth, searchOrden, filterCliente]);
 
   const fetchVentas = useCallback(async () => {
     setLoading(true);
@@ -123,10 +138,11 @@ export function Salidas() {
     setFilterMonth("");
     setSearchInput("");
     setSearchOrden("");
+    setFilterCliente("");
     setPage(1);
   };
 
-  const hasActiveFilters = filterYear !== "" || filterMonth !== "" || searchOrden !== "";
+  const hasActiveFilters = filterYear !== "" || filterMonth !== "" || searchOrden !== "" || filterCliente !== "";
 
   const formatDate = (dateValue: string | Date) => {
     const date = new Date(dateValue);
@@ -253,6 +269,28 @@ export function Salidas() {
                   Buscar
                 </button>
               </div>
+            </div>
+
+            {/* Client filter */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                Cliente
+              </label>
+              <select
+                value={filterCliente}
+                onChange={(e) => {
+                  setFilterCliente(e.target.value);
+                  setPage(1);
+                }}
+                className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-1.5 text-sm rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="">Todos los clientes</option>
+                {availableClientes.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Year filter */}
