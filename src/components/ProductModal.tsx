@@ -271,28 +271,28 @@ export function ProductModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex justify-center items-center p-4 z-50">
-      <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-        <div className="flex flex-row items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h2 className="text-xl font-robotoMedium text-gray-800">
+      <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div className="flex flex-row items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-xl font-robotoMedium text-gray-800 dark:text-white">
             {mode === "create" ? "Crear Producto" : "Editar Producto"}
           </h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
           >
-            <span className="text-gray-500 text-xl">✕</span>
+            <span className="text-gray-500 dark:text-gray-400 text-xl">✕</span>
           </button>
         </div>
 
         <div className="overflow-y-auto px-6 py-4 flex-1">
           {error && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded-lg">
-              <p className="text-red-700 text-sm">{error}</p>
+            <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg">
+              <p className="text-red-700 dark:text-red-300 text-sm">{error}</p>
             </div>
           )}
 
           <div className="mb-4">
-            <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+            <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
               SKU
             </label>
             <input
@@ -300,12 +300,12 @@ export function ProductModal({
               value={formData.sku}
               onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
               placeholder="SKU del producto"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
             />
           </div>
 
           <div className="mb-4">
-            <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+            <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
               Nombre
             </label>
             <input
@@ -313,20 +313,20 @@ export function ProductModal({
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="Nombre del producto"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
             />
           </div>
 
           <div className="flex flex-row gap-4 mb-4">
             <div className="flex-1">
-              <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+              <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
                 Categoría
               </label>
               <select
                 value={formData.category_id}
                 onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
                 disabled={loadingCategories}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-800 disabled:text-gray-400"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white disabled:text-gray-400 dark:disabled:text-gray-500"
               >
                 <option value="">{loadingCategories ? "Cargando..." : "Selecciona Categoría"}</option>
                 {categories.map((c) => (
@@ -335,14 +335,14 @@ export function ProductModal({
               </select>
             </div>
             <div className="flex-1">
-              <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+              <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
                 Proveedor
               </label>
               <select
                 value={formData.supplier_id}
                 onChange={(e) => setFormData({ ...formData, supplier_id: e.target.value })}
                 disabled={loadingSuppliers}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-800 disabled:text-gray-400"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white disabled:text-gray-400 dark:disabled:text-gray-500"
               >
                 <option value="">{loadingSuppliers ? "Cargando..." : "Selecciona Proveedor"}</option>
                 {suppliers.map((s) => (
@@ -354,7 +354,7 @@ export function ProductModal({
 
           <div className="flex flex-row gap-4 mb-4">
             <div className="flex-1">
-              <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+              <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
                 Precio
               </label>
               <input
@@ -364,11 +364,11 @@ export function ProductModal({
                   setFormData({ ...formData, price: e.target.value })
                 }
                 placeholder="0.00"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
               />
             </div>
             <div className="flex-1">
-              <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+              <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
                 Costo
               </label>
               <input
@@ -378,14 +378,14 @@ export function ProductModal({
                   setFormData({ ...formData, cost: e.target.value })
                 }
                 placeholder="0.00"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
               />
             </div>
           </div>
 
           <div className="flex flex-row gap-4 mb-4">
             <div className="flex-1">
-              <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+              <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
                 Stock
               </label>
               <input
@@ -395,11 +395,11 @@ export function ProductModal({
                   setFormData({ ...formData, stock: e.target.value })
                 }
                 placeholder="0"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
               />
             </div>
             <div className="flex-1">
-              <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+              <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
                 Peso del carton (kg)
               </label>
               <input
@@ -409,17 +409,17 @@ export function ProductModal({
                   setFormData({ ...formData, weight_kg: e.target.value })
                 }
                 placeholder="0.00"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
               />
             </div>
           </div>
 
-          <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+          <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
             Dimensiones del carton (cm)
           </label>
           <div className="flex flex-row gap-4 mb-6">
             <div className="flex-1">
-              <label className="text-xs text-gray-600 mb-1 block">Altura</label>
+              <label className="text-xs text-gray-600 dark:text-gray-400 mb-1 block">Altura</label>
               <input
                 type="number"
                 value={formData.alto}
@@ -427,11 +427,11 @@ export function ProductModal({
                   setFormData({ ...formData, alto: e.target.value })
                 }
                 placeholder="Altura"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
               />
             </div>
             <div className="flex-1">
-              <label className="text-xs text-gray-600 mb-1 block">Anchura</label>
+              <label className="text-xs text-gray-600 dark:text-gray-400 mb-1 block">Anchura</label>
               <input
                 type="number"
                 value={formData.ancho}
@@ -439,11 +439,11 @@ export function ProductModal({
                   setFormData({ ...formData, ancho: e.target.value })
                 }
                 placeholder="Anchura"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
               />
             </div>
             <div className="flex-1">
-              <label className="text-xs text-gray-600 mb-1 block">Largo</label>
+              <label className="text-xs text-gray-600 dark:text-gray-400 mb-1 block">Largo</label>
               <input
                 type="number"
                 value={formData.largo}
@@ -451,14 +451,14 @@ export function ProductModal({
                   setFormData({ ...formData, largo: e.target.value })
                 }
                 placeholder="Largo"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
               />
             </div>
           </div>
 
           <div className="flex flex-row gap-4 mb-4">
             <div className="flex-1">
-              <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+              <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
                 Estándar X Tarima
               </label>
               <input
@@ -468,11 +468,11 @@ export function ProductModal({
                   setFormData({ ...formData, standard_tarima: e.target.value })
                 }
                 placeholder="Cantidad por tarima"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
               />
             </div>
             <div className="flex-1">
-              <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+              <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
                 Piezas X Cartón
               </label>
               <input
@@ -482,18 +482,18 @@ export function ProductModal({
                   setFormData({ ...formData, qty_per_carton: e.target.value })
                 }
                 placeholder="Piezas por cartón"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
               />
             </div>
           </div>
 
           <div className="mb-6">
-            <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+            <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
               Subir Foto
             </label>
             <button
               onClick={pickImage}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white text-center hover:bg-gray-50"
+              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-center hover:bg-gray-50 dark:hover:bg-gray-600"
             >
               <span className="text-gray-600">
                 {formData.photoUri ? "Cambiar imagen" : "Seleccionar imagen"}
@@ -523,7 +523,7 @@ export function ProductModal({
                           photoBase64: undefined,
                         })
                       }
-                      className="mt-3 px-3 py-2 bg-gray-100 rounded text-sm hover:bg-gray-200"
+                      className="mt-3 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded text-sm hover:bg-gray-200 dark:hover:bg-gray-600 dark:text-gray-300"
                     >
                       Quitar
                     </button>
@@ -534,13 +534,13 @@ export function ProductModal({
           </div>
         </div>
 
-        <div className="flex flex-row items-center justify-end gap-3 px-6 py-4 border-t border-gray-200">
+        <div className="flex flex-row items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
           <button
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 rounded-lg border border-gray-300 disabled:opacity-50"
+            className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-50"
           >
-            <span className="text-gray-700 font-robotoMedium">Cancelar</span>
+            <span className="text-gray-700 dark:text-gray-300 font-robotoMedium">Cancelar</span>
           </button>
           <button
             onClick={handleSave}

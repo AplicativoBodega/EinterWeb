@@ -82,31 +82,31 @@ export function ProveedorModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex justify-center items-center p-4">
-      <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] overflow-auto">
+      <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-lg max-h-[90vh] overflow-auto">
         {/* Header */}
-        <div className="flex flex-row items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h2 className="text-xl font-robotoMedium text-gray-800">
+        <div className="flex flex-row items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-xl font-robotoMedium text-gray-800 dark:text-white">
             {mode === "create" ? "Crear Proveedor" : "Editar Proveedor"}
           </h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
           >
-            <span className="text-gray-500 text-xl">✕</span>
+            <span className="text-gray-500 dark:text-gray-400 text-xl">✕</span>
           </button>
         </div>
 
         {/* Form */}
         <div className="px-6 py-4 overflow-y-auto">
           {error && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded-lg">
-              <p className="text-red-700 text-sm">{error}</p>
+            <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg">
+              <p className="text-red-700 dark:text-red-300 text-sm">{error}</p>
             </div>
           )}
 
           {/* Name */}
           <div className="mb-4">
-            <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+            <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
               Nombre del Proveedor *
             </label>
             <input
@@ -116,13 +116,13 @@ export function ProveedorModal({
                 setFormData({ ...formData, name: e.target.value })
               }
               placeholder="Ej: Proveedor ABC"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
             />
           </div>
 
           {/* City */}
           <div className="mb-4">
-            <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+            <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
               Ciudad
             </label>
             <input
@@ -132,13 +132,13 @@ export function ProveedorModal({
                 setFormData({ ...formData, city: e.target.value })
               }
               placeholder="Ej: Ciudad de México"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
             />
           </div>
 
           {/* Lead Time */}
           <div className="mb-4">
-            <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+            <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
               Tiempo de Envío (días)
             </label>
             <input
@@ -148,19 +148,19 @@ export function ProveedorModal({
                 setFormData({ ...formData, lead_time: e.target.value })
               }
               placeholder="Ej: 5"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
             />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex flex-row items-center justify-end gap-3 px-6 py-4 border-t border-gray-200">
+        <div className="flex flex-row items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
           <button
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 rounded-lg border border-gray-300 disabled:opacity-50"
+            className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-50"
           >
-            <span className="text-gray-700 font-robotoMedium">Cancelar</span>
+            <span className="text-gray-700 dark:text-gray-300 font-robotoMedium">Cancelar</span>
           </button>
           <button
             onClick={handleSave}
