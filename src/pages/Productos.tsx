@@ -638,15 +638,15 @@ export function Productos() {
               </span>
             </button>
           </div>
-          <div className="flex-[1.5] py-4 px-3 border-r border-gray-400 flex justify-center">
+          <div className="flex-[1.5] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center">
             <button
               onClick={() => handleSort("sku")}
               className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
             >
-              <h3 className="font-robotoMedium text-gray-900 text-lg text-center">
+              <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
                 SKU
               </h3>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-gray-600 dark:text-gray-400">
                 {sortBy?.column === "sku"
                   ? sortBy.direction === "asc"
                     ? "▲"
@@ -655,15 +655,15 @@ export function Productos() {
               </span>
             </button>
           </div>
-          <div className="flex-[2] py-4 px-3 border-r border-gray-400 flex justify-center">
+          <div className="flex-[2] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center">
             <button
               onClick={() => handleSort("proveedor")}
               className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
             >
-              <h3 className="font-robotoMedium text-gray-900 text-lg text-center">
+              <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
                 Proveedor
               </h3>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-gray-600 dark:text-gray-400">
                 {sortBy?.column === "proveedor"
                   ? sortBy.direction === "asc"
                     ? "▲"
@@ -672,15 +672,15 @@ export function Productos() {
               </span>
             </button>
           </div>
-          <div className="flex-[2] py-4 px-3 border-r border-gray-400 flex justify-center">
+          <div className="flex-[2] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center">
             <button
               onClick={() => handleSort("categoria")}
               className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
             >
-              <h3 className="font-robotoMedium text-gray-900 text-lg text-center">
+              <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
                 Categoría
               </h3>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-gray-600 dark:text-gray-400">
                 {sortBy?.column === "categoria"
                   ? sortBy.direction === "asc"
                     ? "▲"
@@ -689,15 +689,15 @@ export function Productos() {
               </span>
             </button>
           </div>
-          <div className="flex-[1.2] py-4 px-3 border-r border-gray-400 flex justify-center">
+          <div className="flex-[1.2] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center">
             <button
               onClick={() => handleSort("weight")}
               className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
             >
-              <h3 className="font-robotoMedium text-gray-900 text-lg text-center">
+              <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
                 Peso (kg)
               </h3>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-gray-600 dark:text-gray-400">
                 {sortBy?.column === "weight"
                   ? sortBy.direction === "asc"
                     ? "▲"
@@ -706,15 +706,15 @@ export function Productos() {
               </span>
             </button>
           </div>
-          <div className="flex-[1.2] py-4 px-3 border-r border-gray-400 flex justify-center">
+          <div className="flex-[1.2] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center">
             <button
               onClick={() => handleSort("stock")}
               className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
             >
-              <h3 className="font-robotoMedium text-gray-900 text-lg text-center">
+              <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
                 Stock
               </h3>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-gray-600 dark:text-gray-400">
                 {sortBy?.column === "stock"
                   ? sortBy.direction === "asc"
                     ? "▲"
@@ -723,15 +723,15 @@ export function Productos() {
               </span>
             </button>
           </div>
-          <div className="flex-[1.2] py-4 px-3 border-r border-gray-400 flex justify-center">
+          <div className="flex-[1.2] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center">
             <button
               onClick={() => handleSort("price")}
               className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
             >
-              <h3 className="font-robotoMedium text-gray-900 text-lg text-center">
+              <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
                 Precio
               </h3>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-gray-600 dark:text-gray-400">
                 {sortBy?.column === "price"
                   ? sortBy.direction === "asc"
                     ? "▲"
@@ -740,15 +740,15 @@ export function Productos() {
               </span>
             </button>
           </div>
-          <div className="flex-[1.2] py-4 px-3 border-r border-gray-400 flex justify-center">
+          <div className="flex-[1.2] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center">
             <button
               onClick={() => handleSort("cost")}
               className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
             >
-              <h3 className="font-robotoMedium text-gray-900 text-lg text-center">
+              <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
                 Costo
               </h3>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-gray-600 dark:text-gray-400">
                 {sortBy?.column === "cost"
                   ? sortBy.direction === "asc"
                     ? "▲"
@@ -757,15 +757,15 @@ export function Productos() {
               </span>
             </button>
           </div>
-          <div className="flex-[1.3] py-4 px-3 border-r border-gray-400 flex justify-center">
+          <div className="flex-[1.3] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center">
             <button
               onClick={() => handleSort("standard_tarima")}
               className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
             >
-              <h3 className="font-robotoMedium text-gray-900 text-lg text-center">
+              <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
                 Estándar X Tarima
               </h3>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-gray-600 dark:text-gray-400">
                 {sortBy?.column === "standard_tarima"
                   ? sortBy.direction === "asc"
                     ? "▲"
@@ -775,7 +775,7 @@ export function Productos() {
             </button>
           </div>
           <div className="flex-[1.5] py-4 px-3 flex justify-center items-center">
-            <h3 className="font-robotoMedium text-gray-900 text-lg text-center">
+            <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
               Acciones
             </h3>
           </div>
@@ -800,13 +800,13 @@ export function Productos() {
             filteredProducts.map((product, index) => (
               <div
                 key={product.id}
-                className={`grid [&>*]:min-w-0 border-b border-gray-300 ${
-                  index % 2 === 0 ? "bg-white" : "bg-gray-50"
-                } hover:bg-blue-50`}
+                className={`grid [&>*]:min-w-0 border-b border-gray-300 dark:border-gray-700 ${
+                  index % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"
+                } hover:bg-blue-50 dark:hover:bg-blue-900/30`}
                 style={{ gridTemplateColumns: TABLE_GRID_COLUMNS }}
               >
                 {/* Foto */}
-                <div className="w-28 py-2 px-2 border-r border-gray-300 flex justify-center items-center">
+                <div className="w-28 py-2 px-2 border-r border-gray-300 dark:border-gray-700 flex justify-center items-center">
                   {product.photo ? (
                     <button
                       onClick={() => {
@@ -822,35 +822,35 @@ export function Productos() {
                       />
                     </button>
                   ) : (
-                    <div className="w-20 h-20 bg-gray-200 rounded flex justify-center items-center">
-                      <p className="text-gray-400 text-xs">Sin foto</p>
+                    <div className="w-20 h-20 bg-gray-200 dark:bg-gray-700 rounded flex justify-center items-center">
+                      <p className="text-gray-400 dark:text-gray-500 text-xs">Sin foto</p>
                     </div>
                   )}
                 </div>
                 {/* Nombre */}
-                <div className="flex-[3] py-4 px-3 border-r border-gray-300 flex justify-center items-center">
-                  <p className="text-gray-900 font-robotoRegular text-base text-center line-clamp-2">
+                <div className="flex-[3] py-4 px-3 border-r border-gray-300 dark:border-gray-700 flex justify-center items-center">
+                  <p className="text-gray-900 dark:text-white font-robotoRegular text-base text-center line-clamp-2">
                     {product.name}
                   </p>
                 </div>
 
                 {/* SKU */}
-                <div className="flex-[1.5] py-4 px-3 border-r border-gray-300 flex justify-center items-center">
-                  <p className="text-gray-900 font-robotoRegular text-base text-center">
+                <div className="flex-[1.5] py-4 px-3 border-r border-gray-300 dark:border-gray-700 flex justify-center items-center">
+                  <p className="text-gray-900 dark:text-white font-robotoRegular text-base text-center">
                     {product.sku}
                   </p>
                 </div>
 
                 {/* Proveedor */}
-                <div className="flex-[2] py-4 px-3 border-r border-gray-300 flex justify-center items-center">
-                  <p className="text-gray-900 font-robotoRegular text-base text-center truncate">
+                <div className="flex-[2] py-4 px-3 border-r border-gray-300 dark:border-gray-700 flex justify-center items-center">
+                  <p className="text-gray-900 dark:text-white font-robotoRegular text-base text-center truncate">
                     {product.supplier?.name || "—"}
                   </p>
                 </div>
 
                 {/* Categoría */}
-                <div className="flex-[2] py-4 px-3 border-r border-gray-300 flex justify-center items-center">
-                  <p className="text-gray-900 font-robotoRegular text-base text-center truncate">
+                <div className="flex-[2] py-4 px-3 border-r border-gray-300 dark:border-gray-700 flex justify-center items-center">
+                  <p className="text-gray-900 dark:text-white font-robotoRegular text-base text-center truncate">
                     {typeof product.category === "object" && product.category?.name
                       ? product.category.name
                       : typeof product.category === "string" ? product.category : "—"}
@@ -858,36 +858,36 @@ export function Productos() {
                 </div>
 
                 {/* Peso */}
-                <div className="flex-[1.2] py-4 px-3 border-r border-gray-300 flex justify-center items-center">
-                  <p className="text-gray-900 font-robotoRegular text-base text-center">
+                <div className="flex-[1.2] py-4 px-3 border-r border-gray-300 dark:border-gray-700 flex justify-center items-center">
+                  <p className="text-gray-900 dark:text-white font-robotoRegular text-base text-center">
                     {product.weight_kg}
                   </p>
                 </div>
 
                 {/* Stock */}
-                <div className="flex-[1.2] py-4 px-3 border-r border-gray-300 flex justify-center items-center">
-                  <p className="text-gray-900 font-robotoRegular text-base text-center">
+                <div className="flex-[1.2] py-4 px-3 border-r border-gray-300 dark:border-gray-700 flex justify-center items-center">
+                  <p className="text-gray-900 dark:text-white font-robotoRegular text-base text-center">
                     {product.stock}
                   </p>
                 </div>
 
                 {/* Precio */}
-                <div className="flex-[1.2] py-4 px-3 border-r border-gray-300 flex justify-center items-center">
-                  <p className="text-gray-900 font-robotoRegular text-base text-center">
+                <div className="flex-[1.2] py-4 px-3 border-r border-gray-300 dark:border-gray-700 flex justify-center items-center">
+                  <p className="text-gray-900 dark:text-white font-robotoRegular text-base text-center">
                     ${parseFloat(String(product.price)).toFixed(2)}
                   </p>
                 </div>
 
                 {/* Costo */}
-                <div className="flex-[1.2] py-4 px-3 border-r border-gray-300 flex justify-center items-center">
-                  <p className="text-gray-900 font-robotoRegular text-base text-center">
+                <div className="flex-[1.2] py-4 px-3 border-r border-gray-300 dark:border-gray-700 flex justify-center items-center">
+                  <p className="text-gray-900 dark:text-white font-robotoRegular text-base text-center">
                     ${parseFloat(String(product.cost || 0)).toFixed(2)}
                   </p>
                 </div>
 
                 {/* Estándar X Tarima */}
-                <div className="flex-[1.3] py-4 px-3 border-r border-gray-300 flex justify-center items-center">
-                  <p className="text-gray-900 font-robotoRegular text-base text-center">
+                <div className="flex-[1.3] py-4 px-3 border-r border-gray-300 dark:border-gray-700 flex justify-center items-center">
+                  <p className="text-gray-900 dark:text-white font-robotoRegular text-base text-center">
                     {product.standard_tarima || "—"}
                   </p>
                 </div>
@@ -915,9 +915,9 @@ export function Productos() {
 
       {/* Pagination Controls */}
       {!loading && !error && products.length > 0 && totalPages > 1 && (
-        <div className="bg-white mx-6 mt-2 mb-4 px-6 py-4 border border-gray-400 border-t-0">
+        <div className="bg-white dark:bg-gray-800 mx-6 mt-2 mb-4 px-6 py-4 border border-gray-400 dark:border-gray-700 border-t-0">
           <div className="flex flex-row items-center justify-between">
-            <p className="text-gray-600 font-robotoRegular">
+            <p className="text-gray-600 dark:text-gray-300 font-robotoRegular">
               Página {page} de {totalPages}
             </p>
             <div className="flex flex-row gap-2">
@@ -925,7 +925,7 @@ export function Productos() {
                 onClick={() => fetchProducts(searchText, page - 1)}
                 disabled={page === 1}
                 className={`px-4 py-2 rounded-lg font-robotoMedium ${
-                  page === 1 ? "bg-gray-200 text-gray-400" : "bg-blue-600 text-white hover:bg-blue-700"
+                  page === 1 ? "bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500" : "bg-blue-600 text-white hover:bg-blue-700"
                 }`}
               >
                 Anterior
@@ -934,7 +934,7 @@ export function Productos() {
                 onClick={() => fetchProducts(searchText, page + 1)}
                 disabled={page >= totalPages}
                 className={`px-4 py-2 rounded-lg font-robotoMedium ${
-                  page >= totalPages ? "bg-gray-200 text-gray-400" : "bg-blue-600 text-white hover:bg-blue-700"
+                  page >= totalPages ? "bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500" : "bg-blue-600 text-white hover:bg-blue-700"
                 }`}
               >
                 Siguiente

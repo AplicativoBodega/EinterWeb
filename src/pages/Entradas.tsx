@@ -206,8 +206,8 @@ export function Entradas() {
               Fecha Compra
             </span>
           </div>
-          <div className="flex-[1.5] py-4 px-4 border-r border-gray-400 flex items-center justify-center">
-            <span className="font-robotoMedium text-gray-700 text-base text-center">
+          <div className="flex-[1.5] py-4 px-4 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
+            <span className="font-robotoMedium text-gray-700 dark:text-gray-300 text-base text-center">
               Fecha Recibir
             </span>
           </div>
@@ -241,10 +241,10 @@ export function Entradas() {
             filteredRecibos.map((recibo, index) => (
               <div
                 key={recibo.id_recibo}
-                className={`grid [&>*]:min-w-0 border-b border-gray-300 ${index % 2 === 0 ? "bg-white" : "bg-gray-50"}`}
+                className={`grid [&>*]:min-w-0 border-b border-gray-300 dark:border-gray-700 ${index % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}`}
                 style={{ gridTemplateColumns: TABLE_GRID_COLUMNS }}
               >
-                <div className="w-12 py-4 px-2 border-r border-gray-300 flex items-center justify-center">
+                <div className="w-12 py-4 px-2 border-r border-gray-300 dark:border-gray-700 flex items-center justify-center">
                   {recibo.pdf_data ? (
                     <button
                       onClick={() => handleOpenPdf(recibo.id_recibo)}
@@ -257,30 +257,30 @@ export function Entradas() {
                     <span className="text-gray-300 text-xl">📄</span>
                   )}
                 </div>
-                <div className="flex-2 py-4 px-4 border-r border-gray-300 flex items-center justify-center">
-                  <span className="font-robotoRegular text-gray-900 text-sm text-center">
+                <div className="flex-2 py-4 px-4 border-r border-gray-300 dark:border-gray-700 flex items-center justify-center">
+                  <span className="font-robotoRegular text-gray-900 dark:text-white text-sm text-center">
                     {recibo.proveedor || "N/A"}
                   </span>
                 </div>
-                <div className="flex-[1.5] py-4 px-4 border-r border-gray-300 flex items-center justify-center">
-                  <span className="font-robotoRegular text-gray-900 text-sm text-center">
+                <div className="flex-[1.5] py-4 px-4 border-r border-gray-300 dark:border-gray-700 flex items-center justify-center">
+                  <span className="font-robotoRegular text-gray-900 dark:text-white text-sm text-center">
                     {recibo.id_orden || "N/A"}
                   </span>
                 </div>
-                <div className="flex-1 py-4 px-4 border-r border-gray-300 flex items-center justify-center">
-                  <span className="font-robotoRegular text-gray-900 text-sm text-center">
+                <div className="flex-1 py-4 px-4 border-r border-gray-300 dark:border-gray-700 flex items-center justify-center">
+                  <span className="font-robotoRegular text-gray-900 dark:text-white text-sm text-center">
                     {recibo.precio
                       ? `$${Number(recibo.precio).toFixed(2)}`
                       : "N/A"}
                   </span>
                 </div>
-                <div className="flex-[1.5] py-4 px-4 border-r border-gray-300 flex items-center justify-center">
-                  <span className="font-robotoRegular text-gray-900 text-sm text-center">
+                <div className="flex-[1.5] py-4 px-4 border-r border-gray-300 dark:border-gray-700 flex items-center justify-center">
+                  <span className="font-robotoRegular text-gray-900 dark:text-white text-sm text-center">
                     {formatDate(recibo.fecha_compra)}
                   </span>
                 </div>
-                <div className="flex-[1.5] py-4 px-4 border-r border-gray-300 flex items-center justify-center">
-                  <span className="font-robotoRegular text-gray-900 text-sm text-center">
+                <div className="flex-[1.5] py-4 px-4 border-r border-gray-300 dark:border-gray-700 flex items-center justify-center">
+                  <span className="font-robotoRegular text-gray-900 dark:text-white text-sm text-center">
                     {formatDate(recibo.fecha_llegada)}
                   </span>
                 </div>

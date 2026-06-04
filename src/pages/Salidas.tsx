@@ -414,8 +414,8 @@ export function Salidas() {
                   key={venta.id_venta}
                   className={`grid [&>*]:min-w-0 border-b border-gray-300 dark:border-gray-700 ${
                     index % 2 === 0
-                      ? "bg-white dark:bg-gray-800"
-                      : "bg-gray-50 dark:bg-gray-750"
+                      ? "bg-white dark:bg-gray-900"
+                      : "bg-gray-50 dark:bg-gray-800"
                   } hover:bg-blue-50 dark:hover:bg-blue-900/20`}
                   style={{ gridTemplateColumns: TABLE_GRID_COLUMNS }}
                 >

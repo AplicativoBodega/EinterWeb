@@ -199,14 +199,14 @@ export function Movimientos() {
           className="grid [&>*]:min-w-0 bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-400 dark:border-gray-600"
           style={{ gridTemplateColumns: TABLE_GRID_COLUMNS }}
         >
-          <div className="flex-[1.5] py-4 px-4 border-r border-gray-400 flex items-center justify-center">
+          <div className="flex-[1.5] py-4 px-4 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
             <button
               onClick={() => handleSort("nombre")}
               className="flex items-center justify-center gap-1">
-              <span className="font-robotoMedium text-gray-900 text-xl text-center">
+              <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
                 Nombre
               </span>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-gray-600 dark:text-gray-400">
                 {sortBy?.column === "nombre"
                   ? sortBy.direction === "asc"
                     ? "▲"
@@ -215,14 +215,14 @@ export function Movimientos() {
               </span>
             </button>
           </div>
-          <div className="flex-1 py-4 px-4 border-r border-gray-400 flex items-center justify-center">
+          <div className="flex-1 py-4 px-4 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
             <button
               onClick={() => handleSort("from")}
               className="flex items-center justify-center gap-1">
-              <span className="font-robotoMedium text-gray-900 text-xl text-center">
+              <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
                 Desde
               </span>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-gray-600 dark:text-gray-400">
                 {sortBy?.column === "from"
                   ? sortBy.direction === "asc"
                     ? "▲"
@@ -231,14 +231,14 @@ export function Movimientos() {
               </span>
             </button>
           </div>
-          <div className="flex-1 py-4 px-4 border-r border-gray-400 flex items-center justify-center">
+          <div className="flex-1 py-4 px-4 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
             <button
               onClick={() => handleSort("to")}
               className="flex items-center justify-center gap-1">
-              <span className="font-robotoMedium text-gray-900 text-xl text-center">
+              <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
                 Hacia
               </span>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-gray-600 dark:text-gray-400">
                 {sortBy?.column === "to"
                   ? sortBy.direction === "asc"
                     ? "▲"
@@ -247,14 +247,14 @@ export function Movimientos() {
               </span>
             </button>
           </div>
-          <div className="flex-[1.5] py-4 px-4 border-r border-gray-400 flex items-center justify-center">
+          <div className="flex-[1.5] py-4 px-4 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
             <button
               onClick={() => handleSort("oldMasterSku")}
               className="flex items-center justify-center gap-1">
-              <span className="font-robotoMedium text-gray-900 text-xl text-center">
+              <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
                 Master SKU Antiguo
               </span>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-gray-600 dark:text-gray-400">
                 {sortBy?.column === "oldMasterSku"
                   ? sortBy.direction === "asc"
                     ? "▲"
@@ -263,14 +263,14 @@ export function Movimientos() {
               </span>
             </button>
           </div>
-          <div className="flex-[1.5] py-4 px-4 border-r border-gray-400 flex items-center justify-center">
+          <div className="flex-[1.5] py-4 px-4 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
             <button
               onClick={() => handleSort("newMasterSku")}
               className="flex items-center justify-center gap-1">
-              <span className="font-robotoMedium text-gray-900 text-xl text-center">
+              <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
                 Master SKU Nuevo
               </span>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-gray-600 dark:text-gray-400">
                 {sortBy?.column === "newMasterSku"
                   ? sortBy.direction === "asc"
                     ? "▲"
@@ -279,14 +279,14 @@ export function Movimientos() {
               </span>
             </button>
           </div>
-          <div className="flex-1 py-4 px-4 border-r border-gray-400 flex items-center justify-center">
+          <div className="flex-1 py-4 px-4 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
             <button
               onClick={() => handleSort("cantidad")}
               className="flex items-center justify-center gap-1">
-              <span className="font-robotoMedium text-gray-900 text-xl text-center">
+              <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
                 Cantidad
               </span>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-gray-600 dark:text-gray-400">
                 {sortBy?.column === "cantidad"
                   ? sortBy.direction === "asc"
                     ? "▲"
@@ -299,10 +299,10 @@ export function Movimientos() {
             <button
               onClick={() => handleSort("date")}
               className="flex items-center justify-center gap-1">
-              <span className="font-robotoMedium text-gray-900 text-xl text-center">
+              <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
                 Fecha
               </span>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-gray-600 dark:text-gray-400">
                 {sortBy?.column === "date"
                   ? sortBy.direction === "asc"
                     ? "▲"
@@ -333,43 +333,43 @@ export function Movimientos() {
             filteredMovimientos.map((m, index) => (
               <div
                 key={m.id_movimiento}
-                className={`grid [&>*]:min-w-0 border-b border-gray-300 ${
-                  index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                className={`grid [&>*]:min-w-0 border-b border-gray-300 dark:border-gray-700 ${
+                  index % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"
                 }`}
                 style={{ gridTemplateColumns: TABLE_GRID_COLUMNS }}
               >
-                <div className="flex-[1.5] py-4 px-4 border-r border-gray-300 flex items-center justify-center">
-                  <span className="text-gray-900 font-robotoRegular text-lg text-center">
+                <div className="flex-[1.5] py-4 px-4 border-r border-gray-300 dark:border-gray-700 flex items-center justify-center">
+                  <span className="text-gray-900 dark:text-white font-robotoRegular text-lg text-center">
                     {m.nombre_usuario}
                   </span>
                 </div>
-                <div className="flex-1 py-4 px-4 border-r border-gray-300 flex items-center justify-center">
-                  <span className="text-gray-900 font-robotoRegular text-lg text-center">
+                <div className="flex-1 py-4 px-4 border-r border-gray-300 dark:border-gray-700 flex items-center justify-center">
+                  <span className="text-gray-900 dark:text-white font-robotoRegular text-lg text-center">
                     {m.id_ubicacion_origen || "—"}
                   </span>
                 </div>
-                <div className="flex-1 py-4 px-4 border-r border-gray-300 flex items-center justify-center">
-                  <span className="text-gray-900 font-robotoRegular text-lg text-center">
+                <div className="flex-1 py-4 px-4 border-r border-gray-300 dark:border-gray-700 flex items-center justify-center">
+                  <span className="text-gray-900 dark:text-white font-robotoRegular text-lg text-center">
                     {m.id_ubicacion_destino || "—"}
                   </span>
                 </div>
-                <div className="flex-[1.5] py-4 px-4 border-r border-gray-300 flex items-center justify-center">
-                  <span className="text-gray-900 font-robotoRegular text-lg text-center">
+                <div className="flex-[1.5] py-4 px-4 border-r border-gray-300 dark:border-gray-700 flex items-center justify-center">
+                  <span className="text-gray-900 dark:text-white font-robotoRegular text-lg text-center">
                     {m.old_masterSKU || "—"}
                   </span>
                 </div>
-                <div className="flex-[1.5] py-4 px-4 border-r border-gray-300 flex items-center justify-center">
-                  <span className="text-gray-900 font-robotoRegular text-lg text-center">
+                <div className="flex-[1.5] py-4 px-4 border-r border-gray-300 dark:border-gray-700 flex items-center justify-center">
+                  <span className="text-gray-900 dark:text-white font-robotoRegular text-lg text-center">
                     {m.new_masterSKU || "—"}
                   </span>
                 </div>
-                <div className="flex-1 py-4 px-4 border-r border-gray-300 flex items-center justify-center">
-                  <span className="text-gray-900 font-robotoRegular text-lg text-center">
+                <div className="flex-1 py-4 px-4 border-r border-gray-300 dark:border-gray-700 flex items-center justify-center">
+                  <span className="text-gray-900 dark:text-white font-robotoRegular text-lg text-center">
                     {m.cantidad || "—"}
                   </span>
                 </div>
                 <div className="flex-[1.2] py-4 px-4 flex items-center justify-center">
-                  <span className="text-gray-900 font-robotoRegular text-lg text-center">
+                  <span className="text-gray-900 dark:text-white font-robotoRegular text-lg text-center">
                     {m.fecha ? new Date(m.fecha).toLocaleDateString() : "—"}
                   </span>
                 </div>

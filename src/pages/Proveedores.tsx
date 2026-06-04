@@ -334,10 +334,10 @@ export function Proveedores() {
               onClick={() => handleSort("name")}
               className="flex flex-row items-center gap-1 hover:opacity-75"
             >
-              <h3 className="font-robotoMedium text-gray-900 text-xl text-center">
+              <h3 className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
                 Nombre del Proveedor
               </h3>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-gray-600 dark:text-gray-400">
                 {sortBy?.column === "name"
                   ? sortBy.direction === "asc"
                     ? "▲"
@@ -346,15 +346,15 @@ export function Proveedores() {
               </span>
             </button>
           </div>
-          <div className="flex-2 py-4 px-4 border-r border-gray-400 flex justify-center">
+          <div className="flex-2 py-4 px-4 border-r border-gray-400 dark:border-gray-600 flex justify-center">
             <button
               onClick={() => handleSort("city")}
               className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
             >
-              <h3 className="font-robotoMedium text-gray-900 text-xl text-center">
+              <h3 className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
                 Ciudad
               </h3>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-gray-600 dark:text-gray-400">
                 {sortBy?.column === "city"
                   ? sortBy.direction === "asc"
                     ? "▲"
@@ -363,15 +363,15 @@ export function Proveedores() {
               </span>
             </button>
           </div>
-          <div className="flex-[1.5] py-4 px-4 border-r border-gray-400 flex justify-center">
+          <div className="flex-[1.5] py-4 px-4 border-r border-gray-400 dark:border-gray-600 flex justify-center">
             <button
               onClick={() => handleSort("lead_time")}
               className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
             >
-              <h3 className="font-robotoMedium text-gray-900 text-xl text-center">
+              <h3 className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
                 Tiempo de Envío
               </h3>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-gray-600 dark:text-gray-400">
                 {sortBy?.column === "lead_time"
                   ? sortBy.direction === "asc"
                     ? "▲"
@@ -381,7 +381,7 @@ export function Proveedores() {
             </button>
           </div>
           <div className="flex-[1.5] py-4 px-3 flex justify-center items-center">
-            <h3 className="font-robotoMedium text-gray-900 text-xl text-center">
+            <h3 className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
               Acciones
             </h3>
           </div>
@@ -406,23 +406,23 @@ export function Proveedores() {
             filteredProveedores.map((proveedor, index) => (
               <div
                 key={proveedor.id}
-                className={`grid [&>*]:min-w-0 border-b border-gray-300 ${
-                  index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                className={`grid [&>*]:min-w-0 border-b border-gray-300 dark:border-gray-700 ${
+                  index % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"
                 }`}
                 style={{ gridTemplateColumns: TABLE_GRID_COLUMNS }}
               >
-                <div className="flex-3 py-4 px-4 border-r border-gray-300 flex justify-center">
-                  <p className="text-gray-900 font-robotoRegular text-lg text-center line-clamp-2">
+                <div className="flex-3 py-4 px-4 border-r border-gray-300 dark:border-gray-700 flex justify-center">
+                  <p className="text-gray-900 dark:text-white font-robotoRegular text-lg text-center line-clamp-2">
                     {proveedor.name}
                   </p>
                 </div>
-                <div className="flex-2 py-4 px-4 border-r border-gray-300 flex justify-center items-center">
-                  <p className="text-gray-900 font-robotoRegular text-lg text-center">
+                <div className="flex-2 py-4 px-4 border-r border-gray-300 dark:border-gray-700 flex justify-center items-center">
+                  <p className="text-gray-900 dark:text-white font-robotoRegular text-lg text-center">
                     {proveedor.city || "—"}
                   </p>
                 </div>
-                <div className="flex-[1.5] py-4 px-4 border-r border-gray-300 flex justify-center items-center">
-                  <p className="text-gray-900 font-robotoRegular text-lg text-center">
+                <div className="flex-[1.5] py-4 px-4 border-r border-gray-300 dark:border-gray-700 flex justify-center items-center">
+                  <p className="text-gray-900 dark:text-white font-robotoRegular text-lg text-center">
                     {proveedor.lead_time ? `${proveedor.lead_time}` : "—"}
                   </p>
                 </div>
