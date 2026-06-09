@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { auth } from './firebase';
 
 // Use relative path for API in development, absolute URL from env in production
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? '' : 'http://localhost:3000');
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 /**
  * Global fetchAPI function used throughout the application
