@@ -26,26 +26,26 @@ import {
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 
-const LS_DEMAND      = 'einter_inv_demanda';
-const LS_TRANSIT     = 'einter_inv_transito';
+const LS_TRANSIT = 'einter_inv_transito';
 
 // ─── Tipos internos ────────────────────────────────────────────────────────────
 
 interface SkuCatalogo {
-  sku:         number;
-  skuStr:      string;
-  desc:        string;
-  supplier:    string;
-  supplierId:  number;
-  invActual:   number;
-  pzsCaja:     number;   // inventario_standar_tarima
-  pesoCaja:    number;   // kg/caja
-  volCaja:     number;   // m³/caja
-  dI:          number;   // demanda piezas/día
-  invEfectivo: number;
-  cobDias:     number;
-  semaforo:    string;
-  cajasMax:    number;
+  sku:            number;
+  skuStr:         string;
+  desc:           string;
+  supplier:       string;
+  supplierId:     number;
+  invActual:      number;
+  pzsCaja:        number;   // cantidad_x_ctn
+  pesoCaja:       number;   // kg/caja
+  volCaja:        number;   // m³/caja
+  dI:             number;   // demanda piezas/día
+  invEfectivo:    number;
+  cobDias:        number;
+  semaforo:       string;
+  cajasMax:       number;
+  sinDimensiones: boolean; // true cuando faltan peso/dims/pzsCaja — excluir de relleno automático
 }
 
 type Step = 'loading' | 'supplier' | 'anchors' | 'nmax' | 'container' | 'results';
@@ -121,6 +121,7 @@ export function PedidoPersonalizado() {
   const [anclaQtyInput,  setAnclaQtyInput]  = useState<string>('');
   const [anclaUnidad,    setAnclaUnidad]    = useState<'piezas' | 'cajas'>('piezas');
   const [anclaError,     setAnclaError]     = useState<string | null>(null);
+  const [anclaWarning,   setAnclaWarning]   = useState<string | null>(null);
   const [catalogSearch,  setCatalogSearch]  = useState<string>('');
 
   // ── Cargar productos ──────────────────────────────────────────────────────
@@ -128,17 +129,20 @@ export function PedidoPersonalizado() {
     setLoading(true);
     setError(null);
     try {
-      // Cargar overrides de localStorage
-      let demanda: Record<string, number> = {};
       let transit: Record<string, number> = {};
-      try { demanda = JSON.parse(localStorage.getItem(LS_DEMAND)  || '{}'); } catch { /* ignore */ }
       try { transit = JSON.parse(localStorage.getItem(LS_TRANSIT) || '{}'); } catch { /* ignore */ }
 
-      // Cargar proveedores y productos en paralelo
-      const [provRes, ...productBatches] = await Promise.all([
+      // Cargar demanda HD, proveedores y productos en paralelo
+      const [demandaRes, provRes, ...productBatches] = await Promise.all([
+        fetchAPI('/api/ventas-hd/demanda-diaria'),
         fetchAPI('/api/odoo/proveedores?pageSize=500'),
         fetchAPI('/api/odoo/productos?page=1&pageSize=100'),
-      ]) as [{ items?: Record<string, unknown>[] }, ...unknown[]];
+      ]) as [{ mod: string; demanda_diaria: number }[], { items?: Record<string, unknown>[] }, ...unknown[]];
+
+      const demanda: Record<string, number> = {};
+      for (const d of (demandaRes || [])) {
+        if (d.demanda_diaria > 0) demanda[d.mod] = d.demanda_diaria;
+      }
 
       setProveedores(
         (provRes.items || []).map((p: Record<string, unknown>) => ({ id: p.id_proveedor as number, nombre: p.nombre as string }))
@@ -158,20 +162,19 @@ export function PedidoPersonalizado() {
       }
 
       const skus: SkuCatalogo[] = items
-        .filter(item => {
-          const std = Number(item.inventario_standar_tarima) || 0;
-          return std > 0;
-        })
         .map(item => {
           const skuStr     = String(item.master_sku ?? item.id_articulo ?? '');
           const skuNum     = parseInt(skuStr, 10) || 0;
-          const pzsCaja    = Number(item.inventario_standar_tarima) || 1;
+          const pzsCajaRaw = Number(item.cantidad_x_ctn);
+          const pzsCaja    = pzsCajaRaw > 0 ? pzsCajaRaw : 1;
           const pesoUnitKg = Number(item.peso_kg) || 0;
           const pesoCaja   = pesoUnitKg * pzsCaja;
           const largo      = Number(item.largo_cm) || 0;
           const ancho      = Number(item.ancho_cm) || 0;
           const alto       = Number(item.alto_cm)  || 0;
-          const volUnitM3  = largo && ancho && alto ? (largo * ancho * alto) / 1_000_000 : 0;
+          const volUnitM3  = largo > 0 && ancho > 0 && alto > 0
+            ? (largo * ancho * alto) / 1_000_000
+            : 0;
           const volCaja    = volUnitM3 * pzsCaja;
           const invActual  = Number(item.existencias) || 0;
           const pzsTrans   = transit[skuStr] || 0;
@@ -179,7 +182,15 @@ export function PedidoPersonalizado() {
           const dI         = demanda[skuStr] || 0;
           const cobDias    = dI > 0 ? invEfectivo / dI : 9999;
           const semaforo   = clasificarSemaforo(cobDias);
-          const cajasMax   = calcularCajasMaxRelleno(invEfectivo, dI, pzsCaja);
+
+          // Dimensiones incompletas: sin peso, sin volumen o sin pzsCaja declarado.
+          // Se permite añadir como ancla (usuario decide a sabiendas) pero se excluye
+          // del relleno automático para no distorsionar el cubicaje.
+          const sinDimensiones = pesoCaja <= 0 || volCaja <= 0 || pzsCajaRaw <= 0;
+
+          const cajasMax = sinDimensiones
+            ? 0
+            : calcularCajasMaxRelleno(invEfectivo, dI, pzsCaja);
 
           return {
             sku:      skuNum,
@@ -196,6 +207,7 @@ export function PedidoPersonalizado() {
             cobDias,
             semaforo,
             cajasMax,
+            sinDimensiones,
           } as SkuCatalogo;
         });
 
@@ -242,6 +254,7 @@ export function PedidoPersonalizado() {
   // ── Agregar ancla ─────────────────────────────────────────────────────────
   function agregarAncla() {
     setAnclaError(null);
+    setAnclaWarning(null);
     const skuNum = parseInt(anclaSkuInput, 10);
     const qty    = parseInt(anclaQtyInput, 10);
 
@@ -253,6 +266,10 @@ export function PedidoPersonalizado() {
 
     if (row.semaforo === 'SOBRESTOCK') {
       if (!window.confirm(`SKU ${anclaSkuInput} está en SOBRESTOCK. ¿Continuar?`)) return;
+    }
+
+    if (row.sinDimensiones) {
+      setAnclaWarning(`SKU ${row.sku} no tiene peso / dimensiones / pzsCaja completos — el cubicaje será aproximado y no se incluirá como relleno.`);
     }
 
     const cajas = anclaUnidad === 'cajas'
@@ -282,7 +299,12 @@ export function PedidoPersonalizado() {
   // ── Calcular y resolver ───────────────────────────────────────────────────
   function calcularCandidatos(skusAncla: Set<number>): CandidatoRelleno[] {
     return catalogoProv
-      .filter(s => !skusAncla.has(s.sku) && s.semaforo !== 'SOBRESTOCK' && s.cajasMax > 0)
+      .filter(s =>
+        !skusAncla.has(s.sku) &&
+        s.semaforo !== 'SOBRESTOCK' &&
+        s.cajasMax > 0 &&
+        !s.sinDimensiones   // sin peso/volumen/pzsCaja → no entra como relleno
+      )
       .map(s => ({
         sku:      s.sku,
         dI:       s.dI,
@@ -591,6 +613,12 @@ export function PedidoPersonalizado() {
                   {anclaError}
                 </div>
               )}
+              {anclaWarning && (
+                <div className="mt-3 flex items-start gap-2 text-sm text-amber-600 dark:text-amber-400">
+                  <svg className="w-4 h-4 flex-shrink-0 mt-px" fill="none" viewBox="0 0 16 16" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M8 3l6 10H2L8 3zm0 4v3m0 2.5v.5"/></svg>
+                  {anclaWarning}
+                </div>
+              )}
             </div>
 
             {/* Anclas del pedido */}
@@ -608,11 +636,16 @@ export function PedidoPersonalizado() {
                     return (
                       <div key={a.sku} className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-mono font-semibold text-gray-800 dark:text-gray-200">{a.sku}</span>
                             {sem && (
                               <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${sem.badge} ${sem.text}`}>
                                 {sem.dot} {sem.label}
+                              </span>
+                            )}
+                            {row?.sinDimensiones && (
+                              <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
+                                ⚠ Sin dims
                               </span>
                             )}
                           </div>
@@ -690,9 +723,14 @@ export function PedidoPersonalizado() {
                             {s.cobDias >= 9999 ? '—' : s.cobDias > 999 ? '+999d' : `${s.cobDias.toFixed(0)}d`}
                           </td>
                           <td className="px-4 py-2.5 text-center">
-                            <span className={`inline-block px-1.5 py-0.5 rounded-full text-xs font-medium ${sem.badge} ${sem.text}`}>
-                              {sem.dot}
-                            </span>
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${sem.badge} ${sem.text}`}>
+                                {sem.dot} {sem.label}
+                              </span>
+                              {s.sinDimensiones && (
+                                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">Sin dims</span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-5 py-2.5 text-right text-gray-600 dark:text-gray-400 tabular-nums">{fmt(s.pzsCaja)}</td>
                         </tr>

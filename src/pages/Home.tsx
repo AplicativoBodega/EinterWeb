@@ -1,64 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
+import { api } from "../lib/api";
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-const kpi = {
-  ventasHoy: 8450,
-  ventasMes: 187340,
-  pedidosPendientes: 7,
-  productosMinimo: 6,
+type DashboardKpi = {
+  ventasSemana: number;
+  ventasMes: number;
+  pedidosPendientes: number;
+  productosEnAlerta: number;
 };
 
-const ventasDia = [
-  { dia: "Lun", monto: 12400 },
-  { dia: "Mar", monto: 8900 },
-  { dia: "Mié", monto: 15600 },
-  { dia: "Jue", monto: 11200 },
-  { dia: "Vie", monto: 18900 },
-  { dia: "Sáb", monto: 22100 },
-  { dia: "Dom", monto: 7300 },
-];
-
-const ventasMeses = [
-  { mes: "Nov", monto: 142000 },
-  { mes: "Dic", monto: 198000 },
-  { mes: "Ene", monto: 121000 },
-  { mes: "Feb", monto: 155000 },
-  { mes: "Mar", monto: 167000 },
-  { mes: "Abr", monto: 187340 },
-];
-
-const topProductos = [
-  { nombre: "Espejo 1 — Rectangular 60×90 cm", unidades: 210 },
-  { nombre: "Espejo 2 — Ovalado 50×70 cm", unidades: 145 },
-  { nombre: "Espejo 3 — Redondo 60 cm", unidades: 132 },
-  { nombre: "Espejo 4 — Marco Dorado 80×120 cm", unidades: 98 },
-  { nombre: "Espejo 5 — Biselado 40×60 cm", unidades: 67 },
-];
-
-const stockCritico = [
-  { nombre: "Espejo 1 — Rectangular 60×90 cm", stock: 3, minimo: 20 },
-  { nombre: "Espejo 3 — Redondo 60 cm", stock: 1, minimo: 10 },
-  { nombre: "Espejo 6 — Cuerpo Completo 45×150 cm", stock: 2, minimo: 12 },
-  { nombre: "Espejo 7 — Veneciano 70×100 cm", stock: 4, minimo: 15 },
-  { nombre: "Espejo 8 — Antiguo 50×80 cm", stock: 5, minimo: 18 },
-];
-
-const catalogoProductos = [
-  { id: "P001", nombre: "Espejo 1 — Rectangular 60×90 cm", codigo: "7501000511248", precio: "$850.00" },
-  { id: "P002", nombre: "Espejo 2 — Ovalado 50×70 cm", codigo: "7501000523718", precio: "$620.00" },
-  { id: "P003", nombre: "Espejo 3 — Redondo 60 cm", codigo: "7501000589124", precio: "$480.00" },
-  { id: "P004", nombre: "Espejo 4 — Marco Dorado 80×120 cm", codigo: "7501000534521", precio: "$1,950.00" },
-  { id: "P005", nombre: "Espejo 5 — Biselado 40×60 cm", codigo: "7501000547823", precio: "$390.00" },
-];
-
-const impresoras = [
-  "Zebra ZD420 (Oficina)",
-  "HP LaserJet 1020 (Almacén)",
-  "Brother QL-820NWB (Recepción)",
-  "Zebra ZP450 (Embarque)",
-];
+type VentaMes = { mes: string; monto: number };
+type TopProducto = { nombre: string; unidades: number };
+type ProductoAlerta = { nombre: string; diasCobertura: number; semaforo: "CRITICO" | "ALERTA" };
+type CatalogoProducto = { id: string; nombre: string; codigo: string; precio: string };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -70,19 +26,39 @@ function fmt(n: number) {
   });
 }
 
-function barcodePattern(code: string): number[] {
-  let n = 0;
-  for (let i = 0; i < code.length; i++) {
-    n = (n * 31 + code.charCodeAt(i)) >>> 0;
-  }
-  const bars: number[] = [1, 0, 1];
-  for (let i = 0; i < 55; i++) {
-    n = (n * 1664525 + 1013904223) >>> 0;
-    bars.push((n >>> 28) % 2);
-  }
-  bars.push(1, 0, 1);
-  return bars;
+function fmtImporte(n: number) {
+  return n.toLocaleString("es-MX", {
+    style: "currency",
+    currency: "MXN",
+    maximumFractionDigits: 0,
+  });
 }
+
+const MESES_ES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
+function getLast6Months(): { key: string; mes: string }[] {
+  const result = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - i);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    result.push({ key, mes: MESES_ES[d.getMonth()] });
+  }
+  return result;
+}
+
+function currentMonthLabel(): string {
+  const d = new Date();
+  return `${MESES_ES[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+const impresoras = [
+  "Zebra ZD420 (Oficina)",
+  "HP LaserJet 1020 (Almacén)",
+  "Brother QL-820NWB (Recepción)",
+  "Zebra ZP450 (Embarque)",
+];
 
 // ─── SVG micro-components ─────────────────────────────────────────────────────
 
@@ -130,243 +106,111 @@ function FakeQR({ size = 140 }: { size?: number }) {
   );
 }
 
-function FakeBarcode({
-  code,
-  width = 180,
-  height = 48,
-}: {
-  code: string;
-  width?: number;
-  height?: number;
-}) {
-  const pattern = barcodePattern(code);
-  const barW = width / pattern.length;
-  return (
-    <svg width={width} height={height + 16} viewBox={`0 0 ${width} ${height + 16}`}>
-      {pattern.map((on, i) =>
-        on ? (
-          <rect key={i} x={i * barW} y={0} width={barW + 0.4} height={height} fill="#111" />
-        ) : null
-      )}
-      <text
-        x={width / 2}
-        y={height + 13}
-        textAnchor="middle"
-        fontSize="9"
-        fill="#555"
-        fontFamily="monospace"
-      >
-        {code}
-      </text>
-    </svg>
-  );
-}
+// ─── Charts ───────────────────────────────────────────────────────────────────
 
-function BarChart() {
-  const maxMonto = Math.max(...ventasDia.map((v) => v.monto));
-  const W = 400,
-    H = 200;
-  const padL = 50,
-    padR = 10,
-    padT = 10,
-    padB = 30;
+function BarChart({ data }: { data: { label: string; monto: number }[] }) {
+  const maxMonto = Math.max(...data.map((v) => v.monto), 1);
+  const niceMax = Math.ceil(maxMonto / 5000) * 5000 || 5000;
+  const W = 400, H = 200;
+  const padL = 60, padR = 10, padT = 10, padB = 30;
   const chartW = W - padL - padR;
   const chartH = H - padT - padB;
-  const spacing = chartW / ventasDia.length;
+  const spacing = chartW / Math.max(data.length, 1);
   const barW = spacing * 0.55;
-  const yTicks = [0, 5000, 10000, 15000, 20000];
+  const yTicks = [0, 1, 2, 3, 4].map((i) => Math.round((niceMax / 4) * i));
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full">
       {yTicks.map((tick) => {
-        const y = padT + chartH - (tick / maxMonto) * chartH;
+        const y = padT + chartH - (tick / niceMax) * chartH;
         return (
           <g key={tick}>
-            <line
-              x1={padL}
-              y1={y}
-              x2={padL + chartW}
-              y2={y}
-              stroke="#e5e7eb"
-              strokeWidth="1"
-              strokeDasharray="4,3"
-            />
-            <text
-              x={padL - 5}
-              y={y + 4}
-              textAnchor="end"
-              fontSize="9"
-              fill="#9ca3af"
-              fontFamily="sans-serif"
-            >
-              {tick === 0 ? "0" : `${tick / 1000}k`}
+            <line x1={padL} y1={y} x2={padL + chartW} y2={y} stroke="#e5e7eb" strokeWidth="1" strokeDasharray="4,3" />
+            <text x={padL - 5} y={y + 4} textAnchor="end" fontSize="9" fill="#9ca3af" fontFamily="sans-serif">
+              {tick === 0 ? "0" : `$${(tick / 1000).toFixed(0)}k`}
             </text>
           </g>
         );
       })}
-      {ventasDia.map((d, i) => {
+      {data.map((d, i) => {
         const x = padL + i * spacing + (spacing - barW) / 2;
-        const barH = (d.monto / maxMonto) * chartH;
+        const barH = (d.monto / niceMax) * chartH;
         const y = padT + chartH - barH;
         return (
-          <g key={d.dia}>
+          <g key={i}>
             <rect x={x} y={y} width={barW} height={barH} rx="3" fill="#3b82f6" opacity="0.85" />
-            <text
-              x={x + barW / 2}
-              y={H - padB + 16}
-              textAnchor="middle"
-              fontSize="10"
-              fill="#9ca3af"
-              fontFamily="sans-serif"
-            >
-              {d.dia}
+            <text x={x + barW / 2} y={H - padB + 16} textAnchor="middle" fontSize="9" fill="#9ca3af" fontFamily="sans-serif">
+              {d.label}
             </text>
           </g>
         );
       })}
-      <line
-        x1={padL}
-        y1={padT + chartH}
-        x2={padL + chartW}
-        y2={padT + chartH}
-        stroke="#d1d5db"
-        strokeWidth="1"
-      />
-      <line
-        x1={padL}
-        y1={padT}
-        x2={padL}
-        y2={padT + chartH}
-        stroke="#d1d5db"
-        strokeWidth="1"
-      />
+      <line x1={padL} y1={padT + chartH} x2={padL + chartW} y2={padT + chartH} stroke="#d1d5db" strokeWidth="1" />
+      <line x1={padL} y1={padT} x2={padL} y2={padT + chartH} stroke="#d1d5db" strokeWidth="1" />
     </svg>
   );
 }
 
-function LineChart() {
-  const maxMonto = 210000;
-  const W = 400,
-    H = 200;
-  const padL = 55,
-    padR = 15,
-    padT = 10,
-    padB = 30;
+function LineChart({ data }: { data: VentaMes[] }) {
+  const maxMonto = Math.max(...data.map((d) => d.monto), 1);
+  const niceMax = Math.ceil(maxMonto / 50000) * 50000 || 50000;
+  const W = 400, H = 200;
+  const padL = 65, padR = 15, padT = 10, padB = 30;
   const chartW = W - padL - padR;
   const chartH = H - padT - padB;
-  const yTicks = [0, 50000, 100000, 150000, 200000];
+  const yTicks = [0, 1, 2, 3, 4].map((i) => Math.round((niceMax / 4) * i));
 
-  const pts = ventasMeses.map((d, i) => ({
-    x: padL + (i / (ventasMeses.length - 1)) * chartW,
-    y: padT + chartH - (d.monto / maxMonto) * chartH,
+  const pts = data.map((d, i) => ({
+    x: padL + (data.length > 1 ? (i / (data.length - 1)) : 0) * chartW,
+    y: padT + chartH - (d.monto / niceMax) * chartH,
     mes: d.mes,
   }));
 
   const linePath = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
-  const areaPath = `${linePath} L ${pts[pts.length - 1].x} ${padT + chartH} L ${pts[0].x} ${padT + chartH} Z`;
+  const areaPath = pts.length > 0
+    ? `${linePath} L ${pts[pts.length - 1].x} ${padT + chartH} L ${pts[0].x} ${padT + chartH} Z`
+    : "";
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full">
       {yTicks.map((tick) => {
-        const y = padT + chartH - (tick / maxMonto) * chartH;
+        const y = padT + chartH - (tick / niceMax) * chartH;
         return (
           <g key={tick}>
-            <line
-              x1={padL}
-              y1={y}
-              x2={padL + chartW}
-              y2={y}
-              stroke="#e5e7eb"
-              strokeWidth="1"
-              strokeDasharray="4,3"
-            />
-            <text
-              x={padL - 5}
-              y={y + 4}
-              textAnchor="end"
-              fontSize="9"
-              fill="#9ca3af"
-              fontFamily="sans-serif"
-            >
-              {tick === 0 ? "0" : `${tick / 1000}k`}
+            <line x1={padL} y1={y} x2={padL + chartW} y2={y} stroke="#e5e7eb" strokeWidth="1" strokeDasharray="4,3" />
+            <text x={padL - 5} y={y + 4} textAnchor="end" fontSize="9" fill="#9ca3af" fontFamily="sans-serif">
+              {tick === 0 ? "0" : `$${(tick / 1000).toFixed(0)}k`}
             </text>
           </g>
         );
       })}
-      <path d={areaPath} fill="#3b82f6" opacity="0.07" />
-      <path
-        d={linePath}
-        fill="none"
-        stroke="#3b82f6"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      {areaPath && <path d={areaPath} fill="#3b82f6" opacity="0.07" />}
+      {pts.length > 1 && (
+        <path d={linePath} fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      )}
       {pts.map((p) => (
-        <circle
-          key={p.mes}
-          cx={p.x}
-          cy={p.y}
-          r="4"
-          fill="white"
-          stroke="#3b82f6"
-          strokeWidth="2"
-        />
+        <circle key={p.mes} cx={p.x} cy={p.y} r="4" fill="white" stroke="#3b82f6" strokeWidth="2" />
       ))}
       {pts.map((p) => (
-        <text
-          key={p.mes}
-          x={p.x}
-          y={H - padB + 16}
-          textAnchor="middle"
-          fontSize="10"
-          fill="#9ca3af"
-          fontFamily="sans-serif"
-        >
+        <text key={p.mes} x={p.x} y={H - padB + 16} textAnchor="middle" fontSize="10" fill="#9ca3af" fontFamily="sans-serif">
           {p.mes}
         </text>
       ))}
-      <line
-        x1={padL}
-        y1={padT + chartH}
-        x2={padL + chartW}
-        y2={padT + chartH}
-        stroke="#d1d5db"
-        strokeWidth="1"
-      />
-      <line
-        x1={padL}
-        y1={padT}
-        x2={padL}
-        y2={padT + chartH}
-        stroke="#d1d5db"
-        strokeWidth="1"
-      />
+      <line x1={padL} y1={padT + chartH} x2={padL + chartW} y2={padT + chartH} stroke="#d1d5db" strokeWidth="1" />
+      <line x1={padL} y1={padT} x2={padL} y2={padT + chartH} stroke="#d1d5db" strokeWidth="1" />
     </svg>
   );
 }
 
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 
-function KpiCard({
-  title,
-  value,
-  icon,
-  accent,
-  delta,
-}: {
-  title: string;
-  value: string;
-  icon: string;
-  accent: string;
-  delta: string;
+function KpiCard({ title, value, icon, accent, delta }: {
+  title: string; value: string; icon: string; accent: string; delta: string;
 }) {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
       <div className="flex items-start justify-between mb-3">
-        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-          {title}
-        </p>
+        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{title}</p>
         <span className={`text-base ${accent} p-1.5 rounded-lg`}>{icon}</span>
       </div>
       <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
@@ -380,56 +224,90 @@ function KpiCard({
 export function Home() {
   useDarkMode();
 
+  const [kpi, setKpi] = useState<DashboardKpi>({
+    ventasSemana: 0, ventasMes: 0, pedidosPendientes: 0, productosEnAlerta: 0,
+  });
+  const [ventasSemanas, setVentasSemanas] = useState<{ label: string; monto: number }[]>([]);
+  const [ventasMeses, setVentasMeses] = useState<VentaMes[]>([]);
+  const [topProductos, setTopProductos] = useState<TopProducto[]>([]);
+  const [productosAlerta, setProductosAlerta] = useState<ProductoAlerta[]>([]);
+  const [catalogoProductos, setCatalogoProductos] = useState<CatalogoProducto[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const [qrProductIdx, setQrProductIdx] = useState(0);
   const [qrPrinterIdx, setQrPrinterIdx] = useState(0);
   const [qrMsg, setQrMsg] = useState("");
 
-  const [selectedLabels, setSelectedLabels] = useState<Set<string>>(new Set());
-  const [labelPrinterIdx, setLabelPrinterIdx] = useState(0);
-  const [labelMsg, setLabelMsg] = useState("");
-  const [showBarcodePreview, setShowBarcodePreview] = useState(false);
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [dashData, productosData] = await Promise.all([
+          api.getDashboard() as Promise<any>,
+          api.getProductosCatalogo(50) as Promise<any>,
+        ]);
 
-  const toggleLabel = (id: string) => {
-    setSelectedLabels((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
+        setKpi(dashData.kpi);
 
-  const toggleAllLabels = () => {
-    if (selectedLabels.size === catalogoProductos.length) {
-      setSelectedLabels(new Set());
-    } else {
-      setSelectedLabels(new Set(catalogoProductos.map((p) => p.id)));
-    }
-  };
+        // Weekly chart — use semana_label as x-axis label
+        setVentasSemanas(
+          (dashData.ventasSemanas as any[]).map((v) => ({
+            label: String(v.semana_label ?? `S${v.semana_num}`),
+            monto: Number(v.monto),
+          }))
+        );
+
+        // Monthly chart — fill in last 6 months, zeros for missing
+        const last6 = getLast6Months();
+        const mesMap = new Map<string, number>(
+          (dashData.ventasMeses as any[]).map((v) => [
+            `${v.anio_real}-${String(v.mes_num).padStart(2, "0")}`,
+            Number(v.monto),
+          ])
+        );
+        setVentasMeses(last6.map(({ key, mes }) => ({ mes, monto: mesMap.get(key) ?? 0 })));
+
+        setTopProductos(
+          (dashData.topProductos as any[]).map((p) => ({
+            nombre: p.nombre as string,
+            unidades: Number(p.unidades),
+          }))
+        );
+
+        setProductosAlerta(
+          (dashData.productosAlerta as any[]).map((p) => ({
+            nombre: p.nombre as string,
+            diasCobertura: Number(p.diasCobertura),
+            semaforo: p.semaforo as "CRITICO" | "ALERTA",
+          }))
+        );
+
+        const items: any[] = productosData.items ?? [];
+        setCatalogoProductos(
+          items.map((p) => ({
+            id: String(p.id),
+            nombre: p.name as string,
+            codigo: p.sku as string,
+            precio: fmt(Number(p.price)),
+          }))
+        );
+      } catch (err) {
+        console.error("Error loading dashboard:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, []);
 
   const handlePrintQR = () => {
+    if (catalogoProductos.length === 0) return;
     const prod = catalogoProductos[qrProductIdx];
     setQrMsg(`Enviando QR de "${prod.nombre}" a ${impresoras[qrPrinterIdx]}…`);
-    setTimeout(
-      () => setQrMsg(`✓ QR enviado correctamente a ${impresoras[qrPrinterIdx]}.`),
-      1500
-    );
+    setTimeout(() => setQrMsg(`✓ QR enviado correctamente a ${impresoras[qrPrinterIdx]}.`), 1500);
   };
 
-  const handlePrintLabels = () => {
-    if (selectedLabels.size === 0) return;
-    setLabelMsg(
-      `Enviando ${selectedLabels.size} etiqueta(s) a ${impresoras[labelPrinterIdx]}…`
-    );
-    setTimeout(
-      () =>
-        setLabelMsg(
-          `✓ ${selectedLabels.size} etiqueta(s) enviada(s) a ${impresoras[labelPrinterIdx]}.`
-        ),
-      1500
-    );
-  };
-
-  const selectedProducts = catalogoProductos.filter((p) => selectedLabels.has(p.id));
+  const currentQrProduct = catalogoProductos[qrProductIdx];
 
   return (
     <div className="flex-1 bg-gray-50 dark:bg-gray-900 min-h-screen overflow-auto">
@@ -437,52 +315,56 @@ export function Home() {
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-6">
         <h1 className="text-3xl font-bold tracking-wide text-gray-900 dark:text-white">Inicio</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Resumen general — Abril 2026
+          Resumen general — {currentMonthLabel()}
         </p>
       </div>
 
       <div className="px-8 py-6 space-y-6">
-        {/* ── KPI Cards ─────────────────────────────────────────────────── */}
+        {/* ── KPI Cards ──────────────────────────────────────────────────── */}
         <div className="grid grid-cols-4 gap-4">
           <KpiCard
-            title="Ventas hoy"
-            value={fmt(kpi.ventasHoy)}
+            title="Ventas semana"
+            value={loading ? "—" : fmtImporte(kpi.ventasSemana)}
             icon="💰"
             accent="text-blue-500 bg-blue-50 dark:bg-blue-900/20"
-            delta="+12% vs ayer"
+            delta="Semana más reciente (HD)"
           />
           <KpiCard
             title="Ventas del mes"
-            value={fmt(kpi.ventasMes)}
+            value={loading ? "—" : fmtImporte(kpi.ventasMes)}
             icon="📈"
             accent="text-green-500 bg-green-50 dark:bg-green-900/20"
-            delta="+8% vs mes anterior"
+            delta={`${currentMonthLabel()} (HD)`}
           />
           <KpiCard
             title="Pedidos pendientes"
-            value={String(kpi.pedidosPendientes)}
+            value={loading ? "—" : String(kpi.pedidosPendientes)}
             icon="📦"
             accent="text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20"
-            delta="2 urgentes"
+            delta="Sin fecha de llegada"
           />
           <KpiCard
-            title="Productos en mínimo"
-            value={String(kpi.productosMinimo)}
+            title="Productos en alerta"
+            value={loading ? "—" : String(kpi.productosEnAlerta)}
             icon="⚠️"
             accent="text-red-500 bg-red-50 dark:bg-red-900/20"
-            delta="Requieren reorden"
+            delta="Crítico o alerta de cobertura"
           />
         </div>
 
-        {/* ── Charts ────────────────────────────────────────────────────── */}
+        {/* ── Charts ─────────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 gap-6">
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-              Ventas por día (últimos 7 días)
+              Ventas por semana (últimas 7 semanas)
             </h2>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">En pesos MXN</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">Home Depot — importe MXN</p>
             <div className="h-44">
-              <BarChart />
+              {loading ? (
+                <div className="h-full flex items-center justify-center text-xs text-gray-400">Cargando…</div>
+              ) : (
+                <BarChart data={ventasSemanas} />
+              )}
             </div>
           </div>
 
@@ -490,129 +372,132 @@ export function Home() {
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
               Ventas mensuales (últimos 6 meses)
             </h2>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">En pesos MXN</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">Home Depot — importe MXN</p>
             <div className="h-44">
-              <LineChart />
+              {loading ? (
+                <div className="h-full flex items-center justify-center text-xs text-gray-400">Cargando…</div>
+              ) : (
+                <LineChart data={ventasMeses} />
+              )}
             </div>
           </div>
         </div>
 
-        {/* ── Top productos & Inventario crítico ────────────────────────── */}
+        {/* ── Top productos & Alertas ─────────────────────────────────────── */}
         <div className="grid grid-cols-2 gap-6">
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
               Top 5 productos más vendidos
             </h2>
-            <div className="space-y-3">
-              {topProductos.map((p, i) => {
-                const pct = (p.unidades / topProductos[0].unidades) * 100;
-                return (
-                  <div key={i}>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-gray-600 dark:text-gray-400 truncate max-w-[220px]">
-                        {p.nombre}
-                      </span>
-                      <span className="text-gray-700 dark:text-gray-300 font-medium ml-2 shrink-0">
-                        {p.unidades} uds
-                      </span>
+            {loading ? (
+              <div className="text-xs text-gray-400">Cargando…</div>
+            ) : topProductos.length === 0 ? (
+              <div className="text-xs text-gray-400">Sin ventas registradas este año</div>
+            ) : (
+              <div className="space-y-3">
+                {topProductos.map((p, i) => {
+                  const pct = (p.unidades / topProductos[0].unidades) * 100;
+                  return (
+                    <div key={i}>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-gray-600 dark:text-gray-400 truncate max-w-[220px]">{p.nombre}</span>
+                        <span className="text-gray-700 dark:text-gray-300 font-medium ml-2 shrink-0">
+                          {p.unidades.toLocaleString()} uds
+                        </span>
+                      </div>
+                      <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full">
+                        <div className="h-2 bg-blue-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                      </div>
                     </div>
-                    <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full">
-                      <div
-                        className="h-2 bg-blue-500 rounded-full transition-all"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
-              Inventario crítico
+              Productos en alerta de cobertura
             </h2>
-            <div className="space-y-3">
-              {stockCritico.map((item, i) => {
-                const pct = Math.round((item.stock / item.minimo) * 100);
-                return (
-                  <div key={i} className="flex items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-600 dark:text-gray-400 truncate">
-                        {item.nombre}
-                      </p>
-                      <div className="h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full mt-1">
-                        <div
-                          className="h-1.5 bg-red-400 rounded-full transition-all"
-                          style={{ width: `${pct}%` }}
-                        />
+            {loading ? (
+              <div className="text-xs text-gray-400">Cargando…</div>
+            ) : productosAlerta.length === 0 ? (
+              <div className="text-xs text-gray-400">No hay productos en alerta</div>
+            ) : (
+              <div className="space-y-3">
+                {productosAlerta.map((item, i) => {
+                  const umbral = item.semaforo === "CRITICO" ? 60 : 80;
+                  const pct = Math.min(Math.round((item.diasCobertura / umbral) * 100), 100);
+                  const color = item.semaforo === "CRITICO" ? "bg-red-400" : "bg-yellow-400";
+                  const textColor = item.semaforo === "CRITICO" ? "text-red-500" : "text-yellow-500";
+                  const badge = item.semaforo === "CRITICO"
+                    ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                    : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300";
+                  return (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{item.nombre}</p>
+                          <span className={`shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded ${badge}`}>
+                            {item.semaforo === "CRITICO" ? "Crítico" : "Alerta"}
+                          </span>
+                        </div>
+                        <div className="h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full">
+                          <div className={`h-1.5 ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                      <div className={`text-right shrink-0 text-xs font-semibold ${textColor}`}>
+                        {item.diasCobertura}d
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <span className="text-xs font-semibold text-red-500">{item.stock}</span>
-                      <span className="text-xs text-gray-400">/{item.minimo}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* ── Impresión QR & Etiquetas ─────────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-6">
-          {/* QR */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
-              Imprimir código QR de producto
-            </h2>
+        {/* ── Impresión QR ────────────────────────────────────────────────── */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 max-w-lg">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
+            Imprimir código QR de producto
+          </h2>
 
+          {loading || catalogoProductos.length === 0 ? (
+            <div className="text-xs text-gray-400">
+              {loading ? "Cargando productos…" : "No hay productos disponibles"}
+            </div>
+          ) : (
             <div className="flex gap-4 items-start">
               <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-2 bg-white shrink-0">
                 <FakeQR size={118} />
                 <p className="text-center text-[9px] text-gray-400 mt-1 font-mono">
-                  {catalogoProductos[qrProductIdx].codigo}
+                  {currentQrProduct?.codigo}
                 </p>
               </div>
 
               <div className="flex-1 space-y-3 min-w-0">
                 <div>
-                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-                    Producto
-                  </label>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Producto</label>
                   <select
                     className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={qrProductIdx}
-                    onChange={(e) => {
-                      setQrProductIdx(Number(e.target.value));
-                      setQrMsg("");
-                    }}
+                    onChange={(e) => { setQrProductIdx(Number(e.target.value)); setQrMsg(""); }}
                   >
                     {catalogoProductos.map((p, i) => (
-                      <option key={p.id} value={i}>
-                        {p.nombre}
-                      </option>
+                      <option key={p.id} value={i}>{p.nombre}</option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-                    Impresora
-                  </label>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Impresora</label>
                   <select
                     className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={qrPrinterIdx}
-                    onChange={(e) => {
-                      setQrPrinterIdx(Number(e.target.value));
-                      setQrMsg("");
-                    }}
+                    onChange={(e) => { setQrPrinterIdx(Number(e.target.value)); setQrMsg(""); }}
                   >
-                    {impresoras.map((imp, i) => (
-                      <option key={i} value={i}>
-                        {imp}
-                      </option>
-                    ))}
+                    {impresoras.map((imp, i) => <option key={i} value={i}>{imp}</option>)}
                   </select>
                 </div>
 
@@ -624,156 +509,15 @@ export function Home() {
                 </button>
 
                 {qrMsg && (
-                  <p
-                    className={`text-xs ${
-                      qrMsg.startsWith("✓") ? "text-green-500" : "text-blue-500"
-                    }`}
-                  >
+                  <p className={`text-xs ${qrMsg.startsWith("✓") ? "text-green-500" : "text-blue-500"}`}>
                     {qrMsg}
                   </p>
                 )}
               </div>
             </div>
-          </div>
-
-          {/* Barcode labels */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                Imprimir etiquetas con código de barras
-              </h2>
-              <button
-                onClick={() => setShowBarcodePreview(true)}
-                disabled={selectedLabels.size === 0}
-                className="text-xs text-blue-500 hover:text-blue-600 disabled:text-gray-300 disabled:cursor-not-allowed underline"
-              >
-                Vista previa
-              </button>
-            </div>
-
-            <table className="w-full text-xs mb-3">
-              <thead>
-                <tr className="border-b border-gray-100 dark:border-gray-700">
-                  <th className="pb-2 w-6">
-                    <input
-                      type="checkbox"
-                      checked={selectedLabels.size === catalogoProductos.length}
-                      onChange={toggleAllLabels}
-                      className="accent-blue-500"
-                    />
-                  </th>
-                  <th className="pb-2 text-left text-gray-500 dark:text-gray-400 font-medium">
-                    Producto
-                  </th>
-                  <th className="pb-2 text-right text-gray-500 dark:text-gray-400 font-medium">
-                    Precio
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {catalogoProductos.map((p) => (
-                  <tr key={p.id} className="border-b border-gray-50 dark:border-gray-700/50">
-                    <td className="py-1.5">
-                      <input
-                        type="checkbox"
-                        checked={selectedLabels.has(p.id)}
-                        onChange={() => toggleLabel(p.id)}
-                        className="accent-blue-500"
-                      />
-                    </td>
-                    <td className="py-1.5 text-gray-700 dark:text-gray-300">{p.nombre}</td>
-                    <td className="py-1.5 text-right text-gray-600 dark:text-gray-400">
-                      {p.precio}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <div className="flex gap-2 items-center">
-              <select
-                className="flex-1 text-xs border border-gray-200 dark:border-gray-600 rounded-md px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={labelPrinterIdx}
-                onChange={(e) => {
-                  setLabelPrinterIdx(Number(e.target.value));
-                  setLabelMsg("");
-                }}
-              >
-                {impresoras.map((imp, i) => (
-                  <option key={i} value={i}>
-                    {imp}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={handlePrintLabels}
-                disabled={selectedLabels.size === 0}
-                className="shrink-0 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-xs font-medium py-1.5 px-3 rounded-md transition-colors"
-              >
-                Imprimir ({selectedLabels.size})
-              </button>
-            </div>
-
-            {labelMsg && (
-              <p
-                className={`text-xs mt-2 ${
-                  labelMsg.startsWith("✓") ? "text-green-500" : "text-blue-500"
-                }`}
-              >
-                {labelMsg}
-              </p>
-            )}
-          </div>
+          )}
         </div>
       </div>
-
-      {/* ── Barcode Preview Modal ────────────────────────────────────────── */}
-      {showBarcodePreview && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-          onClick={() => setShowBarcodePreview(false)}
-        >
-          <div
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-lg w-full mx-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-semibold text-gray-800 dark:text-white">
-                Vista previa de etiquetas
-              </h3>
-              <button
-                onClick={() => setShowBarcodePreview(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl font-bold leading-none"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
-              {selectedProducts.map((p) => (
-                <div
-                  key={p.id}
-                  className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-white"
-                >
-                  <p className="text-xs font-semibold text-gray-800 mb-0.5">{p.nombre}</p>
-                  <p className="text-xs text-gray-500 mb-2">{p.precio}</p>
-                  <FakeBarcode code={p.codigo} width={200} height={44} />
-                </div>
-              ))}
-            </div>
-
-            <button
-              onClick={() => {
-                handlePrintLabels();
-                setShowBarcodePreview(false);
-              }}
-              className="mt-4 w-full bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white text-sm font-medium py-2 rounded-md transition-colors"
-            >
-              Imprimir {selectedLabels.size} etiqueta(s) — {impresoras[labelPrinterIdx]}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

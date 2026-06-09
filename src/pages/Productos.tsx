@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { ProductModal } from "../components/ProductModal";
 import { DeleteConfirmModal } from "../components/DeleteConfirmModal";
 import { useDarkMode } from "../context/DarkModeContext";
@@ -116,12 +116,25 @@ export function Productos() {
         "Alto (cm)": p.dimensions_cm?.alto ?? "",
       }));
 
-      const worksheet = XLSX.utils.json_to_sheet(rows);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Productos");
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Productos");
+
+      if (rows.length > 0) {
+        worksheet.columns = Object.keys(rows[0]).map((key) => ({ header: key, key }));
+        worksheet.addRows(rows);
+      }
 
       const date = new Date().toISOString().slice(0, 10);
-      XLSX.writeFile(workbook, `productos_${date}.xlsx`);
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `productos_${date}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Error exporting products:", err);
       setError(err instanceof Error ? err.message : "Error al exportar productos");
@@ -135,16 +148,18 @@ export function Productos() {
     if (isAuto) setAutoSyncing(true);
     setSyncMsg(null);
     try {
-      const provRes = await fetchAPI('/api/odoo/pull/proveedores', { method: 'POST' }) as { upserted?: number };
+      const provRes = await fetchAPI('/api/odoo/pull/proveedores', { method: 'POST' }) as { upserted?: number; deleted?: number };
       const prodRes = await fetchAPI('/api/odoo/pull/productos',   { method: 'POST' }) as { upserted?: number; suppliersMapped?: number };
       const provCount = provRes.upserted ?? 0;
+      const provDeleted = provRes.deleted ?? 0;
       const prodCount = prodRes.upserted ?? 0;
       const mapped    = prodRes.suppliersMapped ?? 0;
       localStorage.setItem(PRODUCTS_SYNC_KEY, Date.now().toString());
       if (!isAuto) {
+        const deletedMsg = provDeleted > 0 ? `, ${provDeleted} proveedores eliminados` : '';
         setSyncMsg({
           ok: true,
-          text: `Sync completado — ${provCount} proveedores, ${prodCount} productos (${mapped} con proveedor mapeado).`,
+          text: `Sync completado — ${provCount} proveedores${deletedMsg}, ${prodCount} productos (${mapped} con proveedor mapeado).`,
         });
       }
       await fetchProducts('', 1);
@@ -358,6 +373,7 @@ export function Productos() {
         id_proveedor: productData.supplier?.id || null,
         id_categoria: productData.category ? parseInt(String(productData.category)) : null,
         inventario_standar_tarima: productData.standard_tarima || null,
+        cantidad_x_ctn: productData.qty_per_carton ?? null,
       };
 
       const result = await fetchAPI("/(api)/productos", {
@@ -415,6 +431,8 @@ export function Productos() {
         apiData.id_proveedor = productData.supplier.id;
       if (productData.standard_tarima !== undefined)
         apiData.inventario_standar_tarima = productData.standard_tarima;
+      if (productData.qty_per_carton !== undefined)
+        apiData.cantidad_x_ctn = productData.qty_per_carton;
       if (productData.category !== undefined)
         apiData.id_categoria = productData.category ? parseInt(String(productData.category)) : null;
 
@@ -490,7 +508,7 @@ export function Productos() {
           </h1>
           <div className="flex items-center gap-3">
             <button
-              onClick={handleSyncOdoo}
+              onClick={() => handleSyncOdoo()}
               disabled={syncLoading}
               className="px-4 py-2 border border-gray-400 dark:border-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm font-medium text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >

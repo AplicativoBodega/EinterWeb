@@ -2,6 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { ProveedorModal } from "../components/ProveedorModal";
 import { DeleteConfirmModal } from "../components/DeleteConfirmModal";
 import { useDarkMode } from "../context/DarkModeContext";
+import { fetchAPI } from "../lib/fetch";
+
+const SYNC_STALE_MS = 15 * 60 * 1000;
+const PROVEEDORES_SYNC_KEY = "einter_proveedores_last_sync";
 
 interface Proveedor {
   id: number;
@@ -32,6 +36,8 @@ export function Proveedores() {
     null
   );
 
+  const [autoSyncing, setAutoSyncing] = useState(false);
+
   // Delete modal states
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [proveedorToDelete, setProveedorToDelete] = useState<Proveedor | null>(
@@ -47,6 +53,18 @@ export function Proveedores() {
     column: string;
     direction: "asc" | "desc";
   } | null>(null);
+
+  const handleSyncOdoo = async (isAuto = false) => {
+    if (isAuto) setAutoSyncing(true);
+    try {
+      await fetchAPI('/api/odoo/pull/proveedores', { method: 'POST' });
+      localStorage.setItem(PROVEEDORES_SYNC_KEY, Date.now().toString());
+    } catch (err) {
+      console.warn("Auto-sync proveedores failed:", err);
+    } finally {
+      setAutoSyncing(false);
+    }
+  };
 
   // Fetch proveedores from database API
   const fetchProveedores = useCallback(async () => {
@@ -77,8 +95,16 @@ export function Proveedores() {
   }, []);
 
   useEffect(() => {
-    fetchProveedores();
-  }, [fetchProveedores]);
+    const lastSync = localStorage.getItem(PROVEEDORES_SYNC_KEY);
+    const isStale = !lastSync || Date.now() - Number(lastSync) > SYNC_STALE_MS;
+    if (isStale) {
+      handleSyncOdoo(true).then(() => fetchProveedores());
+    } else {
+      fetchProveedores();
+    }
+    // fetchProveedores and handleSyncOdoo are stable refs — safe to omit
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Apply filters whenever filter states change
   const applyFilters = useCallback(() => {
@@ -363,11 +389,11 @@ export function Proveedores() {
 
         {/* Body */}
         <div className="flex-1 flex flex-col overflow-y-auto">
-          {loading && proveedores.length === 0 ? (
+          {(loading && proveedores.length === 0) || autoSyncing ? (
             <div className="flex flex-col items-center justify-center py-20">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
               <p className="text-gray-500 font-robotoRegular mt-4">
-                Cargando proveedores...
+                {autoSyncing ? "Sincronizando con Odoo..." : "Cargando proveedores..."}
               </p>
             </div>
           ) : filteredProveedores.length === 0 ? (

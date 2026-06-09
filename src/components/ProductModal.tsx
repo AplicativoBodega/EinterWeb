@@ -21,6 +21,7 @@ interface FormData {
   stock: string;
   weight_kg: string;
   standard_tarima: string;
+  qty_per_carton: string;
   alto: string;
   ancho: string;
   largo: string;
@@ -39,6 +40,7 @@ const initialFormData: FormData = {
   stock: "",
   weight_kg: "",
   standard_tarima: "",
+  qty_per_carton: "",
   alto: "",
   ancho: "",
   largo: "",
@@ -60,12 +62,10 @@ export function ProductModal({
     Array<{ id: number; name: string }>
   >([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
-  const [showSupplierList, setShowSupplierList] = useState(false);
   const [categories, setCategories] = useState<
     Array<{ id: number; name: string }>
   >([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
-  const [showCategoryList, setShowCategoryList] = useState(false);
 
   useEffect(() => {
     if (product && mode === "edit") {
@@ -90,6 +90,7 @@ export function ProductModal({
         stock: String(product.stock || ""),
         weight_kg: String(product.weight_kg || ""),
         standard_tarima: String(product.standard_tarima || ""),
+        qty_per_carton: product.qty_per_carton != null ? String(product.qty_per_carton) : "",
         largo: String(product.dimensions_cm?.largo || ""),
         ancho: String(product.dimensions_cm?.ancho || ""),
         alto: String(product.dimensions_cm?.alto || ""),
@@ -250,6 +251,7 @@ export function ProductModal({
           : null,
         description: formData.description,
         standard_tarima: parseFloat(formData.standard_tarima) || undefined,
+        qty_per_carton: formData.qty_per_carton !== "" ? parseFloat(formData.qty_per_carton) : null,
       };
 
       if (mode === "edit" && product) {
@@ -320,111 +322,33 @@ export function ProductModal({
               <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
                 Categoría
               </label>
-              <button
-                onClick={() => setShowCategoryList((s) => !s)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-left"
+              <select
+                value={formData.category_id}
+                onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                disabled={loadingCategories}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-800 disabled:text-gray-400"
               >
-                {(() => {
-                  const id = parseInt(formData.category_id || "", 10);
-                  const found = categories.find((c) => c.id === id);
-                  if (found) return found.name;
-                  if (loadingCategories) return "Cargando...";
-                  return "Selecciona Categoría";
-                })()}
-              </button>
-
-              {showCategoryList && (
-                <div className="mt-2 max-h-40 border border-gray-200 rounded-lg bg-white overflow-y-auto">
-                  {loadingCategories ? (
-                    <div className="p-3 text-center">Cargando...</div>
-                  ) : categories.length === 0 ? (
-                    <div className="p-3">
-                      <p className="text-sm text-gray-500">
-                        No hay categorías
-                      </p>
-                      <button
-                        onClick={fetchCategories}
-                        className="mt-2 px-3 py-2 bg-gray-100 rounded text-sm"
-                      >
-                        Recargar
-                      </button>
-                    </div>
-                  ) : (
-                    <div>
-                      {categories.map((c) => (
-                        <button
-                          key={c.id}
-                          onClick={() => {
-                            setFormData({
-                              ...formData,
-                              category_id: String(c.id),
-                            });
-                            setShowCategoryList(false);
-                          }}
-                          className="w-full text-left px-4 py-2 border-b border-gray-100 hover:bg-gray-50"
-                        >
-                          {c.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+                <option value="">{loadingCategories ? "Cargando..." : "Selecciona Categoría"}</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={String(c.id)}>{c.name}</option>
+                ))}
+              </select>
             </div>
             <div className="flex-1">
               <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
                 Proveedor
               </label>
-              <button
-                onClick={() => setShowSupplierList((s) => !s)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-left"
+              <select
+                value={formData.supplier_id}
+                onChange={(e) => setFormData({ ...formData, supplier_id: e.target.value })}
+                disabled={loadingSuppliers}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-800 disabled:text-gray-400"
               >
-                {(() => {
-                  const id = parseInt(formData.supplier_id || "", 10);
-                  const found = suppliers.find((s) => s.id === id);
-                  if (found) return found.name;
-                  if (loadingSuppliers) return "Cargando...";
-                  return "Selecciona Proveedor";
-                })()}
-              </button>
-
-              {showSupplierList && (
-                <div className="mt-2 max-h-40 border border-gray-200 rounded-lg bg-white overflow-y-auto">
-                  {loadingSuppliers ? (
-                    <div className="p-3 text-center">Cargando...</div>
-                  ) : suppliers.length === 0 ? (
-                    <div className="p-3">
-                      <p className="text-sm text-gray-500">
-                        No hay proveedores
-                      </p>
-                      <button
-                        onClick={fetchSuppliers}
-                        className="mt-2 px-3 py-2 bg-gray-100 rounded text-sm"
-                      >
-                        Recargar
-                      </button>
-                    </div>
-                  ) : (
-                    <div>
-                      {suppliers.map((s) => (
-                        <button
-                          key={s.id}
-                          onClick={() => {
-                            setFormData({
-                              ...formData,
-                              supplier_id: String(s.id),
-                            });
-                            setShowSupplierList(false);
-                          }}
-                          className="w-full text-left px-4 py-2 border-b border-gray-100 hover:bg-gray-50"
-                        >
-                          {s.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+                <option value="">{loadingSuppliers ? "Cargando..." : "Selecciona Proveedor"}</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={String(s.id)}>{s.name}</option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -532,19 +456,35 @@ export function ProductModal({
             </div>
           </div>
 
-          <div className="mb-4">
-            <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
-              Estándar X Tarima
-            </label>
-            <input
-              type="number"
-              value={formData.standard_tarima}
-              onChange={(e) =>
-                setFormData({ ...formData, standard_tarima: e.target.value })
-              }
-              placeholder="Cantidad por tarima"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
-            />
+          <div className="flex flex-row gap-4 mb-4">
+            <div className="flex-1">
+              <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+                Estándar X Tarima
+              </label>
+              <input
+                type="number"
+                value={formData.standard_tarima}
+                onChange={(e) =>
+                  setFormData({ ...formData, standard_tarima: e.target.value })
+                }
+                placeholder="Cantidad por tarima"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+                Piezas X Cartón
+              </label>
+              <input
+                type="number"
+                value={formData.qty_per_carton}
+                onChange={(e) =>
+                  setFormData({ ...formData, qty_per_carton: e.target.value })
+                }
+                placeholder="Piezas por cartón"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
+              />
+            </div>
           </div>
 
           <div className="mb-6">
