@@ -14,11 +14,12 @@ export function Navbar({ onNavigateToProfile }: NavbarProps) {
   const notificationsRef = useRef<HTMLDivElement>(null)
   const profileMenuRef = useRef<HTMLDivElement>(null)
 
-  const [notifications] = useState([
-    { id: 1, message: 'Nuevo producto agregado', timestamp: '5 min' },
-    { id: 2, message: 'Pedido completado', timestamp: '2 horas' },
-    { id: 3, message: 'Stock bajo en Ubicación A', timestamp: '1 día' },
-  ])
+  interface Notification {
+    id: number
+    message: string
+    timestamp: string
+  }
+  const [notifications, setNotifications] = useState<Notification[]>([])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -87,7 +88,7 @@ export function Navbar({ onNavigateToProfile }: NavbarProps) {
                 }`}
               >
                 <div
-                  className={`p-4 border-b ${
+                  className={`p-4 border-b flex items-center justify-between ${
                     darkMode ? 'border-gray-700' : 'border-gray-200'
                   }`}
                 >
@@ -98,41 +99,76 @@ export function Navbar({ onNavigateToProfile }: NavbarProps) {
                   >
                     Notificaciones
                   </h3>
+                  {notifications.length > 0 && (
+                    <button
+                      onClick={() => setNotifications([])}
+                      className={`text-xs font-medium transition-colors ${
+                        darkMode
+                          ? 'text-blue-400 hover:text-blue-300'
+                          : 'text-blue-600 hover:text-blue-700'
+                      }`}
+                    >
+                      Limpiar todo
+                    </button>
+                  )}
                 </div>
                 <div className="max-h-96 overflow-y-auto">
                   {notifications.length > 0 ? (
                     notifications.map((notif) => (
                       <div
                         key={notif.id}
-                        className={`p-4 border-b cursor-pointer transition-all hover:bg-opacity-50 ${
+                        className={`p-4 border-b flex items-start justify-between gap-3 transition-all ${
                           darkMode
                             ? 'border-gray-700 hover:bg-gray-700'
                             : 'border-gray-100 hover:bg-gray-50'
                         }`}
                       >
-                        <p
-                          className={`text-sm font-medium ${
-                            darkMode ? 'text-white' : 'text-gray-900'
-                          }`}
+                        <div className="min-w-0">
+                          <p
+                            className={`text-sm font-medium ${
+                              darkMode ? 'text-white' : 'text-gray-900'
+                            }`}
+                          >
+                            {notif.message}
+                          </p>
+                          <p
+                            className={`text-xs mt-1 ${
+                              darkMode ? 'text-gray-400' : 'text-gray-500'
+                            }`}
+                          >
+                            {notif.timestamp}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() =>
+                            setNotifications((prev) =>
+                              prev.filter((n) => n.id !== notif.id)
+                            )
+                          }
+                          className="text-gray-400 hover:text-red-500 text-xs leading-none shrink-0 mt-0.5"
+                          title="Descartar"
                         >
-                          {notif.message}
-                        </p>
-                        <p
-                          className={`text-xs mt-1 ${
-                            darkMode ? 'text-gray-400' : 'text-gray-500'
-                          }`}
-                        >
-                          {notif.timestamp}
-                        </p>
+                          ✕
+                        </button>
                       </div>
                     ))
                   ) : (
-                    <div
-                      className={`p-4 text-center text-sm ${
-                        darkMode ? 'text-gray-400' : 'text-gray-500'
-                      }`}
-                    >
-                      No hay notificaciones
+                    <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
+                      <span className="text-3xl mb-2 opacity-60">🔕</span>
+                      <p
+                        className={`text-sm font-medium ${
+                          darkMode ? 'text-gray-300' : 'text-gray-600'
+                        }`}
+                      >
+                        No tienes notificaciones
+                      </p>
+                      <p
+                        className={`text-xs mt-1 ${
+                          darkMode ? 'text-gray-500' : 'text-gray-400'
+                        }`}
+                      >
+                        Aquí aparecerán las novedades del sistema
+                      </p>
                     </div>
                   )}
                 </div>

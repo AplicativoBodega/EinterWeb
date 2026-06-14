@@ -5,6 +5,7 @@ import { VentaDetailModal } from "../components/VentaDetailModal";
 import type { VentaDetail } from "../components/VentaDetailModal";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
+import { ColumnFilter, distinctValues } from "../components/ColumnFilter";
 
 interface LineItem {
   master_sku: string | null;
@@ -53,21 +54,21 @@ const MONTHS = [
 
 export function Salidas() {
   useDarkMode();
-  const [filteredVentas, setFilteredVentas] = useState<Venta[]>([]);
+  // All sales are loaded once and filtered / paginated client-side so the
+  // Excel-style column filters span the whole dataset.
+  const [allVentas, setAllVentas] = useState<Venta[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
-  const [total, setTotal] = useState(0);
 
   // Filters
   const [filterYear, setFilterYear] = useState<number | "">("");
   const [filterMonth, setFilterMonth] = useState<number | "">("");
-  const [availableYears, setAvailableYears] = useState<number[]>([]);
   const [searchOrden, setSearchOrden] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [filterCliente, setFilterCliente] = useState("");
-  const [availableClientes, setAvailableClientes] = useState<string[]>([]);
+  const [colFilters, setColFilters] = useState<Record<string, string[]>>({});
 
   // Modals
   const [modalVisible, setModalVisible] = useState(false);
@@ -236,13 +237,13 @@ export function Salidas() {
         <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-6">
           <div className="flex flex-row items-center justify-between">
             <h1 className="text-3xl font-bold tracking-wide text-gray-900 dark:text-white">
-              Ventas
+              Salidas
             </h1>
             <button
               onClick={handleOpenCreateModal}
               className="px-6 py-2 border border-black dark:border-white hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-colors text-sm font-medium text-gray-900 dark:text-white"
             >
-              + Agregar Venta
+              + Nueva Orden de Salida
             </button>
           </div>
 

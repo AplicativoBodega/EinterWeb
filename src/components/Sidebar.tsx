@@ -15,16 +15,16 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   const menuItems = [
     { id: "home", label: "Home", icon: "🏠" },
     { id: "productos", label: "Productos", icon: "🛒" },
+    { id: "categorias", label: "Categorías", icon: "📂" },
     { id: "proveedores", label: "Proveedores", icon: "🚚" },
     { id: "ubicaciones", label: "Ubicaciones", icon: "📍" },
     { id: "movimientos", label: "Movimientos", icon: "🔄" },
+    { id: "contenedores", label: "Entradas", icon: "🧾" },
     { id: "salidas", label: "Salidas", icon: "💰" },
     { id: "ventas-homedepot", label: "Ventas HD", icon: "🏬" },
     { id: "thd-comparativo", label: "THD Comparativo", icon: "📊" },
-    { id: "entradas", label: "Entradas", icon: "🧾" },
     { id: "inventario-inteligente", label: "Inv. Inteligente", icon: "🧠" },
     { id: "pedido-personalizado", label: "Pedido Custom", icon: "📦" },
-    { id: "categorias", label: "Categorías", icon: "📂" },
     { id: "perfiles", label: "Perfiles", icon: "👤" },
     ...(isSuperAdmin ? [{ id: "users", label: "Usuarios", icon: "👥" }] : []),
   ];

@@ -14,7 +14,7 @@ const PRODUCTS_SYNC_KEY = "einter_productos_last_sync";
 // minmax(0,…) so long values clip instead of pushing the column boundaries
 // out of alignment (the classic flexbox min-width:auto problem).
 const TABLE_GRID_COLUMNS =
-  "7rem minmax(0,3fr) minmax(0,1.5fr) minmax(0,2fr) minmax(0,2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.3fr) minmax(0,1.5fr)";
+  "7rem minmax(0,3fr) minmax(0,1.5fr) minmax(0,2fr) minmax(0,2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.5fr)";
 
 // Map a raw Odoo DB row to the Product type
 const mapOdooProduct = (item: Record<string, unknown>): Product => ({
@@ -110,7 +110,6 @@ export function Productos() {
         Stock: p.stock,
         Precio: p.price,
         Costo: p.cost,
-        "Estándar X Tarima": p.standard_tarima ?? "",
         "Largo (cm)": p.dimensions_cm?.largo ?? "",
         "Ancho (cm)": p.dimensions_cm?.ancho ?? "",
         "Alto (cm)": p.dimensions_cm?.alto ?? "",
@@ -303,10 +302,6 @@ export function Productos() {
           case "cost":
             aValue = Number(a.cost) || 0;
             bValue = Number(b.cost) || 0;
-            break;
-          case "standard_tarima":
-            aValue = Number(a.standard_tarima) || 0;
-            bValue = Number(b.standard_tarima) || 0;
             break;
           default:
             return 0;
@@ -757,23 +752,6 @@ export function Productos() {
               </span>
             </button>
           </div>
-          <div className="flex-[1.3] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center">
-            <button
-              onClick={() => handleSort("standard_tarima")}
-              className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
-            >
-              <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
-                Estándar X Tarima
-              </h3>
-              <span className="text-xs text-gray-600 dark:text-gray-400">
-                {sortBy?.column === "standard_tarima"
-                  ? sortBy.direction === "asc"
-                    ? "▲"
-                    : "▼"
-                  : "⬍"}
-              </span>
-            </button>
-          </div>
           <div className="flex-[1.5] py-4 px-3 flex justify-center items-center">
             <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
               Acciones
@@ -882,13 +860,6 @@ export function Productos() {
                 <div className="flex-[1.2] py-4 px-3 border-r border-gray-300 dark:border-gray-700 flex justify-center items-center">
                   <p className="text-gray-900 dark:text-white font-robotoRegular text-base text-center">
                     ${parseFloat(String(product.cost || 0)).toFixed(2)}
-                  </p>
-                </div>
-
-                {/* Estándar X Tarima */}
-                <div className="flex-[1.3] py-4 px-3 border-r border-gray-300 dark:border-gray-700 flex justify-center items-center">
-                  <p className="text-gray-900 dark:text-white font-robotoRegular text-base text-center">
-                    {product.standard_tarima || "—"}
                   </p>
                 </div>
 

@@ -459,20 +459,6 @@ export function ProductModal({
           <div className="flex flex-row gap-4 mb-4">
             <div className="flex-1">
               <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
-                Estándar X Tarima
-              </label>
-              <input
-                type="number"
-                value={formData.standard_tarima}
-                onChange={(e) =>
-                  setFormData({ ...formData, standard_tarima: e.target.value })
-                }
-                placeholder="Cantidad por tarima"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
                 Piezas X Cartón
               </label>
               <input

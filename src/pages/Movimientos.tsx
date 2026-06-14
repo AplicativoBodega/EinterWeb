@@ -2,6 +2,29 @@ import { useState, useEffect, useCallback } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 import type { Movement as Movimiento } from "../lib/types";
+import { ColumnFilter, distinctValues } from "../components/ColumnFilter";
+
+// Per-column value accessors (display string) used for both the distinct value
+// lists of the Excel-style filters and the filtering itself.
+const COL_ACCESSORS: Record<string, (m: Movimiento) => string> = {
+  nombre: (m) => m.nombre_usuario || "",
+  from: (m) => String(m.id_ubicacion_origen || ""),
+  to: (m) => String(m.id_ubicacion_destino || ""),
+  oldMasterSku: (m) => m.old_masterSKU || "",
+  newMasterSku: (m) => m.new_masterSKU || "",
+  cantidad: (m) => String(m.cantidad ?? ""),
+  date: (m) => (m.fecha ? new Date(m.fecha).toLocaleDateString() : ""),
+};
+
+const COLUMN_DEFS: { key: string; label: string }[] = [
+  { key: "nombre", label: "Nombre" },
+  { key: "from", label: "Desde" },
+  { key: "to", label: "Hacia" },
+  { key: "oldMasterSku", label: "Master SKU Antiguo" },
+  { key: "newMasterSku", label: "Master SKU Nuevo" },
+  { key: "cantidad", label: "Cantidad" },
+  { key: "date", label: "Fecha" },
+];
 
 // Shared column widths so the header and every data row line up exactly,
 // using minmax(0,…) so long values clip instead of pushing columns out of
@@ -22,6 +45,7 @@ export function Movimientos() {
     column: string;
     direction: "asc" | "desc";
   } | null>(null);
+  const [colFilters, setColFilters] = useState<Record<string, string[]>>({});
 
   const fetchMovimientos = async () => {
     setLoading(true);
@@ -87,6 +111,14 @@ export function Movimientos() {
       );
     }
 
+    // Excel-style per-column value filters
+    for (const [key, vals] of Object.entries(colFilters)) {
+      if (vals.length) {
+        const accessor = COL_ACCESSORS[key];
+        filtered = filtered.filter((m) => vals.includes(accessor(m)));
+      }
+    }
+
     if (sortBy) {
       filtered.sort((a, b) => {
         let aValue: string | number;
@@ -132,28 +164,19 @@ export function Movimientos() {
     }
 
     setFilteredMovimientos(filtered);
-  }, [movimientos, searchText, sortBy]);
+  }, [movimientos, searchText, sortBy, colFilters]);
 
   useEffect(() => {
     applyFilters();
   }, [applyFilters]);
 
-  const handleSort = (column: string) => {
-    if (sortBy?.column === column) {
-      if (sortBy.direction === "asc") {
-        setSortBy({ column, direction: "desc" });
-      } else {
-        setSortBy(null);
-      }
-    } else {
-      setSortBy({ column, direction: "asc" });
-    }
-  };
-
   const clearFilters = () => {
     setSearchText("");
     setSortBy(null);
+    setColFilters({});
   };
+
+  const hasColFilters = Object.values(colFilters).some((v) => v.length > 0);
 
   const WebView = (
     <div className="w-full bg-gray-50 dark:bg-gray-900 flex flex-col min-h-screen">
@@ -164,7 +187,7 @@ export function Movimientos() {
         </h1>
 
         <div className="flex-row items-center mt-4 gap-3">
-          {(searchText || sortBy) && (
+          {(searchText || sortBy || hasColFilters) && (
             <button
               onClick={clearFilters}
               className="bg-gray-200 dark:bg-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium"
@@ -199,118 +222,26 @@ export function Movimientos() {
           className="grid [&>*]:min-w-0 bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-400 dark:border-gray-600"
           style={{ gridTemplateColumns: TABLE_GRID_COLUMNS }}
         >
-          <div className="flex-[1.5] py-4 px-4 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
-            <button
-              onClick={() => handleSort("nombre")}
-              className="flex items-center justify-center gap-1">
-              <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
-                Nombre
-              </span>
-              <span className="text-xs text-gray-600 dark:text-gray-400">
-                {sortBy?.column === "nombre"
-                  ? sortBy.direction === "asc"
-                    ? "▲"
-                    : "▼"
-                  : "⬍"}
-              </span>
-            </button>
-          </div>
-          <div className="flex-1 py-4 px-4 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
-            <button
-              onClick={() => handleSort("from")}
-              className="flex items-center justify-center gap-1">
-              <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
-                Desde
-              </span>
-              <span className="text-xs text-gray-600 dark:text-gray-400">
-                {sortBy?.column === "from"
-                  ? sortBy.direction === "asc"
-                    ? "▲"
-                    : "▼"
-                  : "⬍"}
-              </span>
-            </button>
-          </div>
-          <div className="flex-1 py-4 px-4 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
-            <button
-              onClick={() => handleSort("to")}
-              className="flex items-center justify-center gap-1">
-              <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
-                Hacia
-              </span>
-              <span className="text-xs text-gray-600 dark:text-gray-400">
-                {sortBy?.column === "to"
-                  ? sortBy.direction === "asc"
-                    ? "▲"
-                    : "▼"
-                  : "⬍"}
-              </span>
-            </button>
-          </div>
-          <div className="flex-[1.5] py-4 px-4 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
-            <button
-              onClick={() => handleSort("oldMasterSku")}
-              className="flex items-center justify-center gap-1">
-              <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
-                Master SKU Antiguo
-              </span>
-              <span className="text-xs text-gray-600 dark:text-gray-400">
-                {sortBy?.column === "oldMasterSku"
-                  ? sortBy.direction === "asc"
-                    ? "▲"
-                    : "▼"
-                  : "⬍"}
-              </span>
-            </button>
-          </div>
-          <div className="flex-[1.5] py-4 px-4 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
-            <button
-              onClick={() => handleSort("newMasterSku")}
-              className="flex items-center justify-center gap-1">
-              <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
-                Master SKU Nuevo
-              </span>
-              <span className="text-xs text-gray-600 dark:text-gray-400">
-                {sortBy?.column === "newMasterSku"
-                  ? sortBy.direction === "asc"
-                    ? "▲"
-                    : "▼"
-                  : "⬍"}
-              </span>
-            </button>
-          </div>
-          <div className="flex-1 py-4 px-4 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
-            <button
-              onClick={() => handleSort("cantidad")}
-              className="flex items-center justify-center gap-1">
-              <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
-                Cantidad
-              </span>
-              <span className="text-xs text-gray-600 dark:text-gray-400">
-                {sortBy?.column === "cantidad"
-                  ? sortBy.direction === "asc"
-                    ? "▲"
-                    : "▼"
-                  : "⬍"}
-              </span>
-            </button>
-          </div>
-          <div className="flex-[1.2] py-4 px-4 flex items-center justify-center">
-            <button
-              onClick={() => handleSort("date")}
-              className="flex items-center justify-center gap-1">
-              <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
-                Fecha
-              </span>
-              <span className="text-xs text-gray-600 dark:text-gray-400">
-                {sortBy?.column === "date"
-                  ? sortBy.direction === "asc"
-                    ? "▲"
-                    : "▼"
-                  : "⬍"}
-              </span>
-            </button>
-          </div>
+          {COLUMN_DEFS.map((col, i) => (
+            <div
+              key={col.key}
+              className={`py-4 px-2 flex items-center justify-center ${
+                i < COLUMN_DEFS.length - 1 ? "border-r border-gray-400 dark:border-gray-600" : ""
+              }`}
+            >
+              <ColumnFilter
+                label={col.label}
+                textClass="text-base"
+                options={distinctValues(movimientos, COL_ACCESSORS[col.key])}
+                selected={colFilters[col.key] ?? []}
+                onChange={(next) =>
+                  setColFilters((prev) => ({ ...prev, [col.key]: next }))
+                }
+                sortDir={sortBy?.column === col.key ? sortBy.direction : null}
+                onSort={(dir) => setSortBy({ column: col.key, direction: dir })}
+              />
+            </div>
+          ))}
         </div>
 
         <div className="flex-1 overflow-auto">

@@ -316,10 +316,10 @@ export function VentaModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex justify-center items-center p-4 z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-7xl max-h-[95vh] flex flex-col">
-        <div className="flex flex-row items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-2xl font-robotoMedium text-gray-800 dark:text-white">
-            {mode === "create" ? "Nueva Orden de Venta" : "Editar Orden"}
+      <div className="bg-white rounded-xl w-full max-w-7xl max-h-[95vh] flex flex-col">
+        <div className="flex flex-row items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h2 className="text-2xl font-robotoMedium text-gray-800">
+            {mode === "create" ? "Nueva Orden de Salida" : "Editar Orden"}
           </h2>
           <button
             onClick={onClose}
