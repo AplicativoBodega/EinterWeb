@@ -5,9 +5,11 @@ import { DeleteConfirmModal } from "../components/DeleteConfirmModal";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 import type { Product } from "../lib/types";
+import { ColumnFilter, distinctValues } from "../components/ColumnFilter";
 
 const SYNC_STALE_MS = 15 * 60 * 1000; // 15 minutes
 const PRODUCTS_SYNC_KEY = "einter_productos_last_sync";
+const PAGE_SIZE = 20;
 const TABLE_GRID_COLUMNS =
   "7rem minmax(0,3fr) minmax(0,1.5fr) minmax(0,2fr) minmax(0,2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.5fr)";
 
@@ -35,6 +37,25 @@ const mapOdooProduct = (item: Record<string, unknown>): Product => ({
   standard_tarima: item.inventario_standar_tarima !== undefined ? Number(item.inventario_standar_tarima) : undefined,
 });
 
+const categoryName = (p: Product): string =>
+  typeof p.category === "object" && p.category?.name
+    ? p.category.name
+    : typeof p.category === "string"
+    ? p.category
+    : "";
+
+// Per-column display-value accessors for the Excel-style filters.
+const PROD_COL_ACCESSORS: Record<string, (p: Product) => string> = {
+  name: (p) => p.name || "",
+  sku: (p) => String(p.sku || ""),
+  proveedor: (p) => p.supplier?.name || "",
+  categoria: (p) => categoryName(p),
+  weight: (p) => String(p.weight_kg ?? ""),
+  stock: (p) => String(p.stock ?? ""),
+  price: (p) => `$${parseFloat(String(p.price || 0)).toFixed(2)}`,
+  cost: (p) => `$${parseFloat(String(p.cost || 0)).toFixed(2)}`,
+};
+
 export function Productos() {
   useDarkMode();
   const [products, setProducts] = useState<Product[]>([]);
@@ -43,13 +64,13 @@ export function Productos() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(0);
 
   const [filterName, setFilterName] = useState("");
   const [filterSKU, setFilterSKU] = useState("");
   const [filterProveedor, setFilterProveedor] = useState("");
   const [filterCategoria, setFilterCategoria] = useState("");
   const [filterStock, setFilterStock] = useState("");
+  const [colFilters, setColFilters] = useState<Record<string, string[]>>({});
   const [sortBy, setSortBy] = useState<{
     column: string;
     direction: "asc" | "desc";
@@ -156,7 +177,7 @@ export function Productos() {
           text: `Sync completado — ${provCount} proveedores${deletedMsg}, ${prodCount} productos (${mapped} con proveedor mapeado).`,
         });
       }
-      await fetchProducts('', 1);
+      await fetchProducts();
     } catch (err) {
       setSyncMsg({ ok: false, text: err instanceof Error ? err.message : 'Error al sincronizar' });
     } finally {
@@ -165,36 +186,31 @@ export function Productos() {
     }
   };
   
-  const fetchProducts = useCallback(async (searchQuery = "", pageNum = 1) => {
+  // Load every product (all pages) so the Excel-style column filters and the
+  // search box operate over the whole catalog, with client-side pagination.
+  const fetchProducts = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const params = new URLSearchParams({
-        page: pageNum.toString(),
-        pageSize: "20",
-      });
+      const firstPageSize = 200;
+      const first = (await fetchAPI(
+        `/api/odoo/productos?page=1&pageSize=${firstPageSize}`
+      )) as { items?: Record<string, unknown>[]; total?: number; pageSize?: number };
 
-      const response = await fetchAPI(
-        `/api/odoo/productos?${params}`
-      ) as { items?: Record<string, unknown>[]; total?: number; pageSize?: number };
+      const total = first.total || 0;
+      const ps = first.pageSize || firstPageSize;
+      const allItems: Record<string, unknown>[] = [...(first.items || [])];
 
-      // Map Odoo raw DB fields to Product type
-      const mapped: Product[] = (response.items || []).map(mapOdooProduct);
+      const pages = Math.ceil(total / ps);
+      for (let p = 2; p <= pages; p++) {
+        const r = (await fetchAPI(
+          `/api/odoo/productos?page=${p}&pageSize=${ps}`
+        )) as { items?: Record<string, unknown>[] };
+        allItems.push(...(r.items || []));
+      }
 
-      // Client-side search filter (Odoo endpoint doesn't support search param)
-      const filtered = searchQuery.trim()
-        ? mapped.filter(
-            (p) =>
-              p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-              String(p.sku).toLowerCase().includes(searchQuery.toLowerCase())
-          )
-        : mapped;
-
-      setProducts(filtered);
-      setFilteredProducts(filtered);
-      setTotalPages(Math.ceil((response.total || 0) / (response.pageSize || 20)));
-      setPage(pageNum);
+      setProducts(allItems.map(mapOdooProduct));
     } catch (err) {
       console.error("Error fetching products from database:", err);
       setError(
@@ -219,6 +235,24 @@ export function Productos() {
 
   const applyFilters = useCallback(() => {
     let filtered = [...products];
+
+    // Global search box (name or SKU)
+    if (searchText.trim()) {
+      const q = searchText.toLowerCase();
+      filtered = filtered.filter(
+        (p) =>
+          p.name?.toLowerCase().includes(q) ||
+          String(p.sku).toLowerCase().includes(q)
+      );
+    }
+
+    // Excel-style per-column value filters
+    for (const [key, vals] of Object.entries(colFilters)) {
+      if (vals.length) {
+        const accessor = PROD_COL_ACCESSORS[key];
+        filtered = filtered.filter((p) => vals.includes(accessor(p)));
+      }
+    }
 
     // Filter by name
     if (filterName.trim()) {
@@ -309,25 +343,27 @@ export function Productos() {
     }
 
     setFilteredProducts(filtered);
-  }, [products, filterName, filterSKU, filterProveedor, filterStock, sortBy]);
+  }, [
+    products,
+    searchText,
+    colFilters,
+    filterName,
+    filterSKU,
+    filterProveedor,
+    filterCategoria,
+    filterStock,
+    sortBy,
+  ]);
 
   // Apply filters whenever filter states change
   useEffect(() => {
     applyFilters();
   }, [applyFilters]);
 
-  const handleSort = (column: string) => {
-    if (sortBy?.column === column) {
-      // Toggle direction or clear sort
-      if (sortBy.direction === "asc") {
-        setSortBy({ column, direction: "desc" });
-      } else {
-        setSortBy(null);
-      }
-    } else {
-      setSortBy({ column, direction: "asc" });
-    }
-  };
+  // Reset to first page whenever the result set changes
+  useEffect(() => {
+    setPage(1);
+  }, [searchText, colFilters, filterName, filterSKU, filterProveedor, filterCategoria, filterStock]);
 
   const clearFilters = () => {
     setFilterName("");
@@ -335,15 +371,15 @@ export function Productos() {
     setFilterProveedor("");
     setFilterCategoria("");
     setFilterStock("");
+    setColFilters({});
     setSortBy(null);
   };
 
+  const hasColFilters = Object.values(colFilters).some((v) => v.length > 0);
+
+  // Search is now client-side over the full catalog
   const handleSearch = (text: string) => {
     setSearchText(text);
-    // Debounce the API call
-    setTimeout(() => {
-      fetchProducts(text, 1);
-    }, 500);
   };
 
   // Create product
@@ -385,10 +421,10 @@ export function Productos() {
 
     // Optimización: solo refrescar si estamos en la primera página sin búsqueda
     if (page === 1 && !searchText) {
-      await fetchProducts("", 1);
+      await fetchProducts();
     } else {
       setSearchText("");
-      await fetchProducts("", 1);
+      await fetchProducts();
     }
   };
 
@@ -442,7 +478,7 @@ export function Productos() {
       }
 
       // Optimización: mantener la página actual
-      await fetchProducts(searchText, page);
+      await fetchProducts();
   };
 
   // Delete product
@@ -459,7 +495,7 @@ export function Productos() {
       setProductToDelete(null);
 
       // Optimización: mantener la página actual si no es la última y tiene productos
-      await fetchProducts(searchText, page);
+      await fetchProducts();
     } catch (err) {
       console.error("Error deleting product:", err);
       setError(err instanceof Error ? err.message : "Error deleting product");
@@ -487,6 +523,25 @@ export function Productos() {
     setProductToDelete(product);
     setDeleteModalVisible(true);
   };
+
+  // Client-side pagination over the filtered result set
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
+  const pagedProducts = filteredProducts.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE
+  );
+
+  // Column definitions for the Excel-style header filters
+  const PROD_COLUMNS: { key: string; label: string }[] = [
+    { key: "name", label: "Nombre" },
+    { key: "sku", label: "SKU" },
+    { key: "proveedor", label: "Proveedor" },
+    { key: "categoria", label: "Categoría" },
+    { key: "weight", label: "Peso (kg)" },
+    { key: "stock", label: "Stock" },
+    { key: "price", label: "Precio" },
+    { key: "cost", label: "Costo" },
+  ];
 
   return (
     <div className="w-full bg-gray-50 dark:bg-gray-900 flex flex-col min-h-screen">
@@ -542,10 +597,7 @@ export function Productos() {
             />
             {searchText ? (
               <button
-                onClick={() => {
-                  setSearchText("");
-                  fetchProducts("", 1);
-                }}
+                onClick={() => setSearchText("")}
                 className="absolute right-3 top-3 text-gray-400 dark:text-gray-500 text-xl hover:text-gray-600 dark:hover:text-gray-400"
               >
                 ✕
@@ -564,6 +616,7 @@ export function Productos() {
             filterProveedor ||
             filterCategoria ||
             filterStock ||
+            hasColFilters ||
             sortBy) && (
             <button
               onClick={clearFilters}
@@ -591,7 +644,7 @@ export function Productos() {
           <div className="mt-4 p-3 bg-red-100 dark:bg-red-900 border border-red-300 dark:border-red-700 rounded-lg">
             <p className="text-red-700 dark:text-red-300">Error: {error}</p>
             <button
-              onClick={() => fetchProducts(searchText, 1)}
+              onClick={() => fetchProducts()}
               className="mt-2 text-red-600 dark:text-red-400 underline hover:text-red-800 dark:hover:text-red-300"
             >
               Reintentar
@@ -611,142 +664,24 @@ export function Productos() {
               Foto
             </h3>
           </div>
-          <div className="flex-[3] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center items-center">
-            <button
-              onClick={() => handleSort("name")}
-              className="flex flex-row items-center gap-1 hover:opacity-75"
+          {PROD_COLUMNS.map((col) => (
+            <div
+              key={col.key}
+              className="py-4 px-2 border-r border-gray-400 dark:border-gray-600 flex justify-center items-center"
             >
-              <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
-                Nombre
-              </h3>
-              <span className="text-xs text-gray-600 dark:text-gray-400">
-                {sortBy?.column === "name"
-                  ? sortBy.direction === "asc"
-                    ? "▲"
-                    : "▼"
-                  : "⬍"}
-              </span>
-            </button>
-          </div>
-          <div className="flex-[1.5] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center">
-            <button
-              onClick={() => handleSort("sku")}
-              className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
-            >
-              <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
-                SKU
-              </h3>
-              <span className="text-xs text-gray-600 dark:text-gray-400">
-                {sortBy?.column === "sku"
-                  ? sortBy.direction === "asc"
-                    ? "▲"
-                    : "▼"
-                  : "⬍"}
-              </span>
-            </button>
-          </div>
-          <div className="flex-[2] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center">
-            <button
-              onClick={() => handleSort("proveedor")}
-              className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
-            >
-              <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
-                Proveedor
-              </h3>
-              <span className="text-xs text-gray-600 dark:text-gray-400">
-                {sortBy?.column === "proveedor"
-                  ? sortBy.direction === "asc"
-                    ? "▲"
-                    : "▼"
-                  : "⬍"}
-              </span>
-            </button>
-          </div>
-          <div className="flex-[2] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center">
-            <button
-              onClick={() => handleSort("categoria")}
-              className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
-            >
-              <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
-                Categoría
-              </h3>
-              <span className="text-xs text-gray-600 dark:text-gray-400">
-                {sortBy?.column === "categoria"
-                  ? sortBy.direction === "asc"
-                    ? "▲"
-                    : "▼"
-                  : "⬍"}
-              </span>
-            </button>
-          </div>
-          <div className="flex-[1.2] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center">
-            <button
-              onClick={() => handleSort("weight")}
-              className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
-            >
-              <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
-                Peso (kg)
-              </h3>
-              <span className="text-xs text-gray-600 dark:text-gray-400">
-                {sortBy?.column === "weight"
-                  ? sortBy.direction === "asc"
-                    ? "▲"
-                    : "▼"
-                  : "⬍"}
-              </span>
-            </button>
-          </div>
-          <div className="flex-[1.2] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center">
-            <button
-              onClick={() => handleSort("stock")}
-              className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
-            >
-              <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
-                Stock
-              </h3>
-              <span className="text-xs text-gray-600 dark:text-gray-400">
-                {sortBy?.column === "stock"
-                  ? sortBy.direction === "asc"
-                    ? "▲"
-                    : "▼"
-                  : "⬍"}
-              </span>
-            </button>
-          </div>
-          <div className="flex-[1.2] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center">
-            <button
-              onClick={() => handleSort("price")}
-              className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
-            >
-              <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
-                Precio
-              </h3>
-              <span className="text-xs text-gray-600 dark:text-gray-400">
-                {sortBy?.column === "price"
-                  ? sortBy.direction === "asc"
-                    ? "▲"
-                    : "▼"
-                  : "⬍"}
-              </span>
-            </button>
-          </div>
-          <div className="flex-[1.2] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex justify-center">
-            <button
-              onClick={() => handleSort("cost")}
-              className="flex flex-row items-center justify-center gap-1 hover:opacity-75"
-            >
-              <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
-                Costo
-              </h3>
-              <span className="text-xs text-gray-600 dark:text-gray-400">
-                {sortBy?.column === "cost"
-                  ? sortBy.direction === "asc"
-                    ? "▲"
-                    : "▼"
-                  : "⬍"}
-              </span>
-            </button>
-          </div>
+              <ColumnFilter
+                label={col.label}
+                textClass="text-lg"
+                options={distinctValues(products, PROD_COL_ACCESSORS[col.key])}
+                selected={colFilters[col.key] ?? []}
+                onChange={(next) =>
+                  setColFilters((prev) => ({ ...prev, [col.key]: next }))
+                }
+                sortDir={sortBy?.column === col.key ? sortBy.direction : null}
+                onSort={(dir) => setSortBy({ column: col.key, direction: dir })}
+              />
+            </div>
+          ))}
           <div className="flex-[1.5] py-4 px-3 flex justify-center items-center">
             <h3 className="font-robotoMedium text-gray-900 dark:text-white text-lg text-center">
               Acciones
@@ -770,7 +705,7 @@ export function Productos() {
               </p>
             </div>
           ) : (
-            filteredProducts.map((product, index) => (
+            pagedProducts.map((product, index) => (
               <div
                 key={product.id}
                 className={`grid [&>*]:min-w-0 border-b border-gray-300 dark:border-gray-700 ${
@@ -888,7 +823,7 @@ export function Productos() {
             </p>
             <div className="flex flex-row gap-2">
               <button
-                onClick={() => fetchProducts(searchText, page - 1)}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
                 className={`px-4 py-2 rounded-lg font-robotoMedium ${
                   page === 1 ? "bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500" : "bg-blue-600 text-white hover:bg-blue-700"
@@ -897,7 +832,7 @@ export function Productos() {
                 Anterior
               </button>
               <button
-                onClick={() => fetchProducts(searchText, page + 1)}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
                 className={`px-4 py-2 rounded-lg font-robotoMedium ${
                   page >= totalPages ? "bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500" : "bg-blue-600 text-white hover:bg-blue-700"
