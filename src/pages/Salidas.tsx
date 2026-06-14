@@ -77,58 +77,31 @@ export function Salidas() {
   const [detailVenta, setDetailVenta] = useState<VentaDetail | null>(null);
   const [detailVisible, setDetailVisible] = useState(false);
 
-  useEffect(() => {
-    fetchAPI("/api/odoo/ventas/years")
-      .then((data: any) => setAvailableYears(data.years ?? []))
-      .catch(() => {});
-    fetchAPI("/api/odoo/ventas?pageSize=9999&page=1")
-      .then((data: any) => {
-        const clientes = Array.from(
-          new Set<string>(
-            (data.items as Venta[])
-              .map((v) => v.cliente)
-              .filter((c): c is string => !!c)
-          )
-        ).sort();
-        setAvailableClientes(clientes);
-      })
-      .catch(() => {});
-  }, []);
-
-  const buildQuery = useCallback(() => {
-    const params = new URLSearchParams({
-      page: String(page),
-      pageSize: String(pageSize),
-    });
-    if (filterYear) params.set("year", String(filterYear));
-    if (filterMonth) params.set("month", String(filterMonth));
-    if (searchOrden) params.set("orden", searchOrden);
-    if (filterCliente) params.set("cliente", filterCliente);
-    return params.toString();
-  }, [page, pageSize, filterYear, filterMonth, searchOrden, filterCliente]);
-
   const fetchVentas = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const response = (await fetchAPI(
-        `/api/odoo/ventas?${buildQuery()}`
+        `/api/odoo/ventas?page=1&pageSize=99999`
       )) as VentasResponse;
-      setFilteredVentas(response.items);
-      setTotal(response.total);
+      setAllVentas(response.items);
     } catch (err) {
       setError((err as Error).message);
       console.error("Error fetching ventas:", err);
     } finally {
       setLoading(false);
     }
-  }, [buildQuery]);
+  }, []);
 
   useEffect(() => {
     fetchVentas();
   }, [fetchVentas]);
 
-  // Reset to page 1 when filters change
+  // Reset to page 1 when any filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [filterYear, filterMonth, searchOrden, filterCliente, colFilters]);
+
   const applyFilters = () => {
     setSearchOrden(searchInput);
     setPage(1);
@@ -140,10 +113,17 @@ export function Salidas() {
     setSearchInput("");
     setSearchOrden("");
     setFilterCliente("");
+    setColFilters({});
     setPage(1);
   };
 
-  const hasActiveFilters = filterYear !== "" || filterMonth !== "" || searchOrden !== "" || filterCliente !== "";
+  const hasColFilters = Object.values(colFilters).some((v) => v.length > 0);
+  const hasActiveFilters =
+    filterYear !== "" ||
+    filterMonth !== "" ||
+    searchOrden !== "" ||
+    filterCliente !== "" ||
+    hasColFilters;
 
   const formatDate = (dateValue: string | Date) => {
     const date = new Date(dateValue);
@@ -228,7 +208,45 @@ export function Salidas() {
     }
   };
 
-  const totalPages = Math.ceil(total / pageSize);
+  // Derived filter option lists
+  const availableYears = Array.from(
+    new Set(allVentas.map((v) => new Date(v.fecha).getFullYear()))
+  )
+    .filter((y) => !Number.isNaN(y))
+    .sort((a, b) => b - a);
+  const availableClientes = Array.from(
+    new Set(allVentas.map((v) => v.cliente).filter((c): c is string => !!c))
+  ).sort((a, b) => a.localeCompare(b, "es"));
+
+  // Per-column value accessors for the Excel-style filters
+  const COL_ACCESSORS: Record<string, (v: Venta) => string> = {
+    id_orden: (v) => (v.id_orden == null ? "" : String(v.id_orden)),
+    cliente: (v) => v.cliente ?? "",
+    total: (v) => formatCurrency(v.total),
+    fecha: (v) => formatDate(v.fecha),
+  };
+
+  const matched = allVentas.filter((v) => {
+    const d = new Date(v.fecha);
+    if (filterYear && d.getFullYear() !== filterYear) return false;
+    if (filterMonth && d.getMonth() + 1 !== filterMonth) return false;
+    if (
+      searchOrden &&
+      !String(v.id_orden ?? "")
+        .toLowerCase()
+        .includes(searchOrden.toLowerCase())
+    )
+      return false;
+    if (filterCliente && v.cliente !== filterCliente) return false;
+    for (const [k, vals] of Object.entries(colFilters)) {
+      if (vals.length && !vals.includes(COL_ACCESSORS[k](v))) return false;
+    }
+    return true;
+  });
+
+  const total = matched.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const filteredVentas = matched.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <>
@@ -361,25 +379,41 @@ export function Salidas() {
                 📄
               </span>
             </div>
-            <div className="flex-[1.5] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
-              <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
-                Numero Orden
-              </span>
+            <div className="py-4 px-2 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
+              <ColumnFilter
+                label="Numero Orden"
+                textClass="text-lg"
+                options={distinctValues(allVentas, COL_ACCESSORS.id_orden)}
+                selected={colFilters.id_orden ?? []}
+                onChange={(next) => setColFilters((p) => ({ ...p, id_orden: next }))}
+              />
             </div>
-            <div className="flex-2 py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
-              <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
-                Cliente
-              </span>
+            <div className="py-4 px-2 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
+              <ColumnFilter
+                label="Cliente"
+                textClass="text-lg"
+                options={distinctValues(allVentas, COL_ACCESSORS.cliente)}
+                selected={colFilters.cliente ?? []}
+                onChange={(next) => setColFilters((p) => ({ ...p, cliente: next }))}
+              />
             </div>
-            <div className="flex-[1.2] py-4 px-3 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
-              <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
-                Total
-              </span>
+            <div className="py-4 px-2 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
+              <ColumnFilter
+                label="Total"
+                textClass="text-lg"
+                options={distinctValues(allVentas, COL_ACCESSORS.total)}
+                selected={colFilters.total ?? []}
+                onChange={(next) => setColFilters((p) => ({ ...p, total: next }))}
+              />
             </div>
-            <div className="flex-[1.2] py-4 px-3 flex items-center justify-center">
-              <span className="font-robotoMedium text-gray-900 dark:text-white text-xl text-center">
-                Fecha
-              </span>
+            <div className="py-4 px-2 flex items-center justify-center">
+              <ColumnFilter
+                label="Fecha"
+                textClass="text-lg"
+                options={distinctValues(allVentas, COL_ACCESSORS.fecha)}
+                selected={colFilters.fecha ?? []}
+                onChange={(next) => setColFilters((p) => ({ ...p, fecha: next }))}
+              />
             </div>
           </div>
 

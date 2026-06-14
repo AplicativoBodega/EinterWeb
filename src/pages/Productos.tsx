@@ -8,11 +8,6 @@ import type { Product } from "../lib/types";
 
 const SYNC_STALE_MS = 15 * 60 * 1000; // 15 minutes
 const PRODUCTS_SYNC_KEY = "einter_productos_last_sync";
-
-// Single source of truth for column widths so the header and every data row
-// line up exactly. Foto is a fixed width; the rest are proportional and use
-// minmax(0,…) so long values clip instead of pushing the column boundaries
-// out of alignment (the classic flexbox min-width:auto problem).
 const TABLE_GRID_COLUMNS =
   "7rem minmax(0,3fr) minmax(0,1.5fr) minmax(0,2fr) minmax(0,2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.5fr)";
 
