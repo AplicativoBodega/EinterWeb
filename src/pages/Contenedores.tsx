@@ -70,6 +70,7 @@ const MONTHS = [
 const YEARS = ["2025", "2026"];
 
 const COLUMNS: { key: SortColumn; label: string; align: string }[] = [
+  { key: "folio_orden", label: "Contenedor", align: "justify-start" },
   { key: "folio_orden", label: "Folio / Orden", align: "justify-start" },
   { key: "master_sku", label: "Modelo", align: "justify-center" },
   { key: "nombre_producto", label: "Descripción", align: "justify-start" },
@@ -103,12 +104,31 @@ function sortRows(
   });
 }
 
+function SortIcon({
+  col,
+  active,
+  dir,
+}: {
+  col: SortColumn;
+  active: SortColumn;
+  dir: SortDir;
+}) {
+  if (col !== active)
+    return <span className="text-gray-400 ml-1 text-xs">⬍</span>;
+  return (
+    <span className="text-blue-600 dark:text-blue-400 ml-1 text-xs">
+      {dir === "asc" ? "▲" : "▼"}
+    </span>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function Contenedores() {
   useDarkMode();
   const currentYear = String(new Date().getFullYear());
 
+  // Table state
   // Table state — all rows for the selected year/month are loaded at once and
   // filtered / sorted / paginated client-side so the Excel-style column filters
   // span the whole dataset.
@@ -116,11 +136,14 @@ export function Contenedores() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
   // Filter state
   const [anio, setAnio] = useState(currentYear);
   const [mes, setMes] = useState("0");
   const [searchText, setSearchText] = useState("");
+  const [modeloFilter, setModeloFilter] = useState("");
   const [colFilters, setColFilters] = useState<Record<string, string[]>>({});
 
   // Sort state
@@ -155,6 +178,16 @@ export function Contenedores() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  // Debounce search input → modeloFilter
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setModeloFilter(searchText);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchText]);
+
+  // Main data fetch
   // Reset to first page whenever a client-side filter changes
   useEffect(() => {
     setPage(1);
@@ -169,11 +202,12 @@ export function Contenedores() {
       setError(null);
       try {
         const params = new URLSearchParams({
-          page: "1",
-          limit: "100000",
+          page: String(page),
+          limit: String(LIMIT),
           anio,
         });
         if (mes !== "0") params.set("mes", mes);
+        if (modeloFilter) params.set("modelo", modeloFilter);
 
         const raw = (await fetchAPI(
           `/api/contenedores?${params.toString()}`
@@ -181,7 +215,8 @@ export function Contenedores() {
 
         if (!cancelled) {
           setData(Array.isArray(raw.data) ? raw.data : []);
-          setPage(1);
+          setTotal(raw.pagination?.total ?? 0);
+          setTotalPages(raw.pagination?.pages ?? 0);
         }
       } catch (err) {
         if (!cancelled) setError((err as Error).message);
@@ -194,7 +229,7 @@ export function Contenedores() {
     return () => {
       cancelled = true;
     };
-  }, [anio, mes, retryCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [page, anio, mes, modeloFilter, retryCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Filter handlers ──────────────────────────────────────────────────────
 
@@ -206,6 +241,20 @@ export function Contenedores() {
   const handleMesChange = (value: string) => {
     setMes(value);
     setPage(1);
+  };
+
+  const handleSort = (col: SortColumn) => {
+    if (sortColumn === col) {
+      if (sortDir === "asc") {
+        setSortDir("desc");
+      } else {
+        setSortColumn(null);
+        setSortDir("asc");
+      }
+    } else {
+      setSortColumn(col);
+      setSortDir("asc");
+    }
   };
 
   const formatDate = (iso: string) => {
@@ -290,6 +339,7 @@ export function Contenedores() {
       setCreateVisible(false);
       setToast({
         ok: true,
+        text: `Contenedor "${createFolio.trim()}" creado exitosamente.`,
         text: `Entrada "${createFolio.trim()}" creada exitosamente.`,
       });
       setRetryCount((c) => c + 1);
@@ -302,6 +352,7 @@ export function Contenedores() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  const displayedRows = sortRows(data, sortColumn, sortDir);
   const COL_ACCESSORS: Record<string, (r: ContenedorRow) => string> = {
     folio_orden: (r) => r.folio_orden || "",
     master_sku: (r) => r.master_sku || "",
@@ -334,6 +385,7 @@ export function Contenedores() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <h1 className="text-3xl font-bold tracking-wide text-gray-900 dark:text-white">
+                Contenedores
                 Entradas
               </h1>
               {!loading && total > 0 && (
@@ -346,6 +398,7 @@ export function Contenedores() {
               onClick={handleOpenCreate}
               className="px-6 py-2 border border-black dark:border-white hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-colors text-sm font-medium text-gray-900 dark:text-white"
             >
+              + Nuevo Contenedor
               + Nueva Entrada
             </button>
           </div>
@@ -387,6 +440,7 @@ export function Contenedores() {
               <input
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
+                placeholder="Buscar por modelo o descripción..."
                 placeholder="Buscar por folio, modelo o descripción..."
                 className="pl-9 pr-8 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm w-72"
               />
@@ -413,29 +467,20 @@ export function Contenedores() {
             style={{ gridTemplateColumns: TABLE_GRID }}
           >
             {COLUMNS.map((col, i) => (
-              <div
+              <button
                 key={String(col.key)}
-                className={`py-4 px-2 flex items-center ${
+                onClick={() => handleSort(col.key)}
+                className={`py-4 px-3 flex items-center ${col.align} ${
                   i < COLUMNS.length - 1
                     ? "border-r border-gray-400 dark:border-gray-600"
                     : ""
-                }`}
+                } hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors w-full`}
               >
-                <ColumnFilter
-                  label={col.label}
-                  align={col.align.includes("start") ? "left" : "center"}
-                  options={distinctValues(data, COL_ACCESSORS[String(col.key)])}
-                  selected={colFilters[String(col.key)] ?? []}
-                  onChange={(next) =>
-                    setColFilters((prev) => ({ ...prev, [String(col.key)]: next }))
-                  }
-                  sortDir={sortColumn === col.key ? sortDir : null}
-                  onSort={(dir) => {
-                    setSortColumn(col.key);
-                    setSortDir(dir);
-                  }}
-                />
-              </div>
+                <span className="font-robotoMedium text-gray-900 dark:text-white text-sm">
+                  {col.label}
+                </span>
+                <SortIcon col={col.key} active={sortColumn} dir={sortDir} />
+              </button>
             ))}
           </div>
 
@@ -445,6 +490,7 @@ export function Contenedores() {
               <div className="flex flex-col items-center justify-center py-20">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
                 <p className="text-gray-500 dark:text-gray-400 font-robotoRegular mt-4">
+                  Cargando contenedores...
                   Cargando entradas...
                 </p>
               </div>
@@ -467,6 +513,7 @@ export function Contenedores() {
               <div className="flex flex-col items-center justify-center py-20 gap-2">
                 <p className="text-gray-400 dark:text-gray-500 text-4xl">📦</p>
                 <p className="text-gray-500 dark:text-gray-400 font-robotoMedium text-lg mt-1">
+                  Sin contenedores para mostrar
                   Sin entradas para mostrar
                 </p>
                 <p className="text-gray-400 dark:text-gray-500 font-robotoRegular text-sm">
@@ -627,6 +674,7 @@ export function Contenedores() {
               ) : detail && detail.items.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-2">
                   <p className="text-gray-400 dark:text-gray-500 font-robotoRegular text-sm">
+                    Sin productos en este contenedor
                     Sin productos en esta entrada
                   </p>
                 </div>
@@ -722,6 +770,7 @@ export function Contenedores() {
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-xl font-robotoMedium text-gray-900 dark:text-white">
+                Nuevo Contenedor
                 Nueva Entrada
               </h2>
               <button
@@ -738,6 +787,7 @@ export function Contenedores() {
               {/* Folio */}
               <div>
                 <label className="block text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Nombre del contenedor{" "}
                   Folio / Nombre de la entrada{" "}
                   <span className="text-red-500">*</span>
                 </label>
