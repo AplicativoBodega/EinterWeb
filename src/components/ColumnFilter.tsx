@@ -219,6 +219,9 @@ export function ColumnFilter({
  */
 export function distinctValues<T>(rows: T[], accessor: (row: T) => string): string[] {
   const set = new Set<string>();
-  for (const r of rows) set.add(accessor(r));
+  for (const r of rows) {
+    const v = accessor(r);
+    set.add(v == null ? "" : String(v));
+  }
   return [...set].sort((a, b) => a.localeCompare(b, "es", { numeric: true }));
 }

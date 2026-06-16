@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 import { auth } from "../lib/firebase";
@@ -17,6 +17,9 @@ interface ComparativoRow {
   diferencia: number;
   pct_cumplimiento: number;
   status: ComparativoStatus;
+  numero_folio: string | null;
+  cantidad_real: number | null;
+  discrepancia_resuelta: boolean;
 }
 
 interface ComparativoSummary {
@@ -103,6 +106,181 @@ function summaryPctClasses(pct: number) {
   return "bg-red-100 dark:bg-red-900/40 border-red-200 dark:border-red-700 text-red-700 dark:text-red-300";
 }
 
+// ── Expanded panel ─────────────────────────────────────────────────────────────
+
+function ExpandedPanel({
+  row,
+  onRefresh,
+}: {
+  row: ComparativoRow;
+  onRefresh: () => void;
+}) {
+  const isCompleto = row.status === "completo";
+  const [toggleOn, setToggleOn] = useState(isCompleto || row.discrepancia_resuelta);
+  const [cantidadReal, setCantidadReal] = useState("");
+  const [notas, setNotas] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitMsg, setSubmitMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const handleSubmit = async () => {
+    if (!row.numero_folio || !cantidadReal) return;
+    setSubmitting(true);
+    setSubmitMsg(null);
+    try {
+      await fetchAPI(
+        `/api/thd/discrepancia/${encodeURIComponent(row.numero_folio)}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ cantidad_real: Number(cantidadReal), notas }),
+        }
+      );
+      setSubmitMsg({ ok: true, text: "Salida real guardada exitosamente." });
+      onRefresh();
+    } catch (err) {
+      setSubmitMsg({ ok: false, text: (err as Error).message });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="border-l-4 border-blue-400 bg-blue-50 dark:bg-blue-950/20 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+      {/* Read-only info */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+        <div>
+          <p className="text-xs font-robotoMedium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">
+            Número de folio
+          </p>
+          <p className="text-sm text-gray-900 dark:text-white font-mono">
+            {row.numero_folio ?? "—"}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-robotoMedium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">
+            Pedido
+          </p>
+          <p className="text-sm text-gray-900 dark:text-white">
+            {row.total_pedido.toLocaleString("es-MX")}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-robotoMedium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">
+            Salida registrada
+          </p>
+          <p className="text-sm text-gray-900 dark:text-white">
+            {row.total_salida.toLocaleString("es-MX")}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-robotoMedium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">
+            Diferencia
+          </p>
+          <p
+            className={`text-sm font-medium ${
+              row.diferencia < 0
+                ? "text-red-600 dark:text-red-400"
+                : "text-green-600 dark:text-green-400"
+            }`}
+          >
+            {row.diferencia.toLocaleString("es-MX")}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-robotoMedium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">
+            % Cumplimiento
+          </p>
+          <p className={`text-sm font-bold ${pctTextColor(row.pct_cumplimiento)}`}>
+            {row.pct_cumplimiento.toFixed(1)}%
+          </p>
+        </div>
+      </div>
+
+      <div className="border-t border-blue-200 dark:border-blue-800 mb-4" />
+
+      {/* Toggle */}
+      <div className="flex items-center gap-3 mb-4">
+        <span className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300">
+          ¿Coincide con salida registrada?
+        </span>
+        <button
+          type="button"
+          disabled={isCompleto}
+          onClick={() => !isCompleto && setToggleOn((v) => !v)}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+            toggleOn ? "bg-green-500" : "bg-gray-300 dark:bg-gray-600"
+          } ${isCompleto ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+              toggleOn ? "translate-x-6" : "translate-x-1"
+            }`}
+          />
+        </button>
+      </div>
+
+      {/* Toggle content */}
+      {toggleOn ? (
+        <p className="text-sm text-green-700 dark:text-green-400 font-robotoMedium">
+          ✓ Salida confirmada como correcta
+        </p>
+      ) : (
+        <div className="space-y-3 max-w-md">
+          <div>
+            <label className="block text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-1">
+              Cantidad real que salió <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              min={0}
+              value={cantidadReal}
+              onChange={(e) => setCantidadReal(e.target.value)}
+              placeholder="Cantidad real que salió"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-1">
+              Notas
+            </label>
+            <textarea
+              value={notas}
+              onChange={(e) => setNotas(e.target.value)}
+              placeholder="Notas sobre la discrepancia (opcional)"
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 resize-none"
+            />
+          </div>
+          {submitMsg && (
+            <p
+              className={`text-sm ${
+                submitMsg.ok
+                  ? "text-green-700 dark:text-green-400"
+                  : "text-red-600 dark:text-red-400"
+              }`}
+            >
+              {submitMsg.text}
+            </p>
+          )}
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || !cantidadReal}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-robotoMedium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {submitting ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Guardando…
+              </>
+            ) : (
+              "Guardar salida real"
+            )}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export function THDComparativo() {
@@ -124,6 +302,7 @@ export function THDComparativo() {
   const [sortCol, setSortCol] = useState<SortCol>("total_pedido");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [colFilters, setColFilters] = useState<Record<string, string[]>>({});
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -488,82 +667,101 @@ export function THDComparativo() {
             filteredData.map((row) => {
               const cfg = STATUS_CFG[row.status] ?? STATUS_CFG.sin_pedido;
               const isNegDiff = row.diferencia < 0;
+              const rowKey = `${row.master_sku}-${row.sku_thd}`;
+              const isExpandable = row.status !== "sin_pedido";
+              const isExpanded = expandedKey === rowKey;
               return (
-                <div
-                  key={`${row.master_sku}-${row.sku_thd}`}
-                  className={`grid [&>*]:min-w-0 border-b border-gray-200 dark:border-gray-700 ${cfg.rowBg} hover:opacity-90 transition-opacity`}
-                  style={{ gridTemplateColumns: TABLE_GRID }}
-                >
-                  {/* MOD */}
-                  <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
-                    <span className="text-gray-700 dark:text-gray-300 text-sm font-mono">
-                      {row.master_sku}
-                    </span>
-                  </div>
-                  {/* SKU THD */}
-                  <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
-                    <span className="text-gray-700 dark:text-gray-300 text-sm font-mono">
-                      {row.sku_thd}
-                    </span>
-                  </div>
-                  {/* Descripción */}
-                  <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center">
-                    <span
-                      className="text-gray-900 dark:text-gray-100 text-sm truncate"
-                      title={row.descripcion}
-                    >
-                      {row.descripcion}
-                    </span>
-                  </div>
-                  {/* Pedido */}
-                  <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
-                    <span className="text-gray-900 dark:text-gray-100 text-sm">
-                      {row.total_pedido.toLocaleString("es-MX")}
-                    </span>
-                  </div>
-                  {/* Salida */}
-                  <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
-                    <span className="text-gray-900 dark:text-gray-100 text-sm">
-                      {row.total_salida.toLocaleString("es-MX")}
-                    </span>
-                  </div>
-                  {/* Diferencia */}
-                  <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
-                    <span
-                      className={`text-sm font-medium ${
-                        isNegDiff
-                          ? "text-red-600 dark:text-red-400"
-                          : "text-green-600 dark:text-green-400"
-                      }`}
-                    >
-                      {row.diferencia.toLocaleString("es-MX")}
-                    </span>
-                  </div>
-                  {/* % Cumplimiento */}
-                  <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
-                    <div className="flex flex-col items-center gap-1 w-full px-1">
-                      <span
-                        className={`text-sm font-bold ${pctTextColor(row.pct_cumplimiento)}`}
-                      >
-                        {row.pct_cumplimiento.toFixed(1)}%
+                <Fragment key={rowKey}>
+                  <div
+                    className={`grid [&>*]:min-w-0 border-b border-gray-200 dark:border-gray-700 ${cfg.rowBg} transition-opacity ${
+                      isExpandable
+                        ? "cursor-pointer hover:opacity-90"
+                        : ""
+                    }`}
+                    style={{ gridTemplateColumns: TABLE_GRID }}
+                    onClick={
+                      isExpandable
+                        ? () => setExpandedKey(isExpanded ? null : rowKey)
+                        : undefined
+                    }
+                  >
+                    {/* MOD */}
+                    <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
+                      <span className="text-gray-700 dark:text-gray-300 text-sm font-mono">
+                        {row.master_sku}
                       </span>
-                      <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${pctBarColor(row.pct_cumplimiento)}`}
-                          style={{ width: `${Math.min(100, row.pct_cumplimiento)}%` }}
-                        />
+                    </div>
+                    {/* SKU THD */}
+                    <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
+                      <span className="text-gray-700 dark:text-gray-300 text-sm font-mono">
+                        {row.sku_thd}
+                      </span>
+                    </div>
+                    {/* Descripción */}
+                    <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center">
+                      <span
+                        className="text-gray-900 dark:text-gray-100 text-sm truncate"
+                        title={row.descripcion}
+                      >
+                        {row.descripcion}
+                      </span>
+                    </div>
+                    {/* Pedido */}
+                    <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
+                      <span className="text-gray-900 dark:text-gray-100 text-sm">
+                        {row.total_pedido.toLocaleString("es-MX")}
+                      </span>
+                    </div>
+                    {/* Salida */}
+                    <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
+                      <span className="text-gray-900 dark:text-gray-100 text-sm">
+                        {row.total_salida.toLocaleString("es-MX")}
+                      </span>
+                    </div>
+                    {/* Diferencia */}
+                    <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
+                      <span
+                        className={`text-sm font-medium ${
+                          isNegDiff
+                            ? "text-red-600 dark:text-red-400"
+                            : "text-green-600 dark:text-green-400"
+                        }`}
+                      >
+                        {row.diferencia.toLocaleString("es-MX")}
+                      </span>
+                    </div>
+                    {/* % Cumplimiento */}
+                    <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
+                      <div className="flex flex-col items-center gap-1 w-full px-1">
+                        <span
+                          className={`text-sm font-bold ${pctTextColor(row.pct_cumplimiento)}`}
+                        >
+                          {row.pct_cumplimiento.toFixed(1)}%
+                        </span>
+                        <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${pctBarColor(row.pct_cumplimiento)}`}
+                            style={{ width: `${Math.min(100, row.pct_cumplimiento)}%` }}
+                          />
+                        </div>
                       </div>
                     </div>
+                    {/* Status */}
+                    <div className="py-3 px-3 flex items-center justify-center">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cfg.badgeBg} ${cfg.badgeText}`}
+                      >
+                        {cfg.label}
+                      </span>
+                    </div>
                   </div>
-                  {/* Status */}
-                  <div className="py-3 px-3 flex items-center justify-center">
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cfg.badgeBg} ${cfg.badgeText}`}
-                    >
-                      {cfg.label}
-                    </span>
-                  </div>
-                </div>
+                  {isExpanded && (
+                    <ExpandedPanel
+                      row={row}
+                      onRefresh={() => fetchData(anio, mes, categoria)}
+                    />
+                  )}
+                </Fragment>
               );
             })
           )}
