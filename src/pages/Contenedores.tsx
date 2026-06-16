@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
+import { ColumnFilter, distinctValues } from "../components/ColumnFilter";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,6 +71,7 @@ const YEARS = ["2025", "2026"];
 
 const COLUMNS: { key: SortColumn; label: string; align: string }[] = [
   { key: "folio_orden", label: "Contenedor", align: "justify-start" },
+  { key: "folio_orden", label: "Folio / Orden", align: "justify-start" },
   { key: "master_sku", label: "Modelo", align: "justify-center" },
   { key: "nombre_producto", label: "Descripción", align: "justify-start" },
   { key: "cantidad", label: "Cantidad", align: "justify-center" },
@@ -127,6 +129,9 @@ export function Contenedores() {
   const currentYear = String(new Date().getFullYear());
 
   // Table state
+  // Table state — all rows for the selected year/month are loaded at once and
+  // filtered / sorted / paginated client-side so the Excel-style column filters
+  // span the whole dataset.
   const [data, setData] = useState<ContenedorRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -139,6 +144,7 @@ export function Contenedores() {
   const [mes, setMes] = useState("0");
   const [searchText, setSearchText] = useState("");
   const [modeloFilter, setModeloFilter] = useState("");
+  const [colFilters, setColFilters] = useState<Record<string, string[]>>({});
 
   // Sort state
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
@@ -182,6 +188,12 @@ export function Contenedores() {
   }, [searchText]);
 
   // Main data fetch
+  // Reset to first page whenever a client-side filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [searchText, colFilters]);
+
+  // Main data fetch — load every row for the selected year/month
   useEffect(() => {
     let cancelled = false;
 
@@ -328,6 +340,7 @@ export function Contenedores() {
       setToast({
         ok: true,
         text: `Contenedor "${createFolio.trim()}" creado exitosamente.`,
+        text: `Entrada "${createFolio.trim()}" creada exitosamente.`,
       });
       setRetryCount((c) => c + 1);
     } catch (err) {
@@ -340,6 +353,29 @@ export function Contenedores() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   const displayedRows = sortRows(data, sortColumn, sortDir);
+  const COL_ACCESSORS: Record<string, (r: ContenedorRow) => string> = {
+    folio_orden: (r) => r.folio_orden || "",
+    master_sku: (r) => r.master_sku || "",
+    nombre_producto: (r) => r.nombre_producto || "",
+    cantidad: (r) => String(r.cantidad ?? ""),
+    fecha_movimiento: (r) => formatDate(r.fecha_movimiento),
+  };
+
+  const search = searchText.trim().toLowerCase();
+  const matched = data.filter((r) => {
+    if (search) {
+      const hay = `${r.folio_orden} ${r.master_sku} ${r.nombre_producto}`.toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    for (const [k, vals] of Object.entries(colFilters)) {
+      if (vals.length && !vals.includes(COL_ACCESSORS[k](r))) return false;
+    }
+    return true;
+  });
+  const sorted = sortRows(matched, sortColumn, sortDir);
+  const total = sorted.length;
+  const totalPages = Math.max(1, Math.ceil(total / LIMIT));
+  const displayedRows = sorted.slice((page - 1) * LIMIT, page * LIMIT);
 
   return (
     <>
@@ -350,6 +386,7 @@ export function Contenedores() {
             <div className="flex items-center gap-4">
               <h1 className="text-3xl font-bold tracking-wide text-gray-900 dark:text-white">
                 Contenedores
+                Entradas
               </h1>
               {!loading && total > 0 && (
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
@@ -362,6 +399,7 @@ export function Contenedores() {
               className="px-6 py-2 border border-black dark:border-white hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-colors text-sm font-medium text-gray-900 dark:text-white"
             >
               + Nuevo Contenedor
+              + Nueva Entrada
             </button>
           </div>
 
@@ -403,6 +441,7 @@ export function Contenedores() {
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
                 placeholder="Buscar por modelo o descripción..."
+                placeholder="Buscar por folio, modelo o descripción..."
                 className="pl-9 pr-8 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm w-72"
               />
               <span className="absolute left-3 top-2.5 text-gray-400 dark:text-gray-500 text-sm pointer-events-none">
@@ -452,6 +491,7 @@ export function Contenedores() {
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
                 <p className="text-gray-500 dark:text-gray-400 font-robotoRegular mt-4">
                   Cargando contenedores...
+                  Cargando entradas...
                 </p>
               </div>
             ) : error ? (
@@ -474,6 +514,7 @@ export function Contenedores() {
                 <p className="text-gray-400 dark:text-gray-500 text-4xl">📦</p>
                 <p className="text-gray-500 dark:text-gray-400 font-robotoMedium text-lg mt-1">
                   Sin contenedores para mostrar
+                  Sin entradas para mostrar
                 </p>
                 <p className="text-gray-400 dark:text-gray-500 font-robotoRegular text-sm">
                   Intenta ajustar los filtros
@@ -634,6 +675,7 @@ export function Contenedores() {
                 <div className="flex flex-col items-center justify-center py-16 gap-2">
                   <p className="text-gray-400 dark:text-gray-500 font-robotoRegular text-sm">
                     Sin productos en este contenedor
+                    Sin productos en esta entrada
                   </p>
                 </div>
               ) : detail ? (
@@ -729,6 +771,7 @@ export function Contenedores() {
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-xl font-robotoMedium text-gray-900 dark:text-white">
                 Nuevo Contenedor
+                Nueva Entrada
               </h2>
               <button
                 onClick={() => setCreateVisible(false)}
@@ -745,6 +788,7 @@ export function Contenedores() {
               <div>
                 <label className="block text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-1.5">
                   Nombre del contenedor{" "}
+                  Folio / Nombre de la entrada{" "}
                   <span className="text-red-500">*</span>
                 </label>
                 <input

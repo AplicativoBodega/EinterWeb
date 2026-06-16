@@ -319,30 +319,30 @@ export function VentaModal({
       <div className="bg-white rounded-xl w-full max-w-7xl max-h-[95vh] flex flex-col">
         <div className="flex flex-row items-center justify-between px-6 py-4 border-b border-gray-200">
           <h2 className="text-2xl font-robotoMedium text-gray-800">
-            {mode === "create" ? "Nueva Orden de Venta" : "Editar Orden"}
+            {mode === "create" ? "Nueva Orden de Salida" : "Editar Orden"}
           </h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100"
+            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
           >
-            <span className="text-gray-500 text-2xl">×</span>
+            <span className="text-gray-500 dark:text-gray-400 text-2xl">×</span>
           </button>
         </div>
 
         {error && (
-          <div className="bg-red-50 border-b border-red-200 px-6 py-3">
-            <p className="text-red-600 font-robotoRegular">{error}</p>
+          <div className="bg-red-50 dark:bg-red-900/30 border-b border-red-200 dark:border-red-700 px-6 py-3">
+            <p className="text-red-600 dark:text-red-300 font-robotoRegular">{error}</p>
           </div>
         )}
 
         <div className="flex-1 flex flex-row">
-          <div className="w-80 border-r border-gray-200 p-6">
-            <h3 className="text-lg font-robotoMedium text-gray-800 mb-4">
+          <div className="w-80 border-r border-gray-200 dark:border-gray-700 p-6">
+            <h3 className="text-lg font-robotoMedium text-gray-800 dark:text-white mb-4">
               Información de la Orden
             </h3>
 
             <div className="mb-4">
-              <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+              <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
                 Número de Orden *
               </label>
               <input
@@ -352,12 +352,12 @@ export function VentaModal({
                   setFormData({ ...formData, id_orden: e.target.value })
                 }
                 placeholder="ORD-12345"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
               />
             </div>
 
             <div className="mb-4">
-              <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+              <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
                 Cliente *
               </label>
               <input
@@ -367,12 +367,12 @@ export function VentaModal({
                   setFormData({ ...formData, cliente: e.target.value })
                 }
                 placeholder="Nombre del cliente"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
               />
             </div>
 
             <div className="mb-6">
-              <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+              <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
                 Fecha *
               </label>
               <input
@@ -381,13 +381,13 @@ export function VentaModal({
                 onChange={(e) =>
                   setFormData({ ...formData, fecha: e.target.value })
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
               />
             </div>
 
             <div className="flex-1">
               <div className="flex flex-row items-center justify-between gap-2 mb-3">
-                <h4 className="text-sm font-robotoMedium text-gray-700">
+                <h4 className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300">
                   Folios
                 </h4>
                 <div className="flex gap-2 flex-1 max-w-xs">
@@ -398,7 +398,7 @@ export function VentaModal({
                     onKeyPress={(e) => e.key === "Enter" && handleAddFolio()}
                     placeholder="Nº folio"
                     min="0"
-                    className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm bg-white"
+                    className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 dark:text-white"
                   />
                   <button
                     onClick={handleAddFolio}
@@ -411,7 +411,7 @@ export function VentaModal({
 
               <div className="overflow-y-auto max-h-48 space-y-2">
                 {folios.map((folio) => (
-                  <div key={folio.id} className="p-2 border border-gray-200 rounded">
+                  <div key={folio.id} className="p-2 border border-gray-200 dark:border-gray-600 rounded dark:bg-gray-700/30">
                     <div className="flex flex-row justify-between items-center mb-2">
                       <span className="text-sm font-robotoMedium">
                         {folio.numero_folio}
@@ -427,8 +427,8 @@ export function VentaModal({
                       onClick={() => setSelectedFolioId(folio.id)}
                       className={`w-full text-left px-2 py-1 rounded text-xs ${
                         selectedFolioId === folio.id
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-gray-100"
+                          ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
+                          : "bg-gray-100 dark:bg-gray-700"
                       }`}
                     >
                       ({folio.productos.length} productos)
@@ -438,13 +438,13 @@ export function VentaModal({
               </div>
             </div>
 
-            <div className="border-t border-gray-200 pt-4 mt-4">
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
               <div className="flex flex-row justify-between mb-2">
-                <p className="text-sm text-gray-600">Total Productos:</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Total Productos:</p>
                 <p className="text-sm font-robotoMedium">{totalProductos}</p>
               </div>
               <div className="flex flex-row justify-between">
-                <p className="text-sm text-gray-600">Total Precio:</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Total Precio:</p>
                 <p className="text-sm font-robotoMedium">${totalPrecio.toFixed(2)}</p>
               </div>
             </div>
@@ -493,20 +493,20 @@ export function VentaModal({
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="bg-gray-100 border-b-2 border-gray-300">
-                            <th className="px-4 py-3 text-left font-robotoMedium text-gray-900 border-r border-gray-300">
+                          <tr className="bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-300 dark:border-gray-600">
+                            <th className="px-4 py-3 text-left font-robotoMedium text-gray-900 dark:text-white border-r border-gray-300 dark:border-gray-600">
                               Nombre del Producto
                             </th>
-                            <th className="px-4 py-3 text-left font-robotoMedium text-gray-900 border-r border-gray-300">
+                            <th className="px-4 py-3 text-left font-robotoMedium text-gray-900 dark:text-white border-r border-gray-300 dark:border-gray-600">
                               SKU
                             </th>
-                            <th className="px-4 py-3 text-left font-robotoMedium text-gray-900 border-r border-gray-300">
+                            <th className="px-4 py-3 text-left font-robotoMedium text-gray-900 dark:text-white border-r border-gray-300 dark:border-gray-600">
                               Cantidad
                             </th>
-                            <th className="px-4 py-3 text-left font-robotoMedium text-gray-900 border-r border-gray-300">
+                            <th className="px-4 py-3 text-left font-robotoMedium text-gray-900 dark:text-white border-r border-gray-300 dark:border-gray-600">
                               Precio
                             </th>
-                            <th className="px-4 py-3 text-center font-robotoMedium text-gray-900">
+                            <th className="px-4 py-3 text-center font-robotoMedium text-gray-900 dark:text-white">
                               Acción
                             </th>
                           </tr>
@@ -515,11 +515,11 @@ export function VentaModal({
                           {selectedFolio.productos.map((producto, index) => (
                             <tr
                               key={producto.id}
-                              className={`border-b border-gray-200 ${
-                                index % 2 === 0 ? "bg-white" : "bg-gray-50"
-                              } hover:bg-gray-100 transition-colors`}
+                              className={`border-b border-gray-200 dark:border-gray-700 ${
+                                index % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"
+                              } hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors`}
                             >
-                              <td className="px-4 py-2 border-r border-gray-200">
+                              <td className="px-4 py-2 border-r border-gray-200 dark:border-gray-700">
                                 <input
                                   type="text"
                                   value={producto.nombre}
@@ -528,10 +528,10 @@ export function VentaModal({
                                   }
                                   placeholder="Nombre del producto"
                                   readOnly
-                                  className="w-full px-2 py-1 border border-gray-300 rounded bg-gray-50 text-sm cursor-not-allowed"
+                                  className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-600 dark:text-gray-300 text-sm cursor-not-allowed"
                                 />
                               </td>
-                              <td className="px-4 py-2 border-r border-gray-200">
+                              <td className="px-4 py-2 border-r border-gray-200 dark:border-gray-700">
                                 <input
                                   type="text"
                                   value={producto.sku}
@@ -539,10 +539,10 @@ export function VentaModal({
                                     handleUpdateProducto(producto.id, "sku", e.target.value)
                                   }
                                   placeholder="SKU"
-                                  className="w-full px-2 py-1 border border-gray-300 rounded bg-white text-sm"
+                                  className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 dark:text-white text-sm"
                                 />
                               </td>
-                              <td className="px-4 py-2 border-r border-gray-200">
+                              <td className="px-4 py-2 border-r border-gray-200 dark:border-gray-700">
                                 <input
                                   type="number"
                                   value={producto.cantidad}
@@ -555,10 +555,10 @@ export function VentaModal({
                                   }
                                   placeholder="1"
                                   min="0"
-                                  className="w-full px-2 py-1 border border-gray-300 rounded bg-white text-sm"
+                                  className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 dark:text-white text-sm"
                                 />
                               </td>
-                              <td className="px-4 py-2 border-r border-gray-200">
+                              <td className="px-4 py-2 border-r border-gray-200 dark:border-gray-700">
                                 <input
                                   type="number"
                                   value={producto.precio}
@@ -570,7 +570,7 @@ export function VentaModal({
                                     )
                                   }
                                   placeholder="0.00"
-                                  className="w-full px-2 py-1 border border-gray-300 rounded bg-white text-sm"
+                                  className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 dark:text-white text-sm"
                                 />
                               </td>
                               <td className="px-4 py-2 text-center">
@@ -598,8 +598,8 @@ export function VentaModal({
           </div>
         </div>
 
-        <div className="border-t border-gray-200 px-6 py-4">
-          <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+        <div className="border-t border-gray-200 dark:border-gray-700 px-6 py-4">
+          <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
             Adjuntar PDF (Opcional)
           </label>
           <div className="flex items-center gap-3">
@@ -631,7 +631,7 @@ export function VentaModal({
               </div>
             )}
           </div>
-          <p className="text-xs text-gray-500 mt-2">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
             Solo archivos PDF, máximo 10MB
           </p>
         </div>
@@ -640,9 +640,9 @@ export function VentaModal({
           <button
             onClick={onClose}
             disabled={loading}
-            className="px-6 py-3 rounded-lg border border-gray-300 disabled:opacity-50"
+            className="px-6 py-3 rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-50"
           >
-            <span className="text-gray-700 font-robotoMedium">Cancelar</span>
+            <span className="text-gray-700 dark:text-gray-300 font-robotoMedium">Cancelar</span>
           </button>
 
           <button

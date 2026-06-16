@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 import { auth } from "../lib/firebase";
+import { ColumnFilter, distinctValues } from "../components/ColumnFilter";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -122,6 +123,7 @@ export function THDComparativo() {
 
   const [sortCol, setSortCol] = useState<SortCol>("total_pedido");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [colFilters, setColFilters] = useState<Record<string, string[]>>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -210,15 +212,28 @@ export function THDComparativo() {
       : String(bv).localeCompare(String(av));
   });
 
+  const colAccessors: Record<string, (r: ComparativoRow) => string> = {
+    master_sku: (r) => r.master_sku,
+    sku_thd: (r) => r.sku_thd,
+    descripcion: (r) => r.descripcion,
+    status: (r) => STATUS_CFG[r.status]?.label ?? r.status,
+  };
+
+  const colFilteredData = sortedData.filter((row) =>
+    Object.entries(colFilters).every(
+      ([key, vals]) => !vals.length || vals.includes(colAccessors[key](row))
+    )
+  );
+
   const searchLower = search.toLowerCase();
   const filteredData = searchLower
-    ? sortedData.filter(
+    ? colFilteredData.filter(
         (row) =>
           row.master_sku.toLowerCase().includes(searchLower) ||
           row.sku_thd.toLowerCase().includes(searchLower) ||
           row.descripcion.toLowerCase().includes(searchLower)
       )
-    : sortedData;
+    : colFilteredData;
 
   const sortIcon = (col: SortCol) => {
     if (sortCol !== col) return " ⬍";
@@ -392,17 +407,44 @@ export function THDComparativo() {
           className="grid [&>*]:min-w-0 bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-400 dark:border-gray-600"
           style={{ gridTemplateColumns: TABLE_GRID }}
         >
-          <SortHeader col="master_sku" label="MOD" />
-          <SortHeader col="sku_thd" label="SKU THD" />
-          <SortHeader col="descripcion" label="Descripción" align="left" />
+          {([
+            { key: "master_sku", label: "MOD", align: "center" as const },
+            { key: "sku_thd", label: "SKU THD", align: "center" as const },
+            { key: "descripcion", label: "Descripción", align: "left" as const },
+          ]).map((c) => (
+            <div
+              key={c.key}
+              className="py-4 px-2 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center"
+            >
+              <ColumnFilter
+                label={c.label}
+                align={c.align}
+                options={distinctValues(data, colAccessors[c.key])}
+                selected={colFilters[c.key] ?? []}
+                onChange={(next) =>
+                  setColFilters((p) => ({ ...p, [c.key]: next }))
+                }
+                sortDir={sortCol === (c.key as SortCol) ? sortDir : null}
+                onSort={(dir) => {
+                  setSortCol(c.key as SortCol);
+                  setSortDir(dir);
+                }}
+              />
+            </div>
+          ))}
           <SortHeader col="total_pedido" label="Pedido" />
           <SortHeader col="total_salida" label="Salida" />
           <SortHeader col="diferencia" label="Diferencia" />
           <SortHeader col="pct_cumplimiento" label="% Cumplimiento" />
-          <div className="py-4 px-3 flex items-center justify-center">
-            <span className="font-robotoMedium text-gray-900 dark:text-white text-sm">
-              Status
-            </span>
+          <div className="py-4 px-2 flex items-center justify-center">
+            <ColumnFilter
+              label="Status"
+              options={distinctValues(data, colAccessors.status)}
+              selected={colFilters.status ?? []}
+              onChange={(next) =>
+                setColFilters((p) => ({ ...p, status: next }))
+              }
+            />
           </div>
         </div>
 
