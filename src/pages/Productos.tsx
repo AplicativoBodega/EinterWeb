@@ -34,7 +34,6 @@ const mapOdooProduct = (item: Record<string, unknown>): Product => ({
   category: item.id_categoria
     ? { id: Number(item.id_categoria), name: String(item.nombre_categoria ?? '') }
     : undefined,
-  standard_tarima: item.inventario_standar_tarima !== undefined ? Number(item.inventario_standar_tarima) : undefined,
 });
 
 const categoryName = (p: Product): string =>
@@ -398,7 +397,6 @@ export function Productos() {
         costo: productData.cost || 0,
         id_proveedor: productData.supplier?.id || null,
         id_categoria: productData.category ? parseInt(String(productData.category)) : null,
-        inventario_standar_tarima: productData.standard_tarima || null,
         cantidad_x_ctn: productData.qty_per_carton ?? null,
       };
 
@@ -455,8 +453,6 @@ export function Productos() {
       if (productData.cost !== undefined) apiData.costo = productData.cost;
       if (productData.supplier?.id !== undefined)
         apiData.id_proveedor = productData.supplier.id;
-      if (productData.standard_tarima !== undefined)
-        apiData.inventario_standar_tarima = productData.standard_tarima;
       if (productData.qty_per_carton !== undefined)
         apiData.cantidad_x_ctn = productData.qty_per_carton;
       if (productData.category !== undefined)

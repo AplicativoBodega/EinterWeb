@@ -43,7 +43,6 @@ export interface ProductoInput {
   supplierId?: number;
   stock: number;
   weightKg: number;
-  standardTarima?: number;
   qtyPerCarton?: number | null;
   dimensionsCm?: { largo: number; ancho: number; alto: number };
   pzsEnTransito: number;
@@ -58,7 +57,7 @@ export interface ProductoResultado extends ProductoInput {
   diasARojo: number | null;    // días hasta entrar a zona roja
   fechaRojo: string | null;    // fecha estimada de zona roja
   pzsNecesarias: number;       // piezas a pedir (cálculo crudo)
-  pzsAPedir: number;           // piezas a pedir (redondeado a tarima)
+  pzsAPedir: number;           // piezas a pedir (redondeado a cartón)
   pesoKg: number;              // peso estimado del pedido
   volumenM3: number;           // volumen estimado del pedido
 }
@@ -146,15 +145,11 @@ export function calcularResultados(
         0,
         demanda * params.diasObjetivo - invEnRecepcion
       );
-      // Aplicar mínimo y redondear: primero a CTN, luego a tarima
+      // Aplicar mínimo y redondear a múltiplo de cartón (CTN)
       pzsAPedir = Math.max(pzsNecesarias, params.minPzsSku);
       if (p.qtyPerCarton && p.qtyPerCarton > 0) {
         pzsAPedir = Math.ceil(pzsAPedir / p.qtyPerCarton) * p.qtyPerCarton;
-      }
-      if (p.standardTarima && p.standardTarima > 0) {
-        pzsAPedir =
-          Math.ceil(pzsAPedir / p.standardTarima) * p.standardTarima;
-      } else if (!p.qtyPerCarton) {
+      } else {
         pzsAPedir = Math.ceil(pzsAPedir);
       }
       pesoKg = Math.round(pzsAPedir * p.weightKg * 100) / 100;

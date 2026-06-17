@@ -9,23 +9,11 @@ interface NavbarProps {
 export function Navbar({ onNavigateToProfile }: NavbarProps) {
   const { user, logout } = useAuth()
   const { darkMode } = useDarkMode()
-  const [showNotifications, setShowNotifications] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
-  const notificationsRef = useRef<HTMLDivElement>(null)
   const profileMenuRef = useRef<HTMLDivElement>(null)
-
-  interface Notification {
-    id: number
-    message: string
-    timestamp: string
-  }
-  const [notifications, setNotifications] = useState<Notification[]>([])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (notificationsRef.current && !notificationsRef.current.contains(e.target as Node)) {
-        setShowNotifications(false)
-      }
       if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
         setShowProfileMenu(false)
       }
@@ -57,130 +45,10 @@ export function Navbar({ onNavigateToProfile }: NavbarProps) {
         </div>
 
         <div className="w-24 flex items-center justify-end gap-4">
-          {/* Notifications */}
-          <div ref={notificationsRef} className="relative">
-            <button
-              onClick={() => {
-                setShowNotifications(!showNotifications)
-                setShowProfileMenu(false)
-              }}
-              className={`p-2 rounded-lg transition-all relative ${
-                darkMode
-                  ? 'hover:bg-gray-800 text-gray-300'
-                  : 'hover:bg-gray-100 text-gray-600'
-              }`}
-              title="Notificaciones"
-            >
-              <span className="text-xl">🔔</span>
-              {notifications.length > 0 && (
-                <span className="absolute top-1 right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                  {notifications.length}
-                </span>
-              )}
-            </button>
-
-            {showNotifications && (
-              <div
-                className={`absolute right-0 mt-2 w-80 rounded-lg shadow-xl ${
-                  darkMode
-                    ? 'bg-gray-800 border border-gray-700'
-                    : 'bg-white border border-gray-200'
-                }`}
-              >
-                <div
-                  className={`p-4 border-b flex items-center justify-between ${
-                    darkMode ? 'border-gray-700' : 'border-gray-200'
-                  }`}
-                >
-                  <h3
-                    className={`font-semibold text-lg ${
-                      darkMode ? 'text-white' : 'text-gray-900'
-                    }`}
-                  >
-                    Notificaciones
-                  </h3>
-                  {notifications.length > 0 && (
-                    <button
-                      onClick={() => setNotifications([])}
-                      className={`text-xs font-medium transition-colors ${
-                        darkMode
-                          ? 'text-blue-400 hover:text-blue-300'
-                          : 'text-blue-600 hover:text-blue-700'
-                      }`}
-                    >
-                      Limpiar todo
-                    </button>
-                  )}
-                </div>
-                <div className="max-h-96 overflow-y-auto">
-                  {notifications.length > 0 ? (
-                    notifications.map((notif) => (
-                      <div
-                        key={notif.id}
-                        className={`p-4 border-b flex items-start justify-between gap-3 transition-all ${
-                          darkMode
-                            ? 'border-gray-700 hover:bg-gray-700'
-                            : 'border-gray-100 hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="min-w-0">
-                          <p
-                            className={`text-sm font-medium ${
-                              darkMode ? 'text-white' : 'text-gray-900'
-                            }`}
-                          >
-                            {notif.message}
-                          </p>
-                          <p
-                            className={`text-xs mt-1 ${
-                              darkMode ? 'text-gray-400' : 'text-gray-500'
-                            }`}
-                          >
-                            {notif.timestamp}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() =>
-                            setNotifications((prev) =>
-                              prev.filter((n) => n.id !== notif.id)
-                            )
-                          }
-                          className="text-gray-400 hover:text-red-500 text-xs leading-none shrink-0 mt-0.5"
-                          title="Descartar"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
-                      <span className="text-3xl mb-2 opacity-60">🔕</span>
-                      <p
-                        className={`text-sm font-medium ${
-                          darkMode ? 'text-gray-300' : 'text-gray-600'
-                        }`}
-                      >
-                        No tienes notificaciones
-                      </p>
-                      <p
-                        className={`text-xs mt-1 ${
-                          darkMode ? 'text-gray-500' : 'text-gray-400'
-                        }`}
-                      >
-                        Aquí aparecerán las novedades del sistema
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
           <div ref={profileMenuRef} className="relative">
             <button
               onClick={() => {
                 setShowProfileMenu(!showProfileMenu)
-                setShowNotifications(false)
               }}
               className={`p-2 rounded-lg transition-all flex items-center gap-2 ${
                 darkMode

@@ -169,9 +169,6 @@ export function InventarioInteligente() {
           i.id_proveedor !== undefined ? Number(i.id_proveedor) : undefined,
         stock: Number(i.existencias) || 0,
         weightKg: Number(i.peso_kg) || 0,
-        standardTarima: i.inventario_standar_tarima
-          ? Number(i.inventario_standar_tarima)
-          : undefined,
         qtyPerCarton: i.cantidad_x_ctn != null ? Number(i.cantidad_x_ctn) : null,
         dimensionsCm:
           i.largo_cm || i.ancho_cm || i.alto_cm
