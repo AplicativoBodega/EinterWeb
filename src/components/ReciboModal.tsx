@@ -325,28 +325,28 @@ export function ReciboModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex justify-center items-center p-4 z-50">
-      <div className="bg-white rounded-xl w-full max-w-5xl max-h-[95vh] flex flex-col">
-        <div className="flex flex-row items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h2 className="text-2xl font-robotoMedium text-gray-800">
+      <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-5xl max-h-[95vh] flex flex-col">
+        <div className="flex flex-row items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-2xl font-robotoMedium text-gray-800 dark:text-white">
             {mode === "create" ? "Agregar Compra" : "Editar Compra"}
           </h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100"
+            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
           >
-            <span className="text-gray-500 text-2xl">×</span>
+            <span className="text-gray-500 dark:text-gray-400 text-2xl">×</span>
           </button>
         </div>
 
         {error && (
-          <div className="bg-red-50 border-b border-red-200 px-6 py-3">
-            <p className="text-red-600 font-robotoRegular">{error}</p>
+          <div className="bg-red-50 dark:bg-red-900/30 border-b border-red-200 dark:border-red-700 px-6 py-3">
+            <p className="text-red-600 dark:text-red-300 font-robotoRegular">{error}</p>
           </div>
         )}
 
         {!error && !productos.length && (
-          <div className="bg-yellow-50 border-b border-yellow-200 px-6 py-3">
-            <p className="text-yellow-700 font-robotoRegular text-sm">ℹ️ Debes agregar al menos un producto para crear la compra</p>
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border-b border-yellow-200 dark:border-yellow-700 px-6 py-3">
+            <p className="text-yellow-700 dark:text-yellow-300 font-robotoRegular text-sm">ℹ️ Debes agregar al menos un producto para crear la compra</p>
           </div>
         )}
 
@@ -354,7 +354,7 @@ export function ReciboModal({
           <div className="space-y-4">
             <div className="flex flex-row gap-4">
               <div className="flex-1">
-                <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+                <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
                   Número de Orden
                 </label>
                 <input
@@ -364,13 +364,13 @@ export function ReciboModal({
                     setFormData({ ...formData, orden: e.target.value })
                   }
                   placeholder="50000"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white"
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+              <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
                 Proveedor *
               </label>
               <div className="relative" ref={proveedorRef}>
@@ -387,11 +387,11 @@ export function ReciboModal({
                 />
 
                 {showProveedorList && (
-                  <div className="absolute top-full left-0 right-0 mt-1 border border-gray-200 rounded-lg bg-white overflow-y-auto max-h-48 z-50 shadow-lg">
+                  <div className="absolute top-full left-0 right-0 mt-1 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 overflow-y-auto max-h-48 z-50 shadow-lg">
                     {loadingProveedores ? (
-                      <div className="p-3 text-gray-600">Cargando...</div>
+                      <div className="p-3 text-gray-600 dark:text-gray-400">Cargando...</div>
                     ) : filteredProveedores.length === 0 ? (
-                      <div className="p-3 text-gray-500">
+                      <div className="p-3 text-gray-500 dark:text-gray-400">
                         No hay proveedores que coincidan
                       </div>
                     ) : (
@@ -407,9 +407,9 @@ export function ReciboModal({
                             setProveedorSearch(p.name);
                             setShowProveedorList(false);
                           }}
-                          className="w-full text-left px-4 py-2 border-b border-gray-100 hover:bg-blue-50 transition-colors"
+                          className="w-full text-left px-4 py-2 border-b border-gray-100 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
                         >
-                          <div className="font-robotoMedium text-gray-900">{p.name}</div>
+                          <div className="font-robotoMedium text-gray-900 dark:text-white">{p.name}</div>
                         </button>
                       ))
                     )}
@@ -420,7 +420,7 @@ export function ReciboModal({
 
             <div className="flex flex-row gap-4">
               <div className="flex-1">
-                <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+                <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
                   Fecha de Compra
                 </label>
                 <input
@@ -429,11 +429,11 @@ export function ReciboModal({
                   onChange={(e) =>
                     setFormData({ ...formData, fecha_compra: e.target.value })
                   }
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white"
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
                 />
               </div>
               <div className="flex-1">
-                <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+                <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
                   ETA
                 </label>
                 <input
@@ -442,18 +442,18 @@ export function ReciboModal({
                   onChange={(e) =>
                     setFormData({ ...formData, eta: e.target.value })
                   }
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white"
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
                 />
               </div>
             </div>
 
-            <div className="border-t border-gray-200 pt-4 mt-4">
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-robotoMedium">Productos</h3>
               </div>
 
-              <div className="mb-4 p-3 border border-gray-200 rounded-lg bg-gray-50">
-                <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+              <div className="mb-4 p-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+                <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
                   Agregar producto por SKU
                 </label>
                 <div className="flex gap-2">
@@ -490,7 +490,7 @@ export function ReciboModal({
               ) : (
                 <div className="space-y-3">
                   {productos.map((producto) => (
-                    <div key={producto.id} className="p-3 border border-gray-200 rounded-lg">
+                    <div key={producto.id} className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg dark:bg-gray-700/30">
                       <div className="grid grid-cols-5 gap-3 mb-2">
                         <input
                           type="text"
@@ -499,7 +499,7 @@ export function ReciboModal({
                             handleUpdateProducto(producto.id, "nombre", e.target.value)
                           }
                           placeholder="Nombre"
-                          className="px-3 py-2 border border-gray-300 rounded text-sm"
+                          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 dark:text-white"
                         />
                         <input
                           type="text"
@@ -508,7 +508,7 @@ export function ReciboModal({
                             handleUpdateProducto(producto.id, "sku", e.target.value)
                           }
                           placeholder="SKU"
-                          className="px-3 py-2 border border-gray-300 rounded text-sm"
+                          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 dark:text-white"
                         />
                         <input
                           type="number"
@@ -517,7 +517,7 @@ export function ReciboModal({
                             handleUpdateProducto(producto.id, "cantidad", parseInt(e.target.value) || 0)
                           }
                           placeholder="Cantidad"
-                          className="px-3 py-2 border border-gray-300 rounded text-sm"
+                          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 dark:text-white"
                         />
                         <input
                           type="number"
@@ -530,7 +530,7 @@ export function ReciboModal({
                             )
                           }
                           placeholder="Costo"
-                          className="px-3 py-2 border border-gray-300 rounded text-sm"
+                          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 dark:text-white"
                         />
                         <button
                           onClick={() => handleRemoveProducto(producto.id)}
@@ -545,14 +545,14 @@ export function ReciboModal({
               )}
 
               <div className="mt-4 pt-4 border-t border-gray-200">
-                <p className="text-right font-robotoMedium">
+                <p className="text-right font-robotoMedium dark:text-white">
                   Total: ${calculateTotal().toFixed(2)}
                 </p>
               </div>
             </div>
 
-            <div className="border-t border-gray-200 pt-4">
-              <label className="text-sm font-robotoMedium text-gray-700 mb-2 block">
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+              <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
                 Adjuntar PDF (Opcional)
               </label>
               <div className="flex items-center gap-3">
@@ -584,7 +584,7 @@ export function ReciboModal({
                   </div>
                 )}
               </div>
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                 Solo archivos PDF, máximo 10MB
               </p>
             </div>
@@ -596,9 +596,9 @@ export function ReciboModal({
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="px-6 py-3 rounded-lg border border-gray-300 disabled:opacity-50 cursor-pointer pointer-events-auto"
+            className="px-6 py-3 rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-50 cursor-pointer pointer-events-auto"
           >
-            <span className="text-gray-700 font-robotoMedium">Cancelar</span>
+            <span className="text-gray-700 dark:text-gray-300 font-robotoMedium">Cancelar</span>
           </button>
 
           <button

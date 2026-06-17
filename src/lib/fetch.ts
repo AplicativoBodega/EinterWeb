@@ -24,7 +24,7 @@ export async function fetchAPI(path: string, options: RequestInit = {}): Promise
     let token = '';
     
     if (user) {
-      token = await user.getIdToken(); // Get fresh token
+      token = await user.getIdToken(true); // fuerza refresh del token
     }
 
     const headers: Record<string, string> = {
