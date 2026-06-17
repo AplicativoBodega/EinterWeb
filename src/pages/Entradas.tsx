@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 import { auth } from "../lib/firebase";
@@ -43,6 +44,15 @@ interface ContenedorDetail {
 interface NuevoItem {
   master_sku: string;
   cantidad: string;
+}
+
+interface SkuOption {
+  sku: string;
+  name: string;
+}
+
+interface ProductosResponse {
+  items: { sku: string; name: string }[];
 }
 
 type SortColumn = keyof ContenedorRow | null;
@@ -130,6 +140,138 @@ function extractTamano(folio: string): string {
   return m[0].replace(/\s/g, "").toUpperCase();
 }
 
+// ─── SKU combobox ───────────────────────────────────────────────────────────
+// Searchable dropdown of existing SKUs so users can only pick products that
+// actually exist in `articulos` (avoids the backend "SKU not found" error).
+
+function SkuCombobox({
+  value,
+  onChange,
+  options,
+  loading,
+  invalid,
+}: {
+  value: string;
+  onChange: (sku: string) => void;
+  options: SkuOption[];
+  loading: boolean;
+  invalid: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const updateRect = () => {
+    if (inputRef.current) setRect(inputRef.current.getBoundingClientRect());
+  };
+
+  // Reposition the portal menu while open (the modal body can scroll).
+  useEffect(() => {
+    if (!open) return;
+    updateRect();
+    const onScrollOrResize = () => updateRect();
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    const onClickOutside = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (
+        wrapRef.current?.contains(t) ||
+        menuRef.current?.contains(t)
+      )
+        return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => {
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+      document.removeEventListener("mousedown", onClickOutside);
+    };
+  }, [open]);
+
+  const q = value.trim().toLowerCase();
+  const filtered = (
+    q
+      ? options.filter(
+          (o) =>
+            o.sku.toLowerCase().includes(q) || o.name.toLowerCase().includes(q)
+        )
+      : options
+  ).slice(0, 50);
+
+  // Width: at least the input, wider for readability, but never off-screen.
+  const menuWidth = rect
+    ? Math.min(Math.max(rect.width, 360), window.innerWidth - 24)
+    : undefined;
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        placeholder={loading ? "Cargando SKUs…" : "Buscar modelo / SKU…"}
+        className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 ${
+          invalid
+            ? "border-red-500 dark:border-red-500"
+            : "border-gray-300 dark:border-gray-600"
+        }`}
+      />
+      {open &&
+        rect &&
+        createPortal(
+          <div
+            ref={menuRef}
+            style={{
+              position: "fixed",
+              top: rect.bottom + 4,
+              left: rect.left,
+              width: menuWidth,
+            }}
+            className="z-[60]"
+          >
+            {filtered.length > 0 ? (
+              <ul className="max-h-80 overflow-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 shadow-2xl">
+                {filtered.map((o) => (
+                  <li key={o.sku}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        onChange(o.sku);
+                        setOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2.5 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors flex flex-col gap-0.5"
+                    >
+                      <span className="text-sm font-mono font-medium text-gray-900 dark:text-gray-100">
+                        {o.sku}
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        {o.name}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : !loading && q ? (
+              <div className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 shadow-2xl px-4 py-2.5 text-sm text-gray-500 dark:text-gray-400">
+                Sin coincidencias
+              </div>
+            ) : null}
+          </div>,
+          document.body
+        )}
+    </div>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function Entradas() {
@@ -149,7 +291,7 @@ export function Entradas() {
   const [mes, setMes] = useState("0");
   const [searchText, setSearchText] = useState("");
   const [modeloFilter, setModeloFilter] = useState("");
-  const [colFilters, setColFilters] = useState<Record<string, string[]>>({});
+  const [colFilters] = useState<Record<string, string[]>>({});
 
   // Granular filter state
   const [dateDesde, setDateDesde] = useState("");
@@ -177,6 +319,11 @@ export function Entradas() {
     { master_sku: "", cantidad: "1" },
   ]);
   const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  // SKU catalog for the create modal's searchable dropdown
+  const [skuCatalog, setSkuCatalog] = useState<SkuOption[]>([]);
+  const [skuCatalogLoading, setSkuCatalogLoading] = useState(false);
 
   // Toast state
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(
@@ -320,8 +467,30 @@ export function Entradas() {
     setCreateFolio("");
     setCreateFecha(todayISO());
     setCreateItems([{ master_sku: "", cantidad: "1" }]);
+    setCreateError(null);
     setCreateVisible(true);
+
+    if (skuCatalog.length === 0) {
+      setSkuCatalogLoading(true);
+      fetchAPI("/api/productos?pageSize=100000")
+        .then((raw) => {
+          const items = (raw as ProductosResponse).items ?? [];
+          setSkuCatalog(
+            items
+              .filter((p) => p.sku)
+              .map((p) => ({ sku: p.sku, name: p.name ?? "" }))
+          );
+        })
+        .catch((err) =>
+          setCreateError(
+            `No se pudo cargar el catálogo de SKUs: ${(err as Error).message}`
+          )
+        )
+        .finally(() => setSkuCatalogLoading(false));
+    }
   };
+
+  const knownSkus = new Set(skuCatalog.map((o) => o.sku));
 
   const addItem = () =>
     setCreateItems((prev) => [...prev, { master_sku: "", cantidad: "1" }]);
@@ -340,15 +509,37 @@ export function Entradas() {
 
   const handleCreateSubmit = async () => {
     if (!createFolio.trim() || !createFecha) return;
+    setCreateError(null);
+
+    const validItems = createItems
+      .filter((i) => i.master_sku.trim())
+      .map((i) => ({
+        master_sku: i.master_sku.trim(),
+        cantidad: Math.max(1, Number(i.cantidad) || 1),
+      }));
+
+    if (validItems.length === 0) {
+      setCreateError("Agrega al menos un producto.");
+      return;
+    }
+
+    // Validate SKUs against the catalog before hitting the API so the user
+    // gets an immediate, specific message instead of a generic 400.
+    if (knownSkus.size > 0) {
+      const unknown = validItems
+        .map((i) => i.master_sku)
+        .filter((sku) => !knownSkus.has(sku));
+      if (unknown.length > 0) {
+        setCreateError(
+          `SKU no encontrado: ${[...new Set(unknown)].join(", ")}. ` +
+            "Selecciona un modelo de la lista."
+        );
+        return;
+      }
+    }
+
     setCreateLoading(true);
     try {
-      const validItems = createItems
-        .filter((i) => i.master_sku.trim())
-        .map((i) => ({
-          master_sku: i.master_sku.trim(),
-          cantidad: Math.max(1, Number(i.cantidad) || 1),
-        }));
-
       await fetchAPI("/api/contenedores", {
         method: "POST",
         body: JSON.stringify({
@@ -365,7 +556,7 @@ export function Entradas() {
       });
       setRetryCount((c) => c + 1);
     } catch (err) {
-      setToast({ ok: false, text: (err as Error).message });
+      setCreateError((err as Error).message);
     } finally {
       setCreateLoading(false);
     }
@@ -1011,6 +1202,14 @@ export function Entradas() {
 
             {/* Body */}
             <div className="flex-1 overflow-auto px-6 py-5 space-y-5">
+              {/* Inline error */}
+              {createError && (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/40 border border-red-300 dark:border-red-600 text-red-800 dark:text-red-200 text-sm">
+                  <span className="shrink-0">⚠️</span>
+                  <span className="font-robotoRegular">{createError}</span>
+                </div>
+              )}
+
               {/* Folio */}
               <div>
                 <label className="block text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-1.5">
@@ -1062,14 +1261,19 @@ export function Entradas() {
                       key={i}
                       className="grid grid-cols-[1fr_6rem_2rem] gap-2 items-center"
                     >
-                      <input
-                        type="text"
+                      <SkuCombobox
                         value={item.master_sku}
-                        onChange={(e) =>
-                          updateItem(i, "master_sku", e.target.value)
+                        onChange={(sku) => {
+                          updateItem(i, "master_sku", sku);
+                          if (createError) setCreateError(null);
+                        }}
+                        options={skuCatalog}
+                        loading={skuCatalogLoading}
+                        invalid={
+                          !!item.master_sku.trim() &&
+                          knownSkus.size > 0 &&
+                          !knownSkus.has(item.master_sku.trim())
                         }
-                        placeholder="Ej. MOD-001"
-                        className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                       />
                       <input
                         type="number"
