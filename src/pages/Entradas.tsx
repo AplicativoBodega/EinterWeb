@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
+import { auth } from "../lib/firebase";
 import { ColumnFilter, distinctValues } from "../components/ColumnFilter";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -13,6 +14,8 @@ interface ContenedorRow {
   fecha_movimiento: string;
   master_sku: string;
   nombre_producto: string;
+  pdf_filename?: string | null;
+  pdf_uploaded_at?: string | null;
 }
 
 interface ContenedoresResponse {
@@ -47,7 +50,7 @@ type SortDir = "asc" | "desc";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TABLE_GRID = "minmax(0,2fr) minmax(0,1.5fr) minmax(0,3fr) 6rem 8rem";
+const TABLE_GRID = "minmax(0,2fr) minmax(0,1.5fr) minmax(0,3fr) 6rem 8rem 7rem";
 const DETAIL_GRID = "minmax(0,1.5fr) minmax(0,3fr) 6rem";
 const LIMIT = 25;
 
@@ -121,6 +124,12 @@ function SortIcon({
   );
 }
 
+function extractTamano(folio: string): string {
+  const m = folio.match(/(\d\s*[xX]\s*\d{2}|full|sencillo)/i);
+  if (!m) return "Sin especificar";
+  return m[0].replace(/\s/g, "").toUpperCase();
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function Entradas() {
@@ -141,6 +150,13 @@ export function Entradas() {
   const [searchText, setSearchText] = useState("");
   const [modeloFilter, setModeloFilter] = useState("");
   const [colFilters, setColFilters] = useState<Record<string, string[]>>({});
+
+  // Granular filter state
+  const [dateDesde, setDateDesde] = useState("");
+  const [dateHasta, setDateHasta] = useState("");
+  const [tamanoFilter, setTamanoFilter] = useState<string[]>([]);
+  const [skuFilter, setSkuFilter] = useState<string[]>([]);
+  const [facturaFilter, setFacturaFilter] = useState<"todos" | "con" | "sin">("todos");
 
   // Sort state
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
@@ -167,6 +183,11 @@ export function Entradas() {
     null
   );
 
+  // PDF upload state
+  const [uploadingFolio, setUploadingFolio] = useState<string | null>(null);
+  const [selectedFolio, setSelectedFolio] = useState<string | null>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+
   // Auto-dismiss toast after 3.5 s
   useEffect(() => {
     if (!toast) return;
@@ -186,7 +207,7 @@ export function Entradas() {
   // Reset to first page whenever a client-side filter changes
   useEffect(() => {
     setPage(1);
-  }, [searchText, colFilters]);
+  }, [searchText, colFilters, dateDesde, dateHasta, tamanoFilter, skuFilter, facturaFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Main data fetch — load every row for the selected year/month
   useEffect(() => {
@@ -234,6 +255,14 @@ export function Entradas() {
   const handleMesChange = (value: string) => {
     setMes(value);
     setPage(1);
+  };
+
+  const clearGranularFilters = () => {
+    setDateDesde("");
+    setDateHasta("");
+    setTamanoFilter([]);
+    setSkuFilter([]);
+    setFacturaFilter("todos");
   };
 
   const handleSort = (col: SortColumn) => {
@@ -342,6 +371,58 @@ export function Entradas() {
     }
   };
 
+  const handlePdfChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedFolio) return;
+    e.target.value = "";
+    setUploadingFolio(selectedFolio);
+    try {
+      const token = await auth.currentUser!.getIdToken(true);
+      const apiBase = import.meta.env.VITE_API_BASE_URL || "";
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(
+        `${apiBase}/api/contenedores/${encodeURIComponent(selectedFolio)}/pdf`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: form,
+        }
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      setToast({ ok: true, text: "Factura subida correctamente" });
+      setRetryCount((c) => c + 1);
+    } catch (err) {
+      setToast({ ok: false, text: (err as Error).message });
+    } finally {
+      setUploadingFolio(null);
+      setSelectedFolio(null);
+    }
+  };
+
+  const handleViewPdf = async (folio: string) => {
+    try {
+      const token = await auth.currentUser!.getIdToken(true);
+      const apiBase = import.meta.env.VITE_API_BASE_URL || "";
+      const res = await fetch(
+        `${apiBase}/api/contenedores/${encodeURIComponent(folio)}/pdf`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    } catch (err) {
+      setToast({
+        ok: false,
+        text: `Error al abrir factura: ${(err as Error).message}`,
+      });
+    }
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   const COL_ACCESSORS: Record<string, (r: ContenedorRow) => string> = {
@@ -352,6 +433,16 @@ export function Entradas() {
     fecha_movimiento: (r) => formatDate(r.fecha_movimiento),
   };
 
+  const hasGranularFilters =
+    dateDesde !== "" ||
+    dateHasta !== "" ||
+    tamanoFilter.length > 0 ||
+    skuFilter.length > 0 ||
+    facturaFilter !== "todos";
+
+  const tamanoOptions = distinctValues(data, (r) => extractTamano(r.folio_orden));
+  const skuOptions = distinctValues(data, (r) => r.master_sku || "");
+
   const search = searchText.trim().toLowerCase();
   const matched = data.filter((r) => {
     if (search) {
@@ -361,6 +452,13 @@ export function Entradas() {
     for (const [k, vals] of Object.entries(colFilters)) {
       if (vals.length && !vals.includes(COL_ACCESSORS[k](r))) return false;
     }
+    if (dateDesde && r.fecha_movimiento < dateDesde) return false;
+    if (dateHasta && r.fecha_movimiento > dateHasta) return false;
+    if (tamanoFilter.length && !tamanoFilter.includes(extractTamano(r.folio_orden)))
+      return false;
+    if (skuFilter.length && !skuFilter.includes(r.master_sku || "")) return false;
+    if (facturaFilter === "con" && !r.pdf_filename) return false;
+    if (facturaFilter === "sin" && r.pdf_filename) return false;
     return true;
   });
   const sorted = sortRows(matched, sortColumn, sortDir);
@@ -445,6 +543,108 @@ export function Entradas() {
               )}
             </div>
           </div>
+
+          {/* Granular filters row */}
+          <div className="flex flex-wrap items-center gap-3 mt-3">
+            {/* Date range */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 dark:text-gray-400 font-robotoMedium whitespace-nowrap">
+                Desde
+              </span>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={dateDesde}
+                  onChange={(e) => setDateDesde(e.target.value)}
+                  className={`py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm ${
+                    dateDesde ? "pl-3 pr-7" : "px-3"
+                  }`}
+                />
+                {dateDesde && (
+                  <button
+                    onClick={() => setDateDesde("")}
+                    className="absolute right-2 top-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xs leading-none"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              <span className="text-xs text-gray-500 dark:text-gray-400 font-robotoMedium whitespace-nowrap">
+                Hasta
+              </span>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={dateHasta}
+                  onChange={(e) => setDateHasta(e.target.value)}
+                  className={`py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm ${
+                    dateHasta ? "pl-3 pr-7" : "px-3"
+                  }`}
+                />
+                {dateHasta && (
+                  <button
+                    onClick={() => setDateHasta("")}
+                    className="absolute right-2 top-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xs leading-none"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Tamaño multi-select */}
+            <div className="border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 px-2 py-1.5 min-w-[120px]">
+              <ColumnFilter
+                label="Tamaño"
+                options={tamanoOptions}
+                selected={tamanoFilter}
+                onChange={setTamanoFilter}
+                align="left"
+              />
+            </div>
+
+            {/* Modelo multi-select */}
+            <div className="border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 px-2 py-1.5 min-w-[120px]">
+              <ColumnFilter
+                label="Modelo"
+                options={skuOptions}
+                selected={skuFilter}
+                onChange={setSkuFilter}
+                align="left"
+              />
+            </div>
+
+            {/* Factura 3-state toggle */}
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+              {(["todos", "con", "sin"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setFacturaFilter(v)}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                    facturaFilter === v
+                      ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow"
+                      : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                  }`}
+                >
+                  {v === "todos"
+                    ? "Todos"
+                    : v === "con"
+                    ? "Con factura"
+                    : "Sin factura"}
+                </button>
+              ))}
+            </div>
+
+            {/* Clear all */}
+            {hasGranularFilters && (
+              <button
+                onClick={clearGranularFilters}
+                className="text-sm text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors font-robotoMedium"
+              >
+                Limpiar filtros
+              </button>
+            )}
+          </div>
         </div>
 
         {/* ── Table card ──────────────────────────────────────────────────── */}
@@ -454,15 +654,11 @@ export function Entradas() {
             className="grid [&>*]:min-w-0 bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-400 dark:border-gray-600"
             style={{ gridTemplateColumns: TABLE_GRID }}
           >
-            {COLUMNS.map((col, i) => (
+            {COLUMNS.map((col) => (
               <button
                 key={String(col.key)}
                 onClick={() => handleSort(col.key)}
-                className={`py-4 px-3 flex items-center ${col.align} ${
-                  i < COLUMNS.length - 1
-                    ? "border-r border-gray-400 dark:border-gray-600"
-                    : ""
-                } hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors w-full`}
+                className={`py-4 px-3 flex items-center ${col.align} border-r border-gray-400 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors w-full`}
               >
                 <span className="font-robotoMedium text-gray-900 dark:text-white text-sm">
                   {col.label}
@@ -470,6 +666,11 @@ export function Entradas() {
                 <SortIcon col={col.key} active={sortColumn} dir={sortDir} />
               </button>
             ))}
+            <div className="py-4 px-3 flex items-center justify-center">
+              <span className="font-robotoMedium text-gray-900 dark:text-white text-sm">
+                Factura
+              </span>
+            </div>
           </div>
 
           {/* Body */}
@@ -544,10 +745,52 @@ export function Entradas() {
                       {row.cantidad.toLocaleString("es-MX")}
                     </span>
                   </div>
-                  <div className="py-3 px-3 flex items-center justify-center">
+                  <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
                     <span className="text-gray-600 dark:text-gray-400 text-sm">
                       {formatDate(row.fecha_movimiento)}
                     </span>
+                  </div>
+                  <div
+                    className="py-3 px-3 flex items-center justify-center gap-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {uploadingFolio === row.folio_orden ? (
+                      <span className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin inline-block" />
+                    ) : row.pdf_filename ? (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewPdf(row.folio_orden);
+                          }}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 text-xs font-medium hover:bg-green-200 dark:hover:bg-green-900/60 transition-colors"
+                        >
+                          📄 Ver
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedFolio(row.folio_orden);
+                            pdfInputRef.current?.click();
+                          }}
+                          className="inline-flex items-center justify-center w-6 h-6 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-xs"
+                          title="Reemplazar PDF"
+                        >
+                          ↑
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedFolio(row.folio_orden);
+                          pdfInputRef.current?.click();
+                        }}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                      >
+                        📎 Subir
+                      </button>
+                    )}
                   </div>
                 </div>
               ))
@@ -887,6 +1130,15 @@ export function Entradas() {
           </div>
         </div>
       )}
+
+      {/* Hidden PDF file input */}
+      <input
+        ref={pdfInputRef}
+        type="file"
+        accept=".pdf"
+        className="hidden"
+        onChange={handlePdfChange}
+      />
     </>
   );
 }
