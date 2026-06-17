@@ -20,7 +20,6 @@ interface FormData {
   cost: string;
   stock: string;
   weight_kg: string;
-  standard_tarima: string;
   qty_per_carton: string;
   alto: string;
   ancho: string;
@@ -39,7 +38,6 @@ const initialFormData: FormData = {
   cost: "",
   stock: "",
   weight_kg: "",
-  standard_tarima: "",
   qty_per_carton: "",
   alto: "",
   ancho: "",
@@ -89,7 +87,6 @@ export function ProductModal({
         cost: String(product.cost || ""),
         stock: String(product.stock || ""),
         weight_kg: String(product.weight_kg || ""),
-        standard_tarima: String(product.standard_tarima || ""),
         qty_per_carton: product.qty_per_carton != null ? String(product.qty_per_carton) : "",
         largo: String(product.dimensions_cm?.largo || ""),
         ancho: String(product.dimensions_cm?.ancho || ""),
@@ -250,7 +247,6 @@ export function ProductModal({
             }
           : null,
         description: formData.description,
-        standard_tarima: parseFloat(formData.standard_tarima) || undefined,
         qty_per_carton: formData.qty_per_carton !== "" ? parseFloat(formData.qty_per_carton) : null,
       };
 
