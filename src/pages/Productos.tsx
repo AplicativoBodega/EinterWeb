@@ -11,7 +11,7 @@ const SYNC_STALE_MS = 15 * 60 * 1000; // 15 minutes
 const PRODUCTS_SYNC_KEY = "einter_productos_last_sync";
 const PAGE_SIZE = 20;
 const TABLE_GRID_COLUMNS =
-  "7rem minmax(0,3fr) minmax(0,1.5fr) minmax(0,2fr) minmax(0,2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.5fr)";
+  "7rem minmax(0,3fr) minmax(0,1.5fr) minmax(0,2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.5fr)";
 
 // Map a raw Odoo DB row to the Product type
 const mapOdooProduct = (item: Record<string, unknown>): Product => ({
@@ -532,8 +532,6 @@ export function Productos() {
     { key: "name", label: "Nombre" },
     { key: "sku", label: "SKU" },
     { key: "proveedor", label: "Proveedor" },
-    { key: "categoria", label: "Categoría" },
-    { key: "weight", label: "Peso (kg)" },
     { key: "stock", label: "Stock" },
     { key: "price", label: "Precio" },
     { key: "cost", label: "Costo" },
@@ -749,22 +747,6 @@ export function Productos() {
                 <div className="flex-[2] py-4 px-3 border-r border-gray-300 dark:border-gray-700 flex justify-center items-center">
                   <p className="text-gray-900 dark:text-white font-robotoRegular text-base text-center truncate">
                     {product.supplier?.name || "—"}
-                  </p>
-                </div>
-
-                {/* Categoría */}
-                <div className="flex-[2] py-4 px-3 border-r border-gray-300 dark:border-gray-700 flex justify-center items-center">
-                  <p className="text-gray-900 dark:text-white font-robotoRegular text-base text-center truncate">
-                    {typeof product.category === "object" && product.category?.name
-                      ? product.category.name
-                      : typeof product.category === "string" ? product.category : "—"}
-                  </p>
-                </div>
-
-                {/* Peso */}
-                <div className="flex-[1.2] py-4 px-3 border-r border-gray-300 dark:border-gray-700 flex justify-center items-center">
-                  <p className="text-gray-900 dark:text-white font-robotoRegular text-base text-center">
-                    {product.weight_kg}
                   </p>
                 </div>
 

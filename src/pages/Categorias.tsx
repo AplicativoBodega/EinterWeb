@@ -83,7 +83,7 @@ export function Categorias() {
   useDarkMode(); // Initialize dark mode context
   const [data, setData] = useState<Category[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [dropdownVisible, setDropdownVisible] = useState(false);
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
@@ -129,9 +129,17 @@ export function Categorias() {
   };
 
   const handleCategorySelect = async (categoryId: number) => {
+    // Toggle off if the same category is clicked again
+    if (selectedId === categoryId) {
+      setSelectedId(null);
+      return;
+    }
     setSelectedId(categoryId || null);
-    setDropdownVisible(false);
-    
+
+    // Si ya cargamos sus productos antes, no volvemos a pedirlos
+    const existing = data.find((c) => c.id === categoryId);
+    if (existing && existing.products.length > 0) return;
+
     // Cargar productos de la categoría seleccionada
     try {
       setLoadingCategory(true);
@@ -210,7 +218,7 @@ export function Categorias() {
   };
 
   return (
-    <div className="flex-1 bg-gray-50 dark:bg-gray-900 min-h-screen overflow-auto">
+    <div className="flex-1 bg-gray-50 dark:bg-gray-900 h-screen flex flex-col overflow-hidden">
       {/* Header limpio y elegante */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-6">
         <div className="flex flex-row justify-between items-center">
@@ -226,125 +234,127 @@ export function Categorias() {
         </div>
       </div>
 
-      {/* Área de selección con espaciado mejorado */}
-      <div className="bg-white dark:bg-gray-800 mx-8 mt-6 rounded-lg border border-gray-200 dark:border-gray-700">
-        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">
-            SELECCIONAR CATEGORÍA
-          </p>
-          <button
-            onClick={() => setDropdownVisible(!dropdownVisible)}
-            className="w-full flex flex-row items-center justify-between px-4 py-3 border border-gray-300 dark:border-gray-600 rounded hover:border-black dark:hover:border-white transition-colors bg-white dark:bg-gray-700"
-          >
-            <span
-              className={`text-base ${
-                selectedId 
-                  ? "text-black dark:text-white font-medium" 
-                  : "text-gray-500 dark:text-gray-400"
-              }`}
-            >
-              {selectedId
-                ? data.find((c) => c.id === selectedId)?.name
-                : "Seleccione una categoría para visualizar"}
-            </span>
-            <span className="text-lg text-gray-400 dark:text-gray-500">
-              {dropdownVisible ? "×" : "⌄"}
-            </span>
-          </button>
+      {/* Layout maestro-detalle: lista de categorías a la izquierda, productos a la derecha */}
+      <div className="flex-1 flex flex-col md:flex-row gap-6 px-8 py-6 overflow-hidden">
+        {/* ── Panel izquierdo: lista de categorías (siempre visible) ── */}
+        <aside className="md:w-80 shrink-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+            <div className="relative">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar categoría..."
+                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <span className="absolute left-3 top-2.5 text-gray-400 text-sm pointer-events-none">
+                🔍
+              </span>
+            </div>
+          </div>
 
-          {/* Dropdown mejorado */}
-          {dropdownVisible && (
-            <div className="mt-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-700 max-h-60 overflow-y-auto">
-              {data.length === 0 ? (
-                <div className="px-4 py-3 text-gray-500 dark:text-gray-400 text-center">
-                  No hay categorías
-                </div>
-              ) : (
-                data.map((categoria, index) => (
-                  <div
-                    key={categoria.id}
-                    className={`flex flex-row items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-600 ${
-                      index !== data.length - 1
-                        ? "border-b border-gray-100 dark:border-gray-700"
-                        : ""
-                    }`}
-                  >
-                    <button
+          <div className="flex-1 overflow-y-auto">
+            {loading ? (
+              <p className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
+                Cargando categorías...
+              </p>
+            ) : data.length === 0 ? (
+              <p className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
+                No hay categorías
+              </p>
+            ) : (
+              data
+                .filter((c) =>
+                  c.name.toLowerCase().includes(search.trim().toLowerCase())
+                )
+                .map((categoria) => {
+                  const active = selectedId === categoria.id;
+                  return (
+                    <div
+                      key={categoria.id}
                       onClick={() => handleCategorySelect(categoria.id)}
-                      className="flex-1 text-left text-base text-gray-700 dark:text-gray-200"
+                      className={`group flex items-center justify-between px-4 py-3 cursor-pointer border-l-4 transition-colors ${
+                        active
+                          ? "border-blue-600 bg-blue-50 dark:bg-blue-900/30"
+                          : "border-transparent hover:bg-gray-50 dark:hover:bg-gray-700/60"
+                      }`}
                     >
-                      {categoria.name}
-                    </button>
-                    <div className="flex flex-row gap-1">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEditModal(categoria);
-                        }}
-                        className="p-1 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
-                        title="Editar"
+                      <span
+                        className={`text-sm truncate ${
+                          active
+                            ? "text-blue-700 dark:text-blue-300 font-semibold"
+                            : "text-gray-700 dark:text-gray-200"
+                        }`}
                       >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openDeleteModal(categoria);
-                        }}
-                        className="p-1 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                        title="Eliminar"
-                      >
-                        🗑️
-                      </button>
+                        {categoria.name}
+                      </span>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEditModal(categoria);
+                          }}
+                          className="p-1 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                          title="Editar"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openDeleteModal(categoria);
+                          }}
+                          className="p-1 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                          title="Eliminar"
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  );
+                })
+            )}
+          </div>
+        </aside>
+
+        {/* ── Panel derecho: productos de la categoría seleccionada ── */}
+        <section className="flex-1 overflow-y-auto">
+          {error ? (
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-red-200 dark:border-red-700 p-6">
+              <p className="text-red-600 dark:text-red-400">{error}</p>
+            </div>
+          ) : selectedId ? (
+            loadingCategory ? (
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
+                <p className="text-gray-600 dark:text-gray-400">
+                  Cargando productos de la categoría...
+                </p>
+              </div>
+            ) : (
+              data
+                .filter((d) => d.id === selectedId)
+                .map((c) => (
+                  <AccordionItem
+                    key={c.id}
+                    title={c.name}
+                    products={c.products}
+                    open={true}
+                  />
                 ))
-              )}
+            )
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center h-full flex items-center justify-center">
+              <div className="max-w-md mx-auto">
+                <h2 className="text-xl font-light text-gray-600 dark:text-gray-400 mb-4">
+                  Selecciona una categoría
+                </h2>
+                <p className="text-base text-gray-500 dark:text-gray-500 leading-relaxed">
+                  Haz click en una categoría de la lista para ver sus productos.
+                </p>
+              </div>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Contenido principal con scroll de página completa */}
-      <div className="flex-1 px-8 py-6 overflow-y-auto">
-        {loading ? (
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
-            <p className="text-gray-600 dark:text-gray-400">Cargando categorías...</p>
-          </div>
-        ) : error ? (
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-red-200 dark:border-red-700 p-6">
-            <p className="text-red-600 dark:text-red-400">{error}</p>
-          </div>
-        ) : selectedId ? (
-          loadingCategory ? (
-            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
-              <p className="text-gray-600 dark:text-gray-400">Cargando productos de la categoría...</p>
-            </div>
-          ) : (
-            data
-              .filter((d) => d.id === selectedId)
-              .map((c) => (
-                <AccordionItem
-                  key={c.id}
-                  title={c.name}
-                  products={c.products}
-                  open={true}
-                />
-              ))
-          )
-        ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
-            <div className="max-w-md mx-auto">
-              <h2 className="text-xl font-light text-gray-600 dark:text-gray-400 mb-4">
-                Ninguna categoría seleccionada
-              </h2>
-              <p className="text-base text-gray-500 dark:text-gray-500 leading-relaxed">
-                Selecciona una categoría del menú desplegable superior para
-                visualizar sus productos.
-              </p>
-            </div>
-          </div>
-        )}
+        </section>
       </div>
 
       <CategoryModal

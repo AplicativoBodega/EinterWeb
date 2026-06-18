@@ -7,20 +7,28 @@ import { ColumnFilter, distinctValues } from "../components/ColumnFilter";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+type StatusEnvio = 'pendiente' | 'en_transito' | 'entregado' | 'cancelado';
+
 interface ContenedorRow {
-  id_movimiento: number;
-  id_articulo: number;
-  cantidad: number;
   folio_orden: string;
   fecha_movimiento: string;
-  master_sku: string;
-  nombre_producto: string;
+  fecha_pedido?: string | null;
+  total_piezas: number;
+  num_productos: number;
+  id_movimiento: number; // representative id (for React keys)
+  skus: string | null;
+  productos: string | null;
   pdf_filename?: string | null;
   pdf_uploaded_at?: string | null;
+  status_envio?: StatusEnvio | null;
+  tamano?: string | null;
+  // computed client-side from folio_orden
+  orden: string;
+  contenedores: string;
 }
 
 interface ContenedoresResponse {
-  data: ContenedorRow[];
+  data: Omit<ContenedorRow, "orden" | "contenedores">[];
   pagination: {
     page: number;
     limit: number;
@@ -31,9 +39,12 @@ interface ContenedoresResponse {
 
 interface ContenedorDetail {
   folio: string;
+  tamano?: string | null;
   fecha: string;
+  fecha_pedido?: string | null;
   items: {
     id_movimiento: number;
+    id_articulo: number;
     master_sku: string;
     nombre_producto: string;
     cantidad: number;
@@ -60,7 +71,15 @@ type SortDir = "asc" | "desc";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TABLE_GRID = "minmax(0,2fr) minmax(0,1.5fr) minmax(0,3fr) 6rem 8rem 7rem";
+const TABLE_GRID =
+  "minmax(0,1.7fr) minmax(0,1.2fr) minmax(0,2.6fr) 5rem 7.5rem 7.5rem 6.5rem 8.5rem 5.5rem";
+
+const STATUS_COLORS: Record<StatusEnvio, string> = {
+  pendiente:   "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
+  en_transito: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+  entregado:   "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
+  cancelado:   "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+};
 const DETAIL_GRID = "minmax(0,1.5fr) minmax(0,3fr) 6rem";
 const LIMIT = 25;
 
@@ -82,12 +101,16 @@ const MONTHS = [
 
 const YEARS = ["2025", "2026"];
 
+// Common container sizes suggested in the order modal (free text still allowed).
+const TAMANO_OPTIONS = ["1X20", "1X40", "2X40", "FULL", "SENCILLO"];
+
 const COLUMNS: { key: SortColumn; label: string; align: string }[] = [
-  { key: "folio_orden", label: "Folio / Orden", align: "justify-start" },
-  { key: "master_sku", label: "Modelo", align: "justify-center" },
-  { key: "nombre_producto", label: "Descripción", align: "justify-start" },
-  { key: "cantidad", label: "Cantidad", align: "justify-center" },
-  { key: "fecha_movimiento", label: "Fecha", align: "justify-center" },
+  { key: "orden", label: "Orden", align: "justify-start" },
+  { key: "contenedores", label: "Contenedores", align: "justify-center" },
+  { key: "productos", label: "Productos", align: "justify-start" },
+  { key: "total_piezas", label: "Piezas", align: "justify-center" },
+  { key: "fecha_pedido", label: "Fecha de pedido", align: "justify-center" },
+  { key: "fecha_movimiento", label: "Fecha de llegada", align: "justify-center" },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -138,6 +161,18 @@ function extractTamano(folio: string): string {
   const m = folio.match(/(\d\s*[xX]\s*\d{2}|full|sencillo)/i);
   if (!m) return "Sin especificar";
   return m[0].replace(/\s/g, "").toUpperCase();
+}
+
+// Split a folio like "ORDEN KEN040 2X40" into orden ("KEN040") and the
+// container token ("2X40"). The date is shown in its own column already.
+function parseFolio(folio: string): { orden: string; contenedores: string } {
+  const raw = (folio || "").trim();
+  const contenedores = extractTamano(raw);
+  let orden = raw.replace(/^\s*orden\s*/i, ""); // drop leading "ORDEN"
+  const m = raw.match(/(\d\s*[xX]\s*\d{2}|full|sencillo)/i);
+  if (m) orden = orden.replace(m[0], "");
+  orden = orden.replace(/\s+/g, " ").trim();
+  return { orden: orden || raw, contenedores };
 }
 
 // ─── SKU combobox ───────────────────────────────────────────────────────────
@@ -290,7 +325,6 @@ export function Entradas() {
   const [anio, setAnio] = useState(currentYear);
   const [mes, setMes] = useState("0");
   const [searchText, setSearchText] = useState("");
-  const [modeloFilter, setModeloFilter] = useState("");
   const [colFilters] = useState<Record<string, string[]>>({});
 
   // Granular filter state
@@ -311,15 +345,22 @@ export function Entradas() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
 
-  // Create modal state
+  // Create / edit modal state
   const [createVisible, setCreateVisible] = useState(false);
+  const [editFolio, setEditFolio] = useState<string | null>(null); // null = create mode
   const [createFolio, setCreateFolio] = useState("");
+  const [createTamano, setCreateTamano] = useState("");
   const [createFecha, setCreateFecha] = useState(todayISO());
+  const [createFechaPedido, setCreateFechaPedido] = useState("");
   const [createItems, setCreateItems] = useState<NuevoItem[]>([
     { master_sku: "", cantidad: "1" },
   ]);
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+
+  // Delete confirmation state
+  const [deleteFolio, setDeleteFolio] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // SKU catalog for the create modal's searchable dropdown
   const [skuCatalog, setSkuCatalog] = useState<SkuOption[]>([]);
@@ -335,6 +376,10 @@ export function Entradas() {
   const [selectedFolio, setSelectedFolio] = useState<string | null>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
 
+  // Status envío state
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, StatusEnvio>>({});
+  const [updatingStatuses, setUpdatingStatuses] = useState<Set<string>>(new Set());
+
   // Auto-dismiss toast after 3.5 s
   useEffect(() => {
     if (!toast) return;
@@ -342,21 +387,13 @@ export function Entradas() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  // Debounce search input → modeloFilter
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setModeloFilter(searchText);
-      setPage(1);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [searchText]);
-
   // Reset to first page whenever a client-side filter changes
   useEffect(() => {
     setPage(1);
-  }, [searchText, colFilters, dateDesde, dateHasta, tamanoFilter, skuFilter, facturaFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchText, colFilters, dateDesde, dateHasta, tamanoFilter, skuFilter, facturaFilter]);
 
-  // Main data fetch — load every row for the selected year/month
+  // Main data fetch — load every entrada for the selected year/month so the
+  // search / filters / pagination all run client-side over the whole dataset.
   useEffect(() => {
     let cancelled = false;
 
@@ -365,19 +402,32 @@ export function Entradas() {
       setError(null);
       try {
         const params = new URLSearchParams({
-          page: String(page),
-          limit: String(LIMIT),
+          page: "1",
+          limit: "100000",
           anio,
         });
         if (mes !== "0") params.set("mes", mes);
-        if (modeloFilter) params.set("modelo", modeloFilter);
 
         const raw = (await fetchAPI(
           `/api/contenedores?${params.toString()}`
         )) as ContenedoresResponse;
 
         if (!cancelled) {
-          setData(Array.isArray(raw.data) ? raw.data : []);
+          const rows = Array.isArray(raw.data) ? raw.data : [];
+          setData(
+            rows.map((r) => {
+              const parsed = parseFolio(r.folio_orden);
+              return {
+                ...r,
+                total_piezas: Number(r.total_piezas) || 0,
+                num_productos: Number(r.num_productos) || 0,
+                orden: parsed.orden,
+                // Size is now its own column in the DB; fall back to the legacy
+                // name-derived token for rows created before that change.
+                contenedores: r.tamano || parsed.contenedores,
+              };
+            })
+          );
         }
       } catch (err) {
         if (!cancelled) setError((err as Error).message);
@@ -390,7 +440,7 @@ export function Entradas() {
     return () => {
       cancelled = true;
     };
-  }, [page, anio, mes, modeloFilter, retryCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [anio, mes, retryCount]);
 
   // ── Filter handlers ──────────────────────────────────────────────────────
 
@@ -461,32 +511,83 @@ export function Entradas() {
     setDetailError(null);
   };
 
-  // ── Create modal ─────────────────────────────────────────────────────────
+  // ── Create / edit modal ──────────────────────────────────────────────────
+
+  const loadSkuCatalog = () => {
+    if (skuCatalog.length > 0) return;
+    setSkuCatalogLoading(true);
+    fetchAPI("/api/productos?pageSize=100000")
+      .then((raw) => {
+        const items = (raw as ProductosResponse).items ?? [];
+        setSkuCatalog(
+          items
+            .filter((p) => p.sku)
+            .map((p) => ({ sku: p.sku, name: p.name ?? "" }))
+        );
+      })
+      .catch((err) =>
+        setCreateError(
+          `No se pudo cargar el catálogo de SKUs: ${(err as Error).message}`
+        )
+      )
+      .finally(() => setSkuCatalogLoading(false));
+  };
 
   const handleOpenCreate = () => {
+    setEditFolio(null);
     setCreateFolio("");
+    setCreateTamano("");
     setCreateFecha(todayISO());
+    setCreateFechaPedido("");
     setCreateItems([{ master_sku: "", cantidad: "1" }]);
     setCreateError(null);
     setCreateVisible(true);
+    loadSkuCatalog();
+  };
 
-    if (skuCatalog.length === 0) {
-      setSkuCatalogLoading(true);
-      fetchAPI("/api/productos?pageSize=100000")
-        .then((raw) => {
-          const items = (raw as ProductosResponse).items ?? [];
-          setSkuCatalog(
-            items
-              .filter((p) => p.sku)
-              .map((p) => ({ sku: p.sku, name: p.name ?? "" }))
-          );
-        })
-        .catch((err) =>
-          setCreateError(
-            `No se pudo cargar el catálogo de SKUs: ${(err as Error).message}`
-          )
-        )
-        .finally(() => setSkuCatalogLoading(false));
+  const handleOpenEdit = async (folio: string) => {
+    setEditFolio(folio);
+    setCreateFolio(folio);
+    setCreateError(null);
+    setCreateVisible(true);
+    setCreateLoading(true);
+    loadSkuCatalog();
+    try {
+      const raw = (await fetchAPI(
+        `/api/contenedores/${encodeURIComponent(folio)}`
+      )) as ContenedorDetail;
+      setCreateTamano(raw.tamano || "");
+      setCreateFecha((raw.fecha || "").slice(0, 10) || todayISO());
+      setCreateFechaPedido((raw.fecha_pedido || "").slice(0, 10));
+      setCreateItems(
+        raw.items.length > 0
+          ? raw.items.map((it) => ({
+              master_sku: it.master_sku,
+              cantidad: String(it.cantidad),
+            }))
+          : [{ master_sku: "", cantidad: "1" }]
+      );
+    } catch (err) {
+      setCreateError((err as Error).message);
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteFolio) return;
+    setDeleteLoading(true);
+    try {
+      await fetchAPI(`/api/contenedores/${encodeURIComponent(deleteFolio)}`, {
+        method: "DELETE",
+      });
+      setToast({ ok: true, text: `Orden "${deleteFolio}" eliminada.` });
+      setDeleteFolio(null);
+      setRetryCount((c) => c + 1);
+    } catch (err) {
+      setToast({ ok: false, text: (err as Error).message });
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -540,19 +641,29 @@ export function Entradas() {
 
     setCreateLoading(true);
     try {
-      await fetchAPI("/api/contenedores", {
-        method: "POST",
-        body: JSON.stringify({
-          folio_orden: createFolio.trim(),
-          fecha_movimiento: createFecha,
-          items: validItems,
-        }),
+      const body = JSON.stringify({
+        folio_orden: createFolio.trim(),
+        tamano: createTamano.trim() || null,
+        fecha_movimiento: createFecha,
+        fecha_pedido: createFechaPedido || null,
+        items: validItems,
       });
+
+      if (editFolio) {
+        await fetchAPI(`/api/contenedores/${encodeURIComponent(editFolio)}`, {
+          method: "PUT",
+          body,
+        });
+      } else {
+        await fetchAPI("/api/contenedores", { method: "POST", body });
+      }
 
       setCreateVisible(false);
       setToast({
         ok: true,
-        text: `Entrada "${createFolio.trim()}" creada exitosamente.`,
+        text: editFolio
+          ? `Orden "${createFolio.trim()}" actualizada.`
+          : `Orden "${createFolio.trim()}" creada exitosamente.`,
       });
       setRetryCount((c) => c + 1);
     } catch (err) {
@@ -614,15 +725,43 @@ export function Entradas() {
     }
   };
 
+  const handleStatusChange = async (folio: string, newStatus: StatusEnvio) => {
+    const prevStatus =
+      statusOverrides[folio] ??
+      data.find((r) => r.folio_orden === folio)?.status_envio ??
+      'pendiente';
+    setStatusOverrides((prev) => ({ ...prev, [folio]: newStatus }));
+    setUpdatingStatuses((prev) => new Set([...prev, folio]));
+    try {
+      await fetchAPI(`/api/contenedores/${encodeURIComponent(folio)}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status_envio: newStatus }),
+      });
+    } catch (err) {
+      setStatusOverrides((prev) => ({ ...prev, [folio]: prevStatus as StatusEnvio }));
+      setToast({ ok: false, text: `Error al actualizar status: ${(err as Error).message}` });
+    } finally {
+      setUpdatingStatuses((prev) => {
+        const next = new Set(prev);
+        next.delete(folio);
+        return next;
+      });
+    }
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   const COL_ACCESSORS: Record<string, (r: ContenedorRow) => string> = {
-    folio_orden: (r) => r.folio_orden || "",
-    master_sku: (r) => r.master_sku || "",
-    nombre_producto: (r) => r.nombre_producto || "",
-    cantidad: (r) => String(r.cantidad ?? ""),
+    orden: (r) => r.orden || "",
+    contenedores: (r) => r.contenedores || "",
+    productos: (r) => r.productos || "",
+    fecha_pedido: (r) => formatDate(r.fecha_pedido || ""),
     fecha_movimiento: (r) => formatDate(r.fecha_movimiento),
   };
+
+  // Individual SKUs in a row's aggregated `skus` string ("A, B, C")
+  const rowSkus = (r: ContenedorRow): string[] =>
+    (r.skus || "").split(",").map((s) => s.trim()).filter(Boolean);
 
   const hasGranularFilters =
     dateDesde !== "" ||
@@ -631,13 +770,15 @@ export function Entradas() {
     skuFilter.length > 0 ||
     facturaFilter !== "todos";
 
-  const tamanoOptions = distinctValues(data, (r) => extractTamano(r.folio_orden));
-  const skuOptions = distinctValues(data, (r) => r.master_sku || "");
+  const tamanoOptions = distinctValues(data, (r) => r.contenedores);
+  const skuOptions = Array.from(
+    new Set(data.flatMap(rowSkus))
+  ).sort((a, b) => a.localeCompare(b, "es"));
 
   const search = searchText.trim().toLowerCase();
   const matched = data.filter((r) => {
     if (search) {
-      const hay = `${r.folio_orden} ${r.master_sku} ${r.nombre_producto}`.toLowerCase();
+      const hay = `${r.folio_orden} ${r.skus ?? ""} ${r.productos ?? ""}`.toLowerCase();
       if (!hay.includes(search)) return false;
     }
     for (const [k, vals] of Object.entries(colFilters)) {
@@ -645,9 +786,10 @@ export function Entradas() {
     }
     if (dateDesde && r.fecha_movimiento < dateDesde) return false;
     if (dateHasta && r.fecha_movimiento > dateHasta) return false;
-    if (tamanoFilter.length && !tamanoFilter.includes(extractTamano(r.folio_orden)))
+    if (tamanoFilter.length && !tamanoFilter.includes(r.contenedores))
       return false;
-    if (skuFilter.length && !skuFilter.includes(r.master_sku || "")) return false;
+    if (skuFilter.length && !rowSkus(r).some((s) => skuFilter.includes(s)))
+      return false;
     if (facturaFilter === "con" && !r.pdf_filename) return false;
     if (facturaFilter === "sin" && r.pdf_filename) return false;
     return true;
@@ -677,7 +819,7 @@ export function Entradas() {
               onClick={handleOpenCreate}
               className="px-6 py-2 border border-black dark:border-white hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-colors text-sm font-medium text-gray-900 dark:text-white"
             >
-              + Nueva Entrada
+              + Nueva Orden
             </button>
           </div>
 
@@ -857,9 +999,19 @@ export function Entradas() {
                 <SortIcon col={col.key} active={sortColumn} dir={sortDir} />
               </button>
             ))}
-            <div className="py-4 px-3 flex items-center justify-center">
+            <div className="py-4 px-3 flex items-center justify-center border-r border-gray-400 dark:border-gray-600">
               <span className="font-robotoMedium text-gray-900 dark:text-white text-sm">
                 Factura
+              </span>
+            </div>
+            <div className="py-4 px-3 flex items-center justify-center border-r border-gray-400 dark:border-gray-600">
+              <span className="font-robotoMedium text-gray-900 dark:text-white text-sm">
+                Status Envío
+              </span>
+            </div>
+            <div className="py-4 px-3 flex items-center justify-center">
+              <span className="font-robotoMedium text-gray-900 dark:text-white text-sm">
+                Acciones
               </span>
             </div>
           </div>
@@ -910,39 +1062,54 @@ export function Entradas() {
                   } hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors`}
                   style={{ gridTemplateColumns: TABLE_GRID }}
                 >
+                  {/* Orden */}
                   <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center">
                     <span
-                      className="text-gray-900 dark:text-gray-100 text-sm font-mono truncate"
+                      className="text-gray-900 dark:text-gray-100 text-sm font-mono font-medium truncate"
                       title={row.folio_orden}
                     >
-                      {row.folio_orden || "—"}
+                      {row.orden || "—"}
                     </span>
                   </div>
+                  {/* Contenedores */}
                   <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
-                    <span className="text-gray-700 dark:text-gray-300 text-sm font-mono">
-                      {row.master_sku || "—"}
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs font-medium">
+                      {row.contenedores}
                     </span>
                   </div>
-                  <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center">
+                  {/* Productos (resumen) */}
+                  <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center gap-2">
+                    <span className="inline-flex items-center justify-center shrink-0 px-1.5 h-5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-semibold">
+                      {row.num_productos}
+                    </span>
                     <span
-                      className="text-gray-900 dark:text-gray-100 text-sm truncate"
-                      title={row.nombre_producto}
+                      className="text-gray-700 dark:text-gray-300 text-sm truncate"
+                      title={row.productos ?? ""}
                     >
-                      {row.nombre_producto || "—"}
+                      {row.productos || "—"}
                     </span>
                   </div>
+                  {/* Piezas */}
                   <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
                     <span className="text-gray-900 dark:text-gray-100 text-sm font-medium">
-                      {row.cantidad.toLocaleString("es-MX")}
+                      {row.total_piezas.toLocaleString("es-MX")}
                     </span>
                   </div>
+                  {/* Fecha de pedido */}
+                  <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
+                    <span className="text-gray-600 dark:text-gray-400 text-sm">
+                      {row.fecha_pedido ? formatDate(row.fecha_pedido) : "—"}
+                    </span>
+                  </div>
+                  {/* Fecha de llegada */}
                   <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
                     <span className="text-gray-600 dark:text-gray-400 text-sm">
                       {formatDate(row.fecha_movimiento)}
                     </span>
                   </div>
+                  {/* Factura */}
                   <div
-                    className="py-3 px-3 flex items-center justify-center gap-1"
+                    className="py-3 px-3 flex items-center justify-center gap-1 border-r border-gray-200 dark:border-gray-600"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {uploadingFolio === row.folio_orden ? (
@@ -982,6 +1149,60 @@ export function Entradas() {
                         📎 Subir
                       </button>
                     )}
+                  </div>
+                  <div
+                    className="py-3 px-3 flex items-center justify-center border-r border-gray-200 dark:border-gray-600"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {updatingStatuses.has(row.folio_orden) ? (
+                      <span className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin inline-block" />
+                    ) : (() => {
+                      const status: StatusEnvio =
+                        statusOverrides[row.folio_orden] ??
+                        row.status_envio ??
+                        'pendiente';
+                      return (
+                        <select
+                          value={status}
+                          onChange={(e) =>
+                            handleStatusChange(row.folio_orden, e.target.value as StatusEnvio)
+                          }
+                          onClick={(e) => e.stopPropagation()}
+                          className={`text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 ${STATUS_COLORS[status]}`}
+                        >
+                          <option value="pendiente">Pendiente</option>
+                          <option value="en_transito">En tránsito</option>
+                          <option value="entregado">Entregado</option>
+                          <option value="cancelado">Cancelado</option>
+                        </select>
+                      );
+                    })()}
+                  </div>
+                  {/* Acciones */}
+                  <div
+                    className="py-3 px-2 flex items-center justify-center gap-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenEdit(row.folio_orden);
+                      }}
+                      className="inline-flex items-center justify-center w-7 h-7 rounded text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors text-sm"
+                      title="Editar orden"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteFolio(row.folio_orden);
+                      }}
+                      className="inline-flex items-center justify-center w-7 h-7 rounded text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-sm"
+                      title="Eliminar orden"
+                    >
+                      🗑️
+                    </button>
                   </div>
                 </div>
               ))
@@ -1061,7 +1282,10 @@ export function Entradas() {
                 </h2>
                 {detail && (
                   <p className="text-sm text-gray-500 dark:text-gray-400 font-robotoRegular mt-0.5">
-                    {formatDate(detail.fecha)}
+                    Llegada: {formatDate(detail.fecha)}
+                    {detail.fecha_pedido
+                      ? ` · Pedido: ${formatDate(detail.fecha_pedido)}`
+                      : ""}
                   </p>
                 )}
               </div>
@@ -1189,7 +1413,7 @@ export function Entradas() {
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-xl font-robotoMedium text-gray-900 dark:text-white">
-                Nueva Entrada
+                {editFolio ? "Editar Orden" : "Nueva Orden"}
               </h2>
               <button
                 onClick={() => setCreateVisible(false)}
@@ -1210,32 +1434,64 @@ export function Entradas() {
                 </div>
               )}
 
-              {/* Folio */}
-              <div>
-                <label className="block text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-1.5">
-                  Folio / Nombre de la entrada{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={createFolio}
-                  onChange={(e) => setCreateFolio(e.target.value)}
-                  placeholder="Ej. CONT-2026-001"
-                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-                />
+              {/* Orden + Contenedores (tamaño) */}
+              <div className="grid grid-cols-[1fr_10rem] gap-4">
+                <div>
+                  <label className="block text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-1.5">
+                    Orden <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={createFolio}
+                    onChange={(e) => setCreateFolio(e.target.value)}
+                    placeholder="Ej. Contenedor MAD0301"
+                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-1.5">
+                    Contenedores
+                  </label>
+                  <input
+                    type="text"
+                    list="tamano-options"
+                    value={createTamano}
+                    onChange={(e) => setCreateTamano(e.target.value.toUpperCase())}
+                    placeholder="Ej. 1X40"
+                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+                  />
+                  <datalist id="tamano-options">
+                    {TAMANO_OPTIONS.map((t) => (
+                      <option key={t} value={t} />
+                    ))}
+                  </datalist>
+                </div>
               </div>
 
-              {/* Fecha */}
-              <div>
-                <label className="block text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-1.5">
-                  Fecha de llegada <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={createFecha}
-                  onChange={(e) => setCreateFecha(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-                />
+              {/* Fechas */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-1.5">
+                    Fecha de pedido
+                  </label>
+                  <input
+                    type="date"
+                    value={createFechaPedido}
+                    onChange={(e) => setCreateFechaPedido(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-1.5">
+                    Fecha de llegada <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={createFecha}
+                    onChange={(e) => setCreateFecha(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+                  />
+                </div>
               </div>
 
               {/* Items */}
@@ -1328,6 +1584,49 @@ export function Entradas() {
                   </>
                 ) : (
                   "Guardar"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete confirmation modal ───────────────────────────────────────── */}
+      {deleteFolio && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md shadow-2xl">
+            <div className="px-6 py-5">
+              <h2 className="text-lg font-robotoMedium text-gray-900 dark:text-white">
+                Eliminar orden
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                ¿Seguro que deseas eliminar la orden{" "}
+                <span className="font-semibold text-gray-900 dark:text-white">
+                  {deleteFolio}
+                </span>{" "}
+                y todos sus productos? Esta acción no se puede deshacer.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setDeleteFolio(null)}
+                disabled={deleteLoading}
+                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm font-robotoMedium disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleteLoading}
+                className="px-6 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-robotoMedium transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {deleteLoading ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Eliminando…
+                  </>
+                ) : (
+                  "Eliminar"
                 )}
               </button>
             </div>

@@ -35,7 +35,7 @@ interface VentasResponse {
 }
 
 const TABLE_GRID_COLUMNS =
-  "3rem minmax(0,1.5fr) minmax(0,2fr) minmax(0,1.2fr) minmax(0,1.2fr)";
+  "3rem minmax(0,1.5fr) minmax(0,2fr) minmax(0,1.2fr) minmax(0,1.2fr) 6rem";
 
 const MONTHS = [
   { value: 1, label: "Enero" },
@@ -74,8 +74,13 @@ export function Salidas() {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedOrden, setSelectedOrden] = useState<OrdenVenta | null>(null);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
+  const [editingVentaId, setEditingVentaId] = useState<number | null>(null);
   const [detailVenta, setDetailVenta] = useState<VentaDetail | null>(null);
   const [detailVisible, setDetailVisible] = useState(false);
+
+  // Delete confirmation
+  const [deleteVenta, setDeleteVenta] = useState<Venta | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const fetchVentas = useCallback(async () => {
     setLoading(true);
@@ -157,15 +162,79 @@ export function Salidas() {
   const handleOpenCreateModal = () => {
     setSelectedOrden(null);
     setModalMode("create");
+    setEditingVentaId(null);
+    setModalVisible(true);
+  };
+
+  const toDateInput = (dateValue: string | Date) => {
+    const d = new Date(dateValue);
+    return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+  };
+
+  const handleOpenEditModal = (venta: Venta) => {
+    setEditingVentaId(venta.id_venta);
+    setModalMode("edit");
+    setSelectedOrden({
+      id_orden: String(venta.id_orden ?? ""),
+      cliente: venta.cliente ?? "",
+      fecha: toDateInput(venta.fecha),
+      folios: [
+        {
+          id: "1",
+          numero_folio: "1",
+          productos: (venta.lineItems ?? []).map((li, idx) => ({
+            id: String(idx),
+            nombre: li.nombre_producto ?? "",
+            sku: li.master_sku ?? "",
+            cantidad: li.cantidad,
+            precio: li.precio,
+          })),
+        },
+      ],
+      pdf: null,
+    });
     setModalVisible(true);
   };
 
   const handleCloseModal = () => {
     setModalVisible(false);
     setSelectedOrden(null);
+    setEditingVentaId(null);
+  };
+
+  const handleDeleteVenta = async () => {
+    if (!deleteVenta) return;
+    setDeleteLoading(true);
+    try {
+      await fetchAPI(`/(api)/ventas/${deleteVenta.id_venta}`, {
+        method: "DELETE",
+      });
+      setDeleteVenta(null);
+      fetchVentas();
+    } catch (err) {
+      console.error("Error al eliminar venta:", err);
+      setError((err as Error).message);
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   const handleSaveOrden = async (ordenData: OrdenVenta) => {
+    // Edit mode: the backend only updates cliente / fecha / pdf (not line items,
+    // which for Odoo-synced sales live in Odoo).
+    if (modalMode === "edit" && editingVentaId != null) {
+      await fetchAPI(`/(api)/ventas/${editingVentaId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          cliente: ordenData.cliente,
+          fecha: ordenData.fecha,
+          ...(ordenData.pdf ? { pdf: ordenData.pdf } : {}),
+        }),
+      });
+      fetchVentas();
+      return;
+    }
+
     try {
       const items = [];
       for (const folio of ordenData.folios) {
@@ -406,7 +475,7 @@ export function Salidas() {
                 onChange={(next) => setColFilters((p) => ({ ...p, total: next }))}
               />
             </div>
-            <div className="py-4 px-2 flex items-center justify-center">
+            <div className="py-4 px-2 border-r border-gray-400 dark:border-gray-600 flex items-center justify-center">
               <ColumnFilter
                 label="Fecha"
                 textClass="text-lg"
@@ -414,6 +483,11 @@ export function Salidas() {
                 selected={colFilters.fecha ?? []}
                 onChange={(next) => setColFilters((p) => ({ ...p, fecha: next }))}
               />
+            </div>
+            <div className="py-4 px-2 flex items-center justify-center">
+              <span className="text-gray-700 dark:text-gray-300 font-bold text-lg">
+                Acciones
+              </span>
             </div>
           </div>
 
@@ -493,10 +567,27 @@ export function Salidas() {
                     </span>
                   </div>
 
-                  <div className="flex-[1.2] py-4 px-3 flex items-center justify-center">
+                  <div className="flex-[1.2] py-4 px-3 border-r border-gray-300 dark:border-gray-700 flex items-center justify-center">
                     <span className="text-gray-900 dark:text-gray-100 font-robotoRegular text-base text-center">
                       {formatDate(venta.fecha)}
                     </span>
+                  </div>
+
+                  <div className="py-4 px-2 flex items-center justify-center gap-1">
+                    <button
+                      onClick={() => handleOpenEditModal(venta)}
+                      className="inline-flex items-center justify-center w-7 h-7 rounded text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors text-sm"
+                      title="Editar orden"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={() => setDeleteVenta(venta)}
+                      className="inline-flex items-center justify-center w-7 h-7 rounded text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-sm"
+                      title="Eliminar orden"
+                    >
+                      🗑️
+                    </button>
                   </div>
                 </div>
               ))
@@ -542,6 +633,49 @@ export function Salidas() {
           )}
         </div>
       </div>
+
+      {deleteVenta && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md shadow-2xl">
+            <div className="px-6 py-5">
+              <h2 className="text-lg font-robotoMedium text-gray-900 dark:text-white">
+                Eliminar orden de salida
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                ¿Seguro que deseas eliminar la orden{" "}
+                <span className="font-semibold text-gray-900 dark:text-white">
+                  {deleteVenta.id_orden ?? deleteVenta.id_venta}
+                </span>
+                ? Se devolverá el stock de sus productos. Esta acción no se puede
+                deshacer.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setDeleteVenta(null)}
+                disabled={deleteLoading}
+                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm font-robotoMedium disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteVenta}
+                disabled={deleteLoading}
+                className="px-6 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-robotoMedium transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {deleteLoading ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Eliminando…
+                  </>
+                ) : (
+                  "Eliminar"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <VentaModal
         visible={modalVisible}
