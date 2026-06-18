@@ -21,6 +21,7 @@ interface ContenedorRow {
   pdf_filename?: string | null;
   pdf_uploaded_at?: string | null;
   status_envio?: StatusEnvio | null;
+  tamano?: string | null;
   // computed client-side from folio_orden
   orden: string;
   contenedores: string;
@@ -38,6 +39,7 @@ interface ContenedoresResponse {
 
 interface ContenedorDetail {
   folio: string;
+  tamano?: string | null;
   fecha: string;
   fecha_pedido?: string | null;
   items: {
@@ -70,7 +72,7 @@ type SortDir = "asc" | "desc";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const TABLE_GRID =
-  "minmax(0,1.7fr) minmax(0,1.2fr) minmax(0,2.6fr) 5rem 7rem 6.5rem 8.5rem 5.5rem";
+  "minmax(0,1.7fr) minmax(0,1.2fr) minmax(0,2.6fr) 5rem 7.5rem 7.5rem 6.5rem 8.5rem 5.5rem";
 
 const STATUS_COLORS: Record<StatusEnvio, string> = {
   pendiente:   "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
@@ -99,12 +101,16 @@ const MONTHS = [
 
 const YEARS = ["2025", "2026"];
 
+// Common container sizes suggested in the order modal (free text still allowed).
+const TAMANO_OPTIONS = ["1X20", "1X40", "2X40", "FULL", "SENCILLO"];
+
 const COLUMNS: { key: SortColumn; label: string; align: string }[] = [
   { key: "orden", label: "Orden", align: "justify-start" },
   { key: "contenedores", label: "Contenedores", align: "justify-center" },
   { key: "productos", label: "Productos", align: "justify-start" },
   { key: "total_piezas", label: "Piezas", align: "justify-center" },
-  { key: "fecha_movimiento", label: "Fecha", align: "justify-center" },
+  { key: "fecha_pedido", label: "Fecha de pedido", align: "justify-center" },
+  { key: "fecha_movimiento", label: "Fecha de llegada", align: "justify-center" },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -343,6 +349,7 @@ export function Entradas() {
   const [createVisible, setCreateVisible] = useState(false);
   const [editFolio, setEditFolio] = useState<string | null>(null); // null = create mode
   const [createFolio, setCreateFolio] = useState("");
+  const [createTamano, setCreateTamano] = useState("");
   const [createFecha, setCreateFecha] = useState(todayISO());
   const [createFechaPedido, setCreateFechaPedido] = useState("");
   const [createItems, setCreateItems] = useState<NuevoItem[]>([
@@ -408,12 +415,18 @@ export function Entradas() {
         if (!cancelled) {
           const rows = Array.isArray(raw.data) ? raw.data : [];
           setData(
-            rows.map((r) => ({
-              ...r,
-              total_piezas: Number(r.total_piezas) || 0,
-              num_productos: Number(r.num_productos) || 0,
-              ...parseFolio(r.folio_orden),
-            }))
+            rows.map((r) => {
+              const parsed = parseFolio(r.folio_orden);
+              return {
+                ...r,
+                total_piezas: Number(r.total_piezas) || 0,
+                num_productos: Number(r.num_productos) || 0,
+                orden: parsed.orden,
+                // Size is now its own column in the DB; fall back to the legacy
+                // name-derived token for rows created before that change.
+                contenedores: r.tamano || parsed.contenedores,
+              };
+            })
           );
         }
       } catch (err) {
@@ -523,6 +536,7 @@ export function Entradas() {
   const handleOpenCreate = () => {
     setEditFolio(null);
     setCreateFolio("");
+    setCreateTamano("");
     setCreateFecha(todayISO());
     setCreateFechaPedido("");
     setCreateItems([{ master_sku: "", cantidad: "1" }]);
@@ -542,6 +556,7 @@ export function Entradas() {
       const raw = (await fetchAPI(
         `/api/contenedores/${encodeURIComponent(folio)}`
       )) as ContenedorDetail;
+      setCreateTamano(raw.tamano || "");
       setCreateFecha((raw.fecha || "").slice(0, 10) || todayISO());
       setCreateFechaPedido((raw.fecha_pedido || "").slice(0, 10));
       setCreateItems(
@@ -566,7 +581,7 @@ export function Entradas() {
       await fetchAPI(`/api/contenedores/${encodeURIComponent(deleteFolio)}`, {
         method: "DELETE",
       });
-      setToast({ ok: true, text: `Entrada "${deleteFolio}" eliminada.` });
+      setToast({ ok: true, text: `Orden "${deleteFolio}" eliminada.` });
       setDeleteFolio(null);
       setRetryCount((c) => c + 1);
     } catch (err) {
@@ -628,6 +643,7 @@ export function Entradas() {
     try {
       const body = JSON.stringify({
         folio_orden: createFolio.trim(),
+        tamano: createTamano.trim() || null,
         fecha_movimiento: createFecha,
         fecha_pedido: createFechaPedido || null,
         items: validItems,
@@ -646,8 +662,8 @@ export function Entradas() {
       setToast({
         ok: true,
         text: editFolio
-          ? `Entrada "${createFolio.trim()}" actualizada.`
-          : `Entrada "${createFolio.trim()}" creada exitosamente.`,
+          ? `Orden "${createFolio.trim()}" actualizada.`
+          : `Orden "${createFolio.trim()}" creada exitosamente.`,
       });
       setRetryCount((c) => c + 1);
     } catch (err) {
@@ -739,6 +755,7 @@ export function Entradas() {
     orden: (r) => r.orden || "",
     contenedores: (r) => r.contenedores || "",
     productos: (r) => r.productos || "",
+    fecha_pedido: (r) => formatDate(r.fecha_pedido || ""),
     fecha_movimiento: (r) => formatDate(r.fecha_movimiento),
   };
 
@@ -802,7 +819,7 @@ export function Entradas() {
               onClick={handleOpenCreate}
               className="px-6 py-2 border border-black dark:border-white hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-colors text-sm font-medium text-gray-900 dark:text-white"
             >
-              + Nueva Entrada
+              + Nueva Orden
             </button>
           </div>
 
@@ -1078,7 +1095,13 @@ export function Entradas() {
                       {row.total_piezas.toLocaleString("es-MX")}
                     </span>
                   </div>
-                  {/* Fecha */}
+                  {/* Fecha de pedido */}
+                  <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
+                    <span className="text-gray-600 dark:text-gray-400 text-sm">
+                      {row.fecha_pedido ? formatDate(row.fecha_pedido) : "—"}
+                    </span>
+                  </div>
+                  {/* Fecha de llegada */}
                   <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
                     <span className="text-gray-600 dark:text-gray-400 text-sm">
                       {formatDate(row.fecha_movimiento)}
@@ -1166,7 +1189,7 @@ export function Entradas() {
                         handleOpenEdit(row.folio_orden);
                       }}
                       className="inline-flex items-center justify-center w-7 h-7 rounded text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors text-sm"
-                      title="Editar entrada"
+                      title="Editar orden"
                     >
                       ✏️
                     </button>
@@ -1176,7 +1199,7 @@ export function Entradas() {
                         setDeleteFolio(row.folio_orden);
                       }}
                       className="inline-flex items-center justify-center w-7 h-7 rounded text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-sm"
-                      title="Eliminar entrada"
+                      title="Eliminar orden"
                     >
                       🗑️
                     </button>
@@ -1390,7 +1413,7 @@ export function Entradas() {
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-xl font-robotoMedium text-gray-900 dark:text-white">
-                {editFolio ? "Editar Entrada" : "Nueva Entrada"}
+                {editFolio ? "Editar Orden" : "Nueva Orden"}
               </h2>
               <button
                 onClick={() => setCreateVisible(false)}
@@ -1411,19 +1434,38 @@ export function Entradas() {
                 </div>
               )}
 
-              {/* Folio */}
-              <div>
-                <label className="block text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-1.5">
-                  Folio / Nombre de la entrada{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={createFolio}
-                  onChange={(e) => setCreateFolio(e.target.value)}
-                  placeholder="Ej. CONT-2026-001"
-                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-                />
+              {/* Orden + Contenedores (tamaño) */}
+              <div className="grid grid-cols-[1fr_10rem] gap-4">
+                <div>
+                  <label className="block text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-1.5">
+                    Orden <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={createFolio}
+                    onChange={(e) => setCreateFolio(e.target.value)}
+                    placeholder="Ej. Contenedor MAD0301"
+                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-1.5">
+                    Contenedores
+                  </label>
+                  <input
+                    type="text"
+                    list="tamano-options"
+                    value={createTamano}
+                    onChange={(e) => setCreateTamano(e.target.value.toUpperCase())}
+                    placeholder="Ej. 1X40"
+                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+                  />
+                  <datalist id="tamano-options">
+                    {TAMANO_OPTIONS.map((t) => (
+                      <option key={t} value={t} />
+                    ))}
+                  </datalist>
+                </div>
               </div>
 
               {/* Fechas */}
@@ -1555,10 +1597,10 @@ export function Entradas() {
           <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md shadow-2xl">
             <div className="px-6 py-5">
               <h2 className="text-lg font-robotoMedium text-gray-900 dark:text-white">
-                Eliminar entrada
+                Eliminar orden
               </h2>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                ¿Seguro que deseas eliminar la entrada{" "}
+                ¿Seguro que deseas eliminar la orden{" "}
                 <span className="font-semibold text-gray-900 dark:text-white">
                   {deleteFolio}
                 </span>{" "}
