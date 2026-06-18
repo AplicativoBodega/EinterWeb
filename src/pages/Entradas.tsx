@@ -21,6 +21,9 @@ interface ContenedorRow {
   pdf_filename?: string | null;
   pdf_uploaded_at?: string | null;
   status_envio?: StatusEnvio | null;
+  // computed client-side from folio_orden
+  orden: string;
+  contenedores: string;
 }
 
 interface ContenedoresResponse {
@@ -66,7 +69,8 @@ type SortDir = "asc" | "desc";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TABLE_GRID = "minmax(0,2fr) minmax(0,1.5fr) minmax(0,3fr) 6rem 8rem 7rem 9rem";
+const TABLE_GRID =
+  "minmax(0,1.7fr) minmax(0,1.2fr) minmax(0,2.6fr) 5rem 7rem 6.5rem 8.5rem 5.5rem";
 
 const STATUS_COLORS: Record<StatusEnvio, string> = {
   pendiente:   "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
@@ -983,9 +987,14 @@ export function Entradas() {
                 Factura
               </span>
             </div>
-            <div className="py-4 px-3 flex items-center justify-center">
+            <div className="py-4 px-3 flex items-center justify-center border-r border-gray-400 dark:border-gray-600">
               <span className="font-robotoMedium text-gray-900 dark:text-white text-sm">
                 Status Envío
+              </span>
+            </div>
+            <div className="py-4 px-3 flex items-center justify-center">
+              <span className="font-robotoMedium text-gray-900 dark:text-white text-sm">
+                Acciones
               </span>
             </div>
           </div>
@@ -1119,7 +1128,7 @@ export function Entradas() {
                     )}
                   </div>
                   <div
-                    className="py-3 px-3 flex items-center justify-center"
+                    className="py-3 px-3 flex items-center justify-center border-r border-gray-200 dark:border-gray-600"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {updatingStatuses.has(row.folio_orden) ? (
@@ -1145,6 +1154,32 @@ export function Entradas() {
                         </select>
                       );
                     })()}
+                  </div>
+                  {/* Acciones */}
+                  <div
+                    className="py-3 px-2 flex items-center justify-center gap-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenEdit(row.folio_orden);
+                      }}
+                      className="inline-flex items-center justify-center w-7 h-7 rounded text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors text-sm"
+                      title="Editar entrada"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteFolio(row.folio_orden);
+                      }}
+                      className="inline-flex items-center justify-center w-7 h-7 rounded text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-sm"
+                      title="Eliminar entrada"
+                    >
+                      🗑️
+                    </button>
                   </div>
                 </div>
               ))
