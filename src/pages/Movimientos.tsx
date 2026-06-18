@@ -4,8 +4,6 @@ import { fetchAPI } from "../lib/fetch";
 import type { Movement as Movimiento } from "../lib/types";
 import { ColumnFilter, distinctValues } from "../components/ColumnFilter";
 
-// Per-column value accessors (display string) used for both the distinct value
-// lists of the Excel-style filters and the filtering itself.
 const COL_ACCESSORS: Record<string, (m: Movimiento) => string> = {
   nombre: (m) => m.nombre_usuario || "",
   from: (m) => String(m.id_ubicacion_origen || ""),
@@ -26,9 +24,6 @@ const COLUMN_DEFS: { key: string; label: string }[] = [
   { key: "date", label: "Fecha" },
 ];
 
-// Shared column widths so the header and every data row line up exactly,
-// using minmax(0,…) so long values clip instead of pushing columns out of
-// alignment (avoids the flexbox min-width:auto problem).
 const TABLE_GRID_COLUMNS =
   "minmax(0,1.5fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.5fr) minmax(0,1.5fr) minmax(0,1fr) minmax(0,1.2fr)";
 
