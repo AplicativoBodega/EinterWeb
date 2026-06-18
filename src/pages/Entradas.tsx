@@ -7,7 +7,8 @@ import { ColumnFilter, distinctValues } from "../components/ColumnFilter";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-// One row per entrada (grouped by folio_orden on the backend).
+type StatusEnvio = 'pendiente' | 'en_transito' | 'entregado' | 'cancelado';
+
 interface ContenedorRow {
   folio_orden: string;
   fecha_movimiento: string;
@@ -19,9 +20,7 @@ interface ContenedorRow {
   productos: string | null;
   pdf_filename?: string | null;
   pdf_uploaded_at?: string | null;
-  // computed client-side from folio_orden
-  orden: string;
-  contenedores: string;
+  status_envio?: StatusEnvio | null;
 }
 
 interface ContenedoresResponse {
@@ -67,8 +66,14 @@ type SortDir = "asc" | "desc";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TABLE_GRID =
-  "minmax(0,1.6fr) minmax(0,1.1fr) minmax(0,3fr) 5rem 7rem 7rem 6rem";
+const TABLE_GRID = "minmax(0,2fr) minmax(0,1.5fr) minmax(0,3fr) 6rem 8rem 7rem 9rem";
+
+const STATUS_COLORS: Record<StatusEnvio, string> = {
+  pendiente:   "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
+  en_transito: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+  entregado:   "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
+  cancelado:   "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+};
 const DETAIL_GRID = "minmax(0,1.5fr) minmax(0,3fr) 6rem";
 const LIMIT = 25;
 
@@ -359,6 +364,10 @@ export function Entradas() {
   const [uploadingFolio, setUploadingFolio] = useState<string | null>(null);
   const [selectedFolio, setSelectedFolio] = useState<string | null>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
+
+  // Status envío state
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, StatusEnvio>>({});
+  const [updatingStatuses, setUpdatingStatuses] = useState<Set<string>>(new Set());
 
   // Auto-dismiss toast after 3.5 s
   useEffect(() => {
@@ -696,6 +705,30 @@ export function Entradas() {
     }
   };
 
+  const handleStatusChange = async (folio: string, newStatus: StatusEnvio) => {
+    const prevStatus =
+      statusOverrides[folio] ??
+      data.find((r) => r.folio_orden === folio)?.status_envio ??
+      'pendiente';
+    setStatusOverrides((prev) => ({ ...prev, [folio]: newStatus }));
+    setUpdatingStatuses((prev) => new Set([...prev, folio]));
+    try {
+      await fetchAPI(`/api/contenedores/${encodeURIComponent(folio)}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status_envio: newStatus }),
+      });
+    } catch (err) {
+      setStatusOverrides((prev) => ({ ...prev, [folio]: prevStatus as StatusEnvio }));
+      setToast({ ok: false, text: `Error al actualizar status: ${(err as Error).message}` });
+    } finally {
+      setUpdatingStatuses((prev) => {
+        const next = new Set(prev);
+        next.delete(folio);
+        return next;
+      });
+    }
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   const COL_ACCESSORS: Record<string, (r: ContenedorRow) => string> = {
@@ -952,7 +985,7 @@ export function Entradas() {
             </div>
             <div className="py-4 px-3 flex items-center justify-center">
               <span className="font-robotoMedium text-gray-900 dark:text-white text-sm">
-                Acciones
+                Status Envío
               </span>
             </div>
           </div>
@@ -1044,7 +1077,7 @@ export function Entradas() {
                   </div>
                   {/* Factura */}
                   <div
-                    className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center gap-1"
+                    className="py-3 px-3 flex items-center justify-center gap-1 border-r border-gray-200 dark:border-gray-600"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {uploadingFolio === row.folio_orden ? (
@@ -1085,31 +1118,33 @@ export function Entradas() {
                       </button>
                     )}
                   </div>
-                  {/* Acciones */}
                   <div
-                    className="py-3 px-2 flex items-center justify-center gap-1"
+                    className="py-3 px-3 flex items-center justify-center"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenEdit(row.folio_orden);
-                      }}
-                      className="inline-flex items-center justify-center w-7 h-7 rounded text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors text-sm"
-                      title="Editar entrada"
-                    >
-                      ✏️
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteFolio(row.folio_orden);
-                      }}
-                      className="inline-flex items-center justify-center w-7 h-7 rounded text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-sm"
-                      title="Eliminar entrada"
-                    >
-                      🗑️
-                    </button>
+                    {updatingStatuses.has(row.folio_orden) ? (
+                      <span className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin inline-block" />
+                    ) : (() => {
+                      const status: StatusEnvio =
+                        statusOverrides[row.folio_orden] ??
+                        row.status_envio ??
+                        'pendiente';
+                      return (
+                        <select
+                          value={status}
+                          onChange={(e) =>
+                            handleStatusChange(row.folio_orden, e.target.value as StatusEnvio)
+                          }
+                          onClick={(e) => e.stopPropagation()}
+                          className={`text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 ${STATUS_COLORS[status]}`}
+                        >
+                          <option value="pendiente">Pendiente</option>
+                          <option value="en_transito">En tránsito</option>
+                          <option value="entregado">Entregado</option>
+                          <option value="cancelado">Cancelado</option>
+                        </select>
+                      );
+                    })()}
                   </div>
                 </div>
               ))
