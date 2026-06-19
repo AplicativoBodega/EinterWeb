@@ -555,7 +555,7 @@ function OrdenModal({ orden, onClose, modalData, modalLoading, modalError }: Ord
                       <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center">
                         <span
                           className="text-gray-900 dark:text-gray-100 text-sm truncate"
-                          title={row.descripcion}
+                          title={row.descripcion ?? undefined}
                         >
                           {row.descripcion}
                         </span>
@@ -1367,7 +1367,7 @@ export function THDComparativo() {
                       <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center">
                         <span
                           className="text-gray-900 dark:text-gray-100 text-sm truncate"
-                          title={row.descripcion}
+                          title={row.descripcion ?? undefined}
                         >
                           {row.descripcion}
                         </span>
