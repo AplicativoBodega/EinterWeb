@@ -17,7 +17,9 @@
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(Sort-Object)",
       "Bash(Get-ChildItem -Path \"D:\\\\1.SQM\\\\3.PERSONAL\\\\EINTER\\\\CODE\\\\EinterWeb\" -Recurse -Directory)",
-      "Bash(Remove-Item *)"
+      "Bash(Remove-Item *)",
+      "PowerShell(npx tsc --noEmit --project \"D:\\\\1.SQM\\\\3.PERSONAL\\\\EINTER\\\\CODE\\\\EinterAPI\\\\tsconfig.json\" 2>&1)",
+      "PowerShell(npx tsc --noEmit --project \"D:\\\\1.SQM\\\\3.PERSONAL\\\\EINTER\\\\CODE\\\\EinterWeb\\\\EinterWeb\\\\tsconfig.json\" 2>&1)"
     ]
   }
 }
