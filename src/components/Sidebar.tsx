@@ -21,7 +21,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
     { id: "movimientos", label: "Movimientos", icon: "🔄" },
     { id: "entradas", label: "Entradas", icon: "🧾" },
     { id: "salidas", label: "Salidas", icon: "💰" },
-    { id: "ventas-homedepot", label: "Salidas HD", icon: "🏬" },
+    { id: "ventas-homedepot", label: "Ventas HD", icon: "🏬" },
     { id: "thd-comparativo", label: "THD Comparativo", icon: "📊" },
     { id: "inventario-inteligente", label: "Inv. Inteligente", icon: "🧠" },
     { id: "pedido-personalizado", label: "Pedido Custom", icon: "📦" },

@@ -163,25 +163,25 @@ function EditModal({ celda, onClose, onSave }: EditModalProps) {
   );
 }
 
-// ─── Nueva-venta modal ────────────────────────────────────────────────────────
+// ─── Nueva-semana modal ───────────────────────────────────────────────────────
 
-interface NuevaVentaModalProps {
+interface FilaVenta {
+  mod: number;
+  sku: string;
+  descripcion: string;
+  cantidad: number;
+  importe: number;
+}
+
+interface NuevaSemanaModalProps {
   anio: number;
   semanas: Semana[];
   productos: Producto[];
   onClose: () => void;
-  onSave: (data: {
-    semana_num: number;
-    semana_label: string;
-    mod: number;
-    sku: string;
-    descripcion: string;
-    cantidad: number;
-    importe: number;
-  }) => Promise<void>;
+  onSave: (semana_num: number, semana_label: string, filas: FilaVenta[]) => Promise<void>;
 }
 
-function NuevaVentaModal({ anio, semanas, productos, onClose, onSave }: NuevaVentaModalProps) {
+function NuevaSemanaModal({ anio, semanas, productos, onClose, onSave }: NuevaSemanaModalProps) {
   const [semanaMode, setSemanaMode] = useState<"existente" | "nueva">(
     semanas.length > 0 ? "existente" : "nueva"
   );
@@ -189,15 +189,36 @@ function NuevaVentaModal({ anio, semanas, productos, onClose, onSave }: NuevaVen
     semanas.length > 0 ? String(semanas[semanas.length - 1].semana_num) : ""
   );
   const [nuevaSemanaNum, setNuevaSemanaNum] = useState("");
-  const [modSeleccionado, setModSeleccionado] = useState<string>(
-    productos.length > 0 ? String(productos[0].mod) : ""
-  );
-  const [cantidad, setCantidad] = useState("0");
-  const [importe, setImporte] = useState("0");
+  // valores por MOD: { cantidad, importe } como strings de input
+  const [valores, setValores] = useState<Record<number, { cantidad: string; importe: string }>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const productoActual = productos.find((p) => p.mod === Number(modSeleccionado));
+  // Precarga los campos con todos los modelos existentes.
+  // Si se elige una semana existente, rellena con sus ventas actuales (edición masiva).
+  useEffect(() => {
+    const init: Record<number, { cantidad: string; importe: string }> = {};
+    const num = semanaMode === "existente" ? Number(semanaSeleccionada) : NaN;
+    productos.forEach((p) => {
+      const v = !isNaN(num) ? p.ventas[num] : undefined;
+      init[p.mod] = {
+        cantidad: v ? String(v.cantidad) : "",
+        importe: v ? String(v.importe) : "",
+      };
+    });
+    setValores(init);
+  }, [semanaMode, semanaSeleccionada, productos]);
+
+  const setCampo = (mod: number, campo: "cantidad" | "importe", valor: string) => {
+    setValores((prev) => ({ ...prev, [mod]: { ...prev[mod], [campo]: valor } }));
+  };
+
+  // Resumen en vivo
+  const totalPzas = productos.reduce((s, p) => s + (Number(valores[p.mod]?.cantidad) || 0), 0);
+  const totalImp = productos.reduce((s, p) => s + (Number(valores[p.mod]?.importe) || 0), 0);
+  const conVenta = productos.filter(
+    (p) => (Number(valores[p.mod]?.cantidad) || 0) > 0 || (Number(valores[p.mod]?.importe) || 0) > 0
+  ).length;
 
   const handleSave = async () => {
     let semana_num: number;
@@ -213,28 +234,28 @@ function NuevaVentaModal({ anio, semanas, productos, onClose, onSave }: NuevaVen
       if (!nuevaSemanaNum || isNaN(semana_num) || semana_num < 1 || semana_num > 53) {
         setError("Número de semana inválido (1–53)"); return;
       }
+      if (semanas.some((s) => s.semana_num === semana_num)) {
+        setError(`La semana ${semana_num} ya existe`); return;
+      }
       semana_label = generarSemanaLabel(anio, semana_num);
     }
 
-    if (!productoActual) { setError("Selecciona un producto"); return; }
+    const filas: FilaVenta[] = productos
+      .map((p) => {
+        const v = valores[p.mod] ?? { cantidad: "", importe: "" };
+        const c = Number(v.cantidad) || 0;
+        const i = Number(v.importe) || 0;
+        if (c < 0 || i < 0) return null;
+        return { mod: p.mod, sku: p.sku, descripcion: p.descripcion, cantidad: c, importe: i };
+      })
+      .filter((f): f is FilaVenta => f !== null && (f.cantidad > 0 || f.importe > 0));
 
-    const c = Number(cantidad);
-    const i = Number(importe);
-    if (isNaN(c) || c < 0) { setError("Cantidad inválida"); return; }
-    if (isNaN(i) || i < 0) { setError("Importe inválido"); return; }
+    if (filas.length === 0) { setError("Ingresa al menos una venta"); return; }
 
     setSaving(true);
     setError(null);
     try {
-      await onSave({
-        semana_num,
-        semana_label,
-        mod: productoActual.mod,
-        sku: productoActual.sku,
-        descripcion: productoActual.descripcion,
-        cantidad: c,
-        importe: i,
-      });
+      await onSave(semana_num, semana_label, filas);
       onClose();
     } catch (err) {
       setError((err as Error).message);
@@ -244,25 +265,26 @@ function NuevaVentaModal({ anio, semanas, productos, onClose, onSave }: NuevaVen
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-          Nueva venta — {anio}
-        </h3>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
-          Registra la venta de un producto para una semana específica.
-        </p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="p-6 pb-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+            Nueva semana — {anio}
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Captura la venta de cada modelo para la semana. Los modelos sin venta se omiten.
+          </p>
 
-        <div className="space-y-4">
           {/* Semana */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Semana</label>
-            <div className="flex rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600 mb-3">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Semana</label>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600">
               {semanas.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setSemanaMode("existente")}
-                  className={`flex-1 px-3 py-1.5 text-sm font-medium transition-colors ${
+                  className={`px-3 py-1.5 text-sm font-medium transition-colors ${
                     semanaMode === "existente"
                       ? "bg-blue-600 text-white"
                       : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -274,7 +296,7 @@ function NuevaVentaModal({ anio, semanas, productos, onClose, onSave }: NuevaVen
               <button
                 type="button"
                 onClick={() => setSemanaMode("nueva")}
-                className={`flex-1 px-3 py-1.5 text-sm font-medium transition-colors ${
+                className={`px-3 py-1.5 text-sm font-medium transition-colors ${
                   semanaMode === "nueva"
                     ? "bg-blue-600 text-white"
                     : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -288,7 +310,7 @@ function NuevaVentaModal({ anio, semanas, productos, onClose, onSave }: NuevaVen
               <select
                 value={semanaSeleccionada}
                 onChange={(e) => setSemanaSeleccionada(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               >
                 {semanas.map((s) => (
                   <option key={s.semana_num} value={s.semana_num}>
@@ -297,92 +319,104 @@ function NuevaVentaModal({ anio, semanas, productos, onClose, onSave }: NuevaVen
                 ))}
               </select>
             ) : (
-              <div className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <input
-                    type="number"
-                    min="1"
-                    max="53"
-                    placeholder="# semana"
-                    value={nuevaSemanaNum}
-                    onChange={(e) => setNuevaSemanaNum(e.target.value)}
-                    className="w-28 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  />
-                  {nuevaSemanaNum && !isNaN(Number(nuevaSemanaNum)) &&
-                   Number(nuevaSemanaNum) >= 1 && Number(nuevaSemanaNum) <= 53 && (
-                    <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                      {generarSemanaLabel(anio, Number(nuevaSemanaNum))}
-                    </span>
-                  )}
-                </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  min="1"
+                  max="53"
+                  placeholder="# semana"
+                  value={nuevaSemanaNum}
+                  onChange={(e) => setNuevaSemanaNum(e.target.value)}
+                  className="w-28 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+                {nuevaSemanaNum && !isNaN(Number(nuevaSemanaNum)) &&
+                 Number(nuevaSemanaNum) >= 1 && Number(nuevaSemanaNum) <= 53 && (
+                  <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                    {generarSemanaLabel(anio, Number(nuevaSemanaNum))}
+                  </span>
+                )}
               </div>
             )}
           </div>
-
-          {/* MOD */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">MOD</label>
-            <select
-              value={modSeleccionado}
-              onChange={(e) => setModSeleccionado(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            >
-              {productos.map((p) => (
-                <option key={p.mod} value={p.mod}>
-                  {p.mod} — {p.descripcion}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* SKU (autorrelleno) */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SKU</label>
-            <input
-              type="text"
-              readOnly
-              value={productoActual?.sku ?? ""}
-              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-100 dark:bg-gray-900 text-gray-500 dark:text-gray-400 text-sm cursor-default"
-            />
-          </div>
-
-          {/* Cantidad e Importe */}
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cantidad (pzas)</label>
-              <input
-                type="number"
-                min="0"
-                value={cantidad}
-                onChange={(e) => setCantidad(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Importe (MXN)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={importe}
-                onChange={(e) => setImporte(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              />
-            </div>
-          </div>
         </div>
 
-        {error && <p className="mt-3 text-sm text-red-500">{error}</p>}
+        {/* Lista de modelos */}
+        <div className="flex-1 overflow-auto">
+          {productos.length === 0 ? (
+            <p className="p-6 text-sm text-gray-500 dark:text-gray-400">
+              No hay modelos registrados todavía. Agrega ventas desde una celda de la matriz.
+            </p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-gray-50 dark:bg-gray-900 z-10">
+                <tr className="text-left text-xs text-gray-500 dark:text-gray-400">
+                  <th className="px-4 py-2 font-medium">MOD</th>
+                  <th className="px-4 py-2 font-medium">Descripción</th>
+                  <th className="px-4 py-2 font-medium w-32 text-center">Cantidad</th>
+                  <th className="px-4 py-2 font-medium w-36 text-center">Importe (MXN)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {productos.map((p, idx) => (
+                  <tr
+                    key={p.mod}
+                    className={idx % 2 === 0 ? "bg-white dark:bg-gray-800" : "bg-gray-50 dark:bg-gray-900/40"}
+                  >
+                    <td className="px-4 py-2 font-mono text-xs font-semibold text-gray-700 dark:text-gray-300 align-middle">
+                      {p.mod}
+                    </td>
+                    <td className="px-4 py-2 text-xs text-gray-700 dark:text-gray-300 align-middle">
+                      <span className="line-clamp-2" title={p.descripcion}>{p.descripcion}</span>
+                      <span className="block font-mono text-[10px] text-gray-400">{p.sku}</span>
+                    </td>
+                    <td className="px-4 py-2 align-middle">
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={valores[p.mod]?.cantidad ?? ""}
+                        onChange={(e) => setCampo(p.mod, "cantidad", e.target.value)}
+                        className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-center"
+                      />
+                    </td>
+                    <td className="px-4 py-2 align-middle">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={valores[p.mod]?.importe ?? ""}
+                        onChange={(e) => setCampo(p.mod, "importe", e.target.value)}
+                        className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-right"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
 
-        <div className="flex gap-3 mt-6">
-          <button onClick={onClose}
-            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium transition-colors">
-            Cancelar
-          </button>
-          <button onClick={handleSave} disabled={saving}
-            className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors">
-            {saving ? "Guardando…" : "Registrar venta"}
-          </button>
+        {/* Footer */}
+        <div className="p-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between gap-4 flex-wrap mb-4 text-sm">
+            <div className="flex gap-6 text-gray-500 dark:text-gray-400">
+              <span><span className="font-semibold text-gray-900 dark:text-white">{conVenta}</span> con venta</span>
+              <span>Pzas: <span className="font-semibold text-gray-900 dark:text-white">{totalPzas.toLocaleString("es-MX")}</span></span>
+              <span>Importe: <span className="font-semibold text-green-600 dark:text-green-400">{formatImporte(totalImp)}</span></span>
+            </div>
+            {error && <p className="text-sm text-red-500">{error}</p>}
+          </div>
+          <div className="flex gap-3">
+            <button onClick={onClose}
+              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium transition-colors">
+              Cancelar
+            </button>
+            <button onClick={handleSave} disabled={saving}
+              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors">
+              {saving ? "Guardando…" : "Guardar semana"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -402,7 +436,7 @@ export function VentasHomeDepot() {
   const [error, setError] = useState<string | null>(null);
 
   const [editCelda, setEditCelda] = useState<CeldaEditada | null>(null);
-  const [showNuevaVenta, setShowNuevaVenta] = useState(false);
+  const [showNuevaSemana, setShowNuevaSemana] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const msgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -469,22 +503,20 @@ export function VentasHomeDepot() {
     await fetchMatriz(anio);
   };
 
-  // ── Nueva venta ────────────────────────────────────────────────────────────
+  // ── Nueva semana (captura masiva) ────────────────────────────────────────────
 
-  const handleNuevaVenta = async (data: {
-    semana_num: number;
-    semana_label: string;
-    mod: number;
-    sku: string;
-    descripcion: string;
-    cantidad: number;
-    importe: number;
-  }) => {
-    await fetchAPI("/api/ventas-hd", {
-      method: "POST",
-      body: JSON.stringify({ anio, ...data }),
-    });
-    flashMsg("Venta registrada");
+  const handleNuevaSemana = async (
+    semana_num: number,
+    semana_label: string,
+    filas: FilaVenta[]
+  ) => {
+    for (const f of filas) {
+      await fetchAPI("/api/ventas-hd", {
+        method: "POST",
+        body: JSON.stringify({ anio, semana_num, semana_label, ...f }),
+      });
+    }
+    flashMsg(`Semana ${semana_num} guardada (${filas.length} ${filas.length === 1 ? "modelo" : "modelos"})`);
     await fetchMatriz(anio);
   };
 
@@ -789,7 +821,7 @@ export function VentasHomeDepot() {
       {/* ── Header ── */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Ventas Home Depot</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Ventas HD</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             Ventas semanales por producto — vista matricial
           </p>
@@ -818,10 +850,10 @@ export function VentasHomeDepot() {
           </div>
 
           <button
-            onClick={() => setShowNuevaVenta(true)}
+            onClick={() => setShowNuevaSemana(true)}
             className="px-4 py-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
           >
-            + Nueva venta
+            + Nueva semana
           </button>
 
           <button
@@ -1032,13 +1064,13 @@ export function VentasHomeDepot() {
         />
       )}
 
-      {showNuevaVenta && (
-        <NuevaVentaModal
+      {showNuevaSemana && (
+        <NuevaSemanaModal
           anio={anio}
           semanas={semanas}
           productos={productos}
-          onClose={() => setShowNuevaVenta(false)}
-          onSave={handleNuevaVenta}
+          onClose={() => setShowNuevaSemana(false)}
+          onSave={handleNuevaSemana}
         />
       )}
     </div>
