@@ -3,6 +3,7 @@ import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 
 export interface LineItem {
+  id_articulo?: number | null;
   master_sku: string | null;
   nombre_producto: string | null;
   cantidad: number;
@@ -21,6 +22,15 @@ export interface VentaDetail {
   lineItems: LineItem[];
 }
 
+interface VentaWebDetalleRow {
+  id_articulo: number | null;
+  master_sku: string | null;
+  nombre_producto: string | null;
+  cantidad: number;
+  precio_unitario: number;
+  subtotal: number;
+}
+
 interface VentaDetailModalProps {
   visible: boolean;
   venta: VentaDetail | null;
@@ -32,6 +42,7 @@ export function VentaDetailModal({ visible, venta, onClose }: VentaDetailModalPr
   const [lines, setLines] = useState<LineItem[]>([]);
   const [loadingLines, setLoadingLines] = useState(false);
   const [linesError, setLinesError] = useState<string | null>(null);
+  const [noLinesCaptured, setNoLinesCaptured] = useState(false);
 
   useEffect(() => {
     if (!visible || !venta) return;
@@ -39,22 +50,34 @@ export function VentaDetailModal({ visible, venta, onClose }: VentaDetailModalPr
     // If there are local line items, use them directly
     if (venta.lineItems && venta.lineItems.length > 0) {
       setLines(venta.lineItems);
+      setNoLinesCaptured(false);
       return;
     }
 
-    // Otherwise fetch from Odoo if we have an odoo_id
-    if (!venta.odoo_id) {
+    if (venta.id_orden == null || venta.id_orden === "") {
       setLines([]);
+      setNoLinesCaptured(true);
       return;
     }
 
     setLoadingLines(true);
     setLinesError(null);
+    setNoLinesCaptured(false);
     setLines([]);
 
-    fetchAPI(`/api/odoo/ventas/${venta.odoo_id}/lines`)
-      .then((res: any) => {
-        setLines(res.lines ?? []);
+    fetchAPI(`/api/ventas-web/${venta.id_orden}/detalle`)
+      .then((res: unknown) => {
+        const rows = (Array.isArray(res) ? res : []) as VentaWebDetalleRow[];
+        const mapped: LineItem[] = rows.map((row) => ({
+          id_articulo: row.id_articulo,
+          master_sku: row.master_sku,
+          nombre_producto: row.nombre_producto,
+          cantidad: row.cantidad,
+          precio: row.precio_unitario,
+          subtotal: row.subtotal,
+        }));
+        setLines(mapped);
+        setNoLinesCaptured(mapped.length === 0);
       })
       .catch((err: Error) => {
         setLinesError(err.message);
@@ -114,15 +137,15 @@ export function VentaDetailModal({ visible, venta, onClose }: VentaDetailModalPr
           {loadingLines ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-              <p className="text-sm text-gray-500 dark:text-gray-400">Consultando productos en Odoo...</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Cargando productos...</p>
             </div>
           ) : linesError ? (
             <p className="text-center text-red-500 py-12 text-sm">
               Error al cargar productos: {linesError}
             </p>
-          ) : lines.length === 0 ? (
+          ) : noLinesCaptured || lines.length === 0 ? (
             <p className="text-center text-gray-400 dark:text-gray-500 py-12 text-sm">
-              Esta orden no tiene productos en Odoo.
+              Esta orden aún no tiene productos capturados.
             </p>
           ) : (
             <table className="w-full text-sm">

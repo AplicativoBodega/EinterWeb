@@ -19,7 +19,9 @@
       "Bash(Get-ChildItem -Path \"D:\\\\1.SQM\\\\3.PERSONAL\\\\EINTER\\\\CODE\\\\EinterWeb\" -Recurse -Directory)",
       "Bash(Remove-Item *)",
       "PowerShell(npx tsc --noEmit --project \"D:\\\\1.SQM\\\\3.PERSONAL\\\\EINTER\\\\CODE\\\\EinterAPI\\\\tsconfig.json\" 2>&1)",
-      "PowerShell(npx tsc --noEmit --project \"D:\\\\1.SQM\\\\3.PERSONAL\\\\EINTER\\\\CODE\\\\EinterWeb\\\\EinterWeb\\\\tsconfig.json\" 2>&1)"
+      "PowerShell(npx tsc --noEmit --project \"D:\\\\1.SQM\\\\3.PERSONAL\\\\EINTER\\\\CODE\\\\EinterWeb\\\\EinterWeb\\\\tsconfig.json\" 2>&1)",
+      "Bash(grep -rn \"odoo/ventas\" src --include=\"*.tsx\" --include=\"*.ts\")",
+      "Bash(grep -rn \"api/odoo\" src --include=\"*.tsx\" --include=\"*.ts\")"
     ]
   }
 }
