@@ -9,7 +9,13 @@ type Product = {
   children?: Product[];
 };
 
-const sampleData: { id: string; name: string; products: Product[] }[] = [
+type Ubicacion = {
+  id: string;
+  name: string;
+  products: Product[];
+};
+
+const sampleData: Ubicacion[] = [
   {
     id: "b1",
     name: "Bodega 1",
@@ -36,178 +42,205 @@ const sampleData: { id: string; name: string; products: Product[] }[] = [
   { id: "b4", name: "Bodega 4", products: [] },
 ];
 
-interface AccordionItemProps {
-  title: string;
-  products: Product[];
-  open: boolean;
-}
-
-const AccordionItem: React.FC<AccordionItemProps> = ({
-  title,
-  products,
-  open,
-}) => {
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-      {/* Header de la bodega */}
-      <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-        <h3 className="text-lg font-medium text-gray-800 dark:text-white">{title}</h3>
-      </div>
-
-      {open && (
-        <div className="p-6">
-          {/* Header de la tabla con diseño más limpio */}
-          <div className="flex flex-row [&>*]:min-w-0 border-b border-gray-200 dark:border-gray-700 pb-3 mb-4">
-            <h4 className="w-2/5 text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
-              Producto
-            </h4>
-            <p className="w-1/5 text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
-              SKU
-            </p>
-            <p className="w-1/5 text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
-              Stock
-            </p>
-            <p className="w-1/5 text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide text-right">
-              Acción
-            </p>
-          </div>
-
-          {/* Lista de productos expandida completamente */}
-          <div>
-            {products.length > 0 ? (
-              products.map((p, index) => (
-                <div
-                  key={p.id}
-                  className={`flex flex-row [&>*]:min-w-0 items-start py-4 ${
-                    index !== products.length - 1 ? "border-b border-gray-100 dark:border-gray-700" : ""
-                  }`}
-                >
-                  <div className="w-2/5 pr-4">
-                    <p className="text-base font-medium text-gray-900 dark:text-white mb-1">
-                      {p.name}
-                    </p>
-                    {p.children && (
-                      <div className="ml-4 mt-2 space-y-1">
-                        {p.children.map((c) => (
-                          <p key={c.id} className="text-sm text-gray-600 dark:text-gray-400">
-                            ↳ {c.name}
-                          </p>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <p className="w-1/5 text-base text-gray-700 dark:text-gray-300">{p.sku}</p>
-                  <p className="w-1/5 text-base font-medium text-gray-900 dark:text-white">
-                    {p.existencia}
-                  </p>
-                  <div className="w-1/5 flex flex-row justify-end">
-                    <button className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded hover:border-black dark:hover:border-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                      <span className="text-base">🖨️</span>
-                    </button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="py-8 text-center">
-                <p className="text-gray-500 dark:text-gray-400 italic">
-                  No hay productos en esta bodega
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-interface AddLocationModalProps {
+interface UbicacionModalProps {
   visible: boolean;
+  ubicacion: { id: string; name: string } | null;
+  mode: "create" | "edit";
   onClose: () => void;
-  onAdd: (name: string, description: string) => void;
+  onSave: (data: { id?: string; name: string }) => void;
 }
 
-const AddLocationModal: React.FC<AddLocationModalProps> = ({
+const UbicacionModal: React.FC<UbicacionModalProps> = ({
   visible,
+  ubicacion,
+  mode,
   onClose,
-  onAdd,
+  onSave,
 }) => {
-  const [name, setName] = useState("");
-  const [desc, setDesc] = useState("");
+  const [name, setName] = useState(ubicacion?.name ?? "");
+  const [error, setError] = useState<string | null>(null);
 
-  const handleAdd = () => {
-    if (name.trim() === "") return;
-    onAdd(name.trim(), desc.trim());
-    setName("");
-    setDesc("");
+  React.useEffect(() => {
+    setName(ubicacion?.name ?? "");
+    setError(null);
+  }, [ubicacion, visible]);
+
+  const handleSave = () => {
+    if (!name.trim()) {
+      setError("El nombre es obligatorio");
+      return;
+    }
+    onSave({ ...(mode === "edit" && ubicacion ? { id: ubicacion.id } : {}), name: name.trim() });
+    onClose();
   };
 
   if (!visible) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex justify-center items-center p-4 z-50">
-      <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-        {/* Header del modal */}
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
-          <div className="flex flex-row justify-between items-center">
-            <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-              Agregar Ubicación
-            </h2>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-600 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-500"
-            >
-              <span className="text-gray-600 dark:text-white text-lg">×</span>
-            </button>
+      <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md">
+        <div className="flex flex-row items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-xl font-robotoMedium text-gray-800 dark:text-white">
+            {mode === "create" ? "Nueva Ubicación" : "Editar Ubicación"}
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
+          >
+            <span className="text-gray-500 dark:text-gray-400 text-xl">✕</span>
+          </button>
+        </div>
+
+        <div className="px-6 py-4">
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 dark:bg-red-900 border border-red-300 dark:border-red-700 rounded-lg">
+              <p className="text-red-700 dark:text-red-200 text-sm">{error}</p>
+            </div>
+          )}
+          <div className="mb-4">
+            <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
+              Nombre de Ubicación
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSave()}
+              placeholder="Nombre de la ubicación"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
         </div>
 
-        {/* Contenido del modal */}
-        <div className="p-6">
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
-                Nombre
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ingrese el nombre de la ubicación"
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:border-black dark:focus:border-white focus:outline-none"
-              />
+        <div className="flex flex-row items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
+            <span className="text-gray-700 dark:text-gray-300 font-robotoMedium">Cancelar</span>
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-700"
+          >
+            <span className="text-white font-robotoMedium">
+              {mode === "create" ? "Crear" : "Guardar"}
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface DeleteConfirmModalProps {
+  visible: boolean;
+  ubicacion: { id: string; name: string } | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
+  visible,
+  ubicacion,
+  onConfirm,
+  onCancel,
+}) => {
+  if (!visible) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex justify-center items-center p-4 z-50">
+      <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md">
+        <div className="flex flex-row items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-xl font-robotoMedium text-gray-800 dark:text-white">
+            Eliminar Ubicación
+          </h2>
+          <button
+            onClick={onCancel}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
+          >
+            <span className="text-gray-500 dark:text-gray-400 text-xl">✕</span>
+          </button>
+        </div>
+        <div className="px-6 py-4">
+          <p className="text-gray-700 dark:text-gray-300">
+            ¿Estás seguro de que deseas eliminar la ubicación "{ubicacion?.name}"?
+          </p>
+        </div>
+        <div className="flex flex-row items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
+            <span className="text-gray-700 dark:text-gray-300 font-robotoMedium">Cancelar</span>
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-6 py-2 rounded-lg bg-red-600 hover:bg-red-700"
+          >
+            <span className="text-white font-robotoMedium">Eliminar</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const DetailPanel: React.FC<{ ubicacion: Ubicacion }> = ({ ubicacion }) => {
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+        <h3 className="text-lg font-medium text-gray-800 dark:text-white">{ubicacion.name}</h3>
+      </div>
+
+      <div className="p-6">
+        <div className="overflow-x-auto">
+          {ubicacion.products.length > 0 ? (
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b-2 border-gray-300 dark:border-gray-600">
+                  <th className="text-left px-4 py-3 font-semibold text-black dark:text-white text-sm">Producto</th>
+                  <th className="text-left px-4 py-3 font-semibold text-black dark:text-white text-sm">SKU</th>
+                  <th className="text-left px-4 py-3 font-semibold text-black dark:text-white text-sm">Stock</th>
+                  <th className="text-right px-4 py-3 font-semibold text-black dark:text-white text-sm">Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ubicacion.products.map((p, index) => (
+                  <tr
+                    key={p.id}
+                    className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <td className="px-4 py-4 text-black dark:text-white">
+                      <p className="font-medium">{p.name}</p>
+                      {p.children && (
+                        <div className="ml-4 mt-1 space-y-0.5">
+                          {p.children.map((c) => (
+                            <p key={c.id} className="text-sm text-gray-500 dark:text-gray-400">
+                              ↳ {c.name}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 text-gray-700 dark:text-gray-300">{p.sku}</td>
+                    <td className="px-4 py-4 font-medium text-gray-900 dark:text-white">{p.existencia}</td>
+                    <td className="px-4 py-4 text-right">
+                      <button className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded hover:border-black dark:hover:border-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                        <span className="text-sm">🖨️</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="py-8 text-center">
+              <p className="text-gray-500 dark:text-gray-400 italic">
+                No hay productos en esta ubicación
+              </p>
             </div>
-
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
-                Descripción
-              </label>
-              <textarea
-                value={desc}
-                onChange={(e) => setDesc(e.target.value)}
-                placeholder="Descripción opcional"
-                rows={3}
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:border-black dark:focus:border-white focus:outline-none resize-none"
-              />
-            </div>
-          </div>
-
-          {/* Botones del modal */}
-          <div className="flex flex-row justify-end gap-3 mt-6">
-            <button
-              onClick={onClose}
-              className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium"
-            >
-              Cancelar
-            </button>
-
-            <button
-              onClick={handleAdd}
-              className="px-6 py-2 bg-black dark:bg-white rounded hover:bg-gray-800 dark:hover:bg-gray-100 text-white dark:text-black font-medium"
-            >
-              Agregar
-            </button>
-          </div>
+          )}
         </div>
       </div>
     </div>
@@ -216,114 +249,181 @@ const AddLocationModal: React.FC<AddLocationModalProps> = ({
 
 export function Ubicaciones() {
   useDarkMode();
-  const [data, setData] = useState(sampleData);
+  const [data, setData] = useState<Ubicacion[]>(sampleData);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
-  const [dropdownVisible, setDropdownVisible] = useState(false);
+  const [editingUbicacion, setEditingUbicacion] = useState<{ id: string; name: string } | null>(null);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [ubicacionToDelete, setUbicacionToDelete] = useState<{ id: string; name: string } | null>(null);
 
-  const handleAddLocation = (name: string) => {
-    const newItem = { id: `b-${Date.now()}`, name, products: [] };
-    setData((d) => [newItem, ...d]);
-    setModalVisible(false);
+  const openCreateModal = () => {
+    setEditingUbicacion(null);
+    setModalVisible(true);
   };
 
-  const handleBodegaSelect = (bodegaId: string) => {
-    setSelectedId(bodegaId || null);
-    setDropdownVisible(false);
+  const openEditModal = (ubicacion: { id: string; name: string }) => {
+    setEditingUbicacion(ubicacion);
+    setModalVisible(true);
   };
+
+  const handleSave = (saveData: { id?: string; name: string }) => {
+    if (saveData.id) {
+      setData((prev) =>
+        prev.map((u) => (u.id === saveData.id ? { ...u, name: saveData.name } : u))
+      );
+    } else {
+      const newItem: Ubicacion = { id: `u-${Date.now()}`, name: saveData.name, products: [] };
+      setData((prev) => [newItem, ...prev]);
+    }
+  };
+
+  const openDeleteModal = (ubicacion: { id: string; name: string }) => {
+    setUbicacionToDelete(ubicacion);
+    setDeleteModalVisible(true);
+  };
+
+  const handleDelete = () => {
+    if (!ubicacionToDelete) return;
+    setData((prev) => prev.filter((u) => u.id !== ubicacionToDelete.id));
+    if (selectedId === ubicacionToDelete.id) setSelectedId(null);
+    setDeleteModalVisible(false);
+    setUbicacionToDelete(null);
+  };
+
+  const filtered = data.filter((u) =>
+    u.name.toLowerCase().includes(search.trim().toLowerCase())
+  );
+
+  const selectedUbicacion = data.find((u) => u.id === selectedId) ?? null;
 
   return (
-    <div className="flex-1 bg-gray-50 dark:bg-gray-900 min-h-screen overflow-auto">
+    <div className="flex-1 bg-gray-50 dark:bg-gray-900 h-screen flex flex-col overflow-hidden">
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-6">
         <div className="flex flex-row justify-between items-center">
-          <h1 className="text-3xl font-bold tracking-wide text-gray-900 dark:text-white">Ubicaciones</h1>
+          <h1 className="text-3xl font-bold tracking-wide text-gray-900 dark:text-white">
+            Ubicaciones
+          </h1>
           <button
-            onClick={() => setModalVisible(true)}
-            className="px-6 py-2 border border-black dark:border-white hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-colors text-sm font-medium text-gray-900 dark:text-white"
+            onClick={openCreateModal}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-robotoMedium transition-colors"
           >
-            + Agregar Ubicación
+            + Nueva Ubicación
           </button>
         </div>
       </div>
 
-      {/* Área de selección con espaciado mejorado */}
-      <div className="bg-white dark:bg-gray-800 mx-8 mt-6 rounded-lg border border-gray-200 dark:border-gray-700">
-        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">
-            SELECCIONAR BODEGA
-          </p>
-          <button
-            onClick={() => setDropdownVisible(!dropdownVisible)}
-            className="w-full flex flex-row items-center justify-between px-4 py-3 border border-gray-300 dark:border-gray-600 rounded hover:border-black dark:hover:border-white transition-colors bg-white dark:bg-gray-700"
-          >
-            <span
-              className={`text-base ${
-                selectedId 
-                  ? "text-black dark:text-white font-medium" 
-                  : "text-gray-500 dark:text-gray-400"
-              }`}
-            >
-              {selectedId
-                ? data.find((b) => b.id === selectedId)?.name
-                : "Seleccione una bodega para visualizar"}
-            </span>
-            <span className="text-lg text-gray-400 dark:text-gray-500">
-              {dropdownVisible ? "×" : "⌄"}
-            </span>
-          </button>
-
-          {/* Dropdown mejorado */}
-          {dropdownVisible && (
-            <div className="mt-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-700">
-              {data.map((bodega, index) => (
-                <button
-                  key={bodega.id}
-                  onClick={() => handleBodegaSelect(bodega.id)}
-                  className={`w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-600 text-base text-gray-700 dark:text-gray-200 ${
-                    index !== data.length - 1 ? "border-b border-gray-100 dark:border-gray-700" : ""
-                  }`}
-                >
-                  {bodega.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Contenido principal con scroll de página completa */}
-      <div className="flex-1 px-8 py-6 overflow-y-auto">
-        {selectedId ? (
-          data
-            .filter((d) => d.id === selectedId)
-            .map((b) => (
-              <AccordionItem
-                key={b.id}
-                title={b.name}
-                products={b.products}
-                open={true}
+      {/* Layout maestro-detalle */}
+      <div className="flex-1 flex flex-col md:flex-row gap-6 px-8 py-6 overflow-hidden">
+        {/* Panel izquierdo: lista de ubicaciones */}
+        <aside className="md:w-80 shrink-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+            <div className="relative">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar ubicación..."
+                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-            ))
-        ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
-            <div className="max-w-md mx-auto">
-              <h2 className="text-xl font-light text-gray-600 dark:text-gray-400 mb-4">
-                Ninguna bodega seleccionada
-              </h2>
-              <p className="text-base text-gray-500 dark:text-gray-500 leading-relaxed">
-                Selecciona una bodega del menú desplegable superior para
-                visualizar su inventario y ubicaciones.
-              </p>
+              <span className="absolute left-3 top-2.5 text-gray-400 text-sm pointer-events-none">
+                🔍
+              </span>
             </div>
           </div>
-        )}
+
+          <div className="flex-1 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
+                No hay ubicaciones
+              </p>
+            ) : (
+              filtered.map((ubicacion) => {
+                const active = selectedId === ubicacion.id;
+                return (
+                  <div
+                    key={ubicacion.id}
+                    onClick={() => setSelectedId(active ? null : ubicacion.id)}
+                    className={`group flex items-center justify-between px-4 py-3 cursor-pointer border-l-4 transition-colors ${
+                      active
+                        ? "border-blue-600 bg-blue-50 dark:bg-blue-900/30"
+                        : "border-transparent hover:bg-gray-50 dark:hover:bg-gray-700/60"
+                    }`}
+                  >
+                    <span
+                      className={`text-sm truncate ${
+                        active
+                          ? "text-blue-700 dark:text-blue-300 font-semibold"
+                          : "text-gray-700 dark:text-gray-200"
+                      }`}
+                    >
+                      {ubicacion.name}
+                    </span>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditModal(ubicacion);
+                        }}
+                        className="p-1 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                        title="Editar"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openDeleteModal(ubicacion);
+                        }}
+                        className="p-1 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                        title="Eliminar"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </aside>
+
+        {/* Panel derecho: detalle de ubicación */}
+        <section className="flex-1 overflow-y-auto">
+          {selectedUbicacion ? (
+            <DetailPanel ubicacion={selectedUbicacion} />
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center h-full flex items-center justify-center">
+              <div className="max-w-md mx-auto">
+                <h2 className="text-xl font-light text-gray-600 dark:text-gray-400 mb-4">
+                  Selecciona una ubicación
+                </h2>
+                <p className="text-base text-gray-500 dark:text-gray-500 leading-relaxed">
+                  Haz click en una ubicación de la lista para ver su inventario.
+                </p>
+              </div>
+            </div>
+          )}
+        </section>
       </div>
 
-      <AddLocationModal
+      <UbicacionModal
         visible={modalVisible}
+        ubicacion={editingUbicacion}
+        mode={editingUbicacion ? "edit" : "create"}
         onClose={() => setModalVisible(false)}
-        onAdd={handleAddLocation}
+        onSave={handleSave}
+      />
+
+      <DeleteConfirmModal
+        visible={deleteModalVisible}
+        ubicacion={ubicacionToDelete}
+        onConfirm={handleDelete}
+        onCancel={() => {
+          setDeleteModalVisible(false);
+          setUbicacionToDelete(null);
+        }}
       />
     </div>
   );
