@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
+import { useRefetchOnFocus } from "../hooks/useRefetchOnFocus";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -607,6 +608,8 @@ export function Salidas() {
   }, [filterYear, filterMonth]);
 
   useEffect(() => { fetchSalidas(); }, [fetchSalidas]);
+
+  useRefetchOnFocus(fetchSalidas);
 
   const filtered = salidas.filter((s) =>
     searchFolio === "" || s.numero_folio.includes(searchFolio.trim())

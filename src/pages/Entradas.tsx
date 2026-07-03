@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
+import { useRefetchOnFocus } from "../hooks/useRefetchOnFocus";
 import { auth } from "../lib/firebase";
 import { ColumnFilter, distinctValues } from "../components/ColumnFilter";
 import { SkuCombobox, type SkuOption } from "../components/SkuCombobox";
@@ -304,6 +305,8 @@ export function Entradas() {
       cancelled = true;
     };
   }, [anio, mes, retryCount]);
+
+  useRefetchOnFocus(useCallback(() => setRetryCount((c) => c + 1), []));
 
   // ── Filter handlers ──────────────────────────────────────────────────────
 

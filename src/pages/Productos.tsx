@@ -6,6 +6,7 @@ import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 import type { Product } from "../lib/types";
 import { ColumnFilter, distinctValues } from "../components/ColumnFilter";
+import { useRefetchOnFocus } from "../hooks/useRefetchOnFocus";
 
 const PAGE_SIZE = 20;
 const TABLE_GRID_COLUMNS =
@@ -33,6 +34,7 @@ const mapOdooProduct = (item: Record<string, unknown>): Product => ({
     ? { id: Number(item.id_categoria), name: String(item.nombre_categoria ?? '') }
     : undefined,
   qty_per_carton: item.cantidad_x_ctn != null ? Number(item.cantidad_x_ctn) : null,
+  updated_at: item.updated_at ? String(item.updated_at) : null,
 });
 
 const categoryName = (p: Product): string =>
@@ -193,6 +195,8 @@ export function Productos() {
     // fetchProducts is a stable ref — safe to omit
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useRefetchOnFocus(fetchProducts);
 
   const applyFilters = useCallback(() => {
     let filtered = [...products];
@@ -419,6 +423,8 @@ export function Productos() {
         apiData.cantidad_x_ctn = productData.qty_per_carton;
       if (productData.category !== undefined)
         apiData.id_categoria = productData.category ? parseInt(String(productData.category)) : null;
+      if (productData.updated_at)
+        apiData.updated_at = productData.updated_at;
 
       await fetchAPI(`/(api)/productos?id=${productData.id}`, {
         method: "PUT",
@@ -469,11 +475,19 @@ export function Productos() {
     setModalVisible(true);
   };
 
-  // Open modal for editing
-  const openEditModal = (product: Product) => {
-    setSelectedProduct(product);
+  // Open modal for editing. Refetch the product fresh from the server instead
+  // of reusing the (possibly stale) row from the last list load, so a save
+  // doesn't clobber changes someone else made in the meantime.
+  const openEditModal = async (product: Product) => {
     setModalMode("edit");
+    setSelectedProduct(product);
     setModalVisible(true);
+    try {
+      const fresh = (await fetchAPI(`/(api)/productos?id=${product.id}`)) as Product;
+      setSelectedProduct(fresh);
+    } catch (err) {
+      console.warn("No se pudo refrescar el producto antes de editar:", err);
+    }
   };
 
   // Open delete confirmation

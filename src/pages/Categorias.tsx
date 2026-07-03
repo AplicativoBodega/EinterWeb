@@ -3,6 +3,7 @@ import { fetchAPI } from "../lib/fetch";
 import { useDarkMode } from "../context/DarkModeContext";
 import { CategoryModal } from "../components/CategoryModal";
 import { DeleteConfirmModal } from "../components/DeleteCategoryConfirmModal";
+import { useRefetchOnFocus } from "../hooks/useRefetchOnFocus";
 
 type Product = {
   id: number;
@@ -127,6 +128,8 @@ export function Categorias() {
       setLoading(false);
     }
   };
+
+  useRefetchOnFocus(loadData);
 
   const handleCategorySelect = async (categoryId: number) => {
     // Toggle off if the same category is clicked again

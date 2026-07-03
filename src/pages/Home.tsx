@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { api } from "../lib/api";
+import { useRefetchOnFocus } from "../hooks/useRefetchOnFocus";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -238,8 +239,7 @@ export function Home() {
   const [qrPrinterIdx, setQrPrinterIdx] = useState(0);
   const [qrMsg, setQrMsg] = useState("");
 
-  useEffect(() => {
-    const load = async () => {
+  const load = useCallback(async () => {
       try {
         const [dashData, productosData] = await Promise.all([
           api.getDashboard() as Promise<any>,
@@ -295,10 +295,13 @@ export function Home() {
       } finally {
         setLoading(false);
       }
-    };
-
-    load();
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useRefetchOnFocus(load);
 
   const handlePrintQR = () => {
     if (catalogoProductos.length === 0) return;

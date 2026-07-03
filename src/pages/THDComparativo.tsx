@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef, Fragment } from "react";
+import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
+import { useRefetchOnFocus } from "../hooks/useRefetchOnFocus";
 import { auth } from "../lib/firebase";
 import { ColumnFilter, distinctValues } from "../components/ColumnFilter";
 import { SkuCombobox, type SkuOption } from "../components/SkuCombobox";
@@ -714,6 +715,10 @@ export function THDComparativo() {
   useEffect(() => {
     fetchData(2026, 0, "baños", 0);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useRefetchOnFocus(useCallback(() => {
+    fetchData(anio, mes, categoria, dia);
+  }, [anio, mes, categoria, dia]));
 
   // Fetch per-folio product breakdown when an order is selected
   useEffect(() => {

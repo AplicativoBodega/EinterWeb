@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 import type { Movement as Movimiento } from "../lib/types";
+import { useRefetchOnFocus } from "../hooks/useRefetchOnFocus";
 import { ColumnFilter, distinctValues } from "../components/ColumnFilter";
 
 const COL_ACCESSORS: Record<string, (m: Movimiento) => string> = {
@@ -89,6 +90,8 @@ export function Movimientos() {
   useEffect(() => {
     fetchMovimientos();
   }, []);
+
+  useRefetchOnFocus(fetchMovimientos);
 
   const applyFilters = useCallback(() => {
     let filtered = [...movimientos];
