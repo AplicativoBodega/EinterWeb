@@ -26,6 +26,7 @@ interface FormData {
   largo: string;
   photoUri?: string;
   photoBase64?: string;
+  updated_at?: string | null;
 }
 
 const initialFormData: FormData = {
@@ -44,6 +45,7 @@ const initialFormData: FormData = {
   largo: "",
   photoUri: undefined,
   photoBase64: undefined,
+  updated_at: undefined,
 };
 
 export function ProductModal({
@@ -92,6 +94,7 @@ export function ProductModal({
         ancho: String(product.dimensions_cm?.ancho || ""),
         alto: String(product.dimensions_cm?.alto || ""),
         photoUri: product.photo || undefined,
+        updated_at: product.updated_at,
       });
     } else {
       setFormData(initialFormData);
@@ -252,6 +255,7 @@ export function ProductModal({
 
       if (mode === "edit" && product) {
         productData.id = product.id;
+        productData.updated_at = formData.updated_at;
       }
 
       await onSave(productData);
