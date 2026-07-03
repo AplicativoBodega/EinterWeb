@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import type { BackendUserData } from '../lib/api';
 import { USER_ROLES, ROLE_LABELS } from '../lib/roles';
 import type { UserRole } from '../lib/roles';
+import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus';
 
 export function UserManagement() {
   const { darkMode } = useDarkMode();
@@ -31,6 +32,8 @@ export function UserManagement() {
       setLoading(false);
     }
   };
+
+  useRefetchOnFocus(loadUsers);
 
   const handleRoleUpdate = async (uid: string) => {
     if (!selectedRole) return;

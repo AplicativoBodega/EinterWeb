@@ -461,6 +461,10 @@ export function VentasHomeDepot() {
 
   useEffect(() => { fetchMatriz(anio); }, [anio]);
 
+  // No refetch-on-focus aquí: la matriz alimenta `valores`, el estado de
+  // captura en vivo (líneas 200-211) — un refetch de fondo lo pisaría
+  // mientras el usuario está escribiendo cantidades/importes sin guardar.
+
   // ── Edit cell ──────────────────────────────────────────────────────────────
 
   const handleCellClick = (producto: Producto, semana: Semana) => {

@@ -6,6 +6,7 @@ import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 import type { Product } from "../lib/types";
 import { ColumnFilter, distinctValues } from "../components/ColumnFilter";
+import { useRefetchOnFocus } from "../hooks/useRefetchOnFocus";
 
 const PAGE_SIZE = 20;
 const TABLE_GRID_COLUMNS =
@@ -194,6 +195,8 @@ export function Productos() {
     // fetchProducts is a stable ref — safe to omit
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useRefetchOnFocus(fetchProducts);
 
   const applyFilters = useCallback(() => {
     let filtered = [...products];

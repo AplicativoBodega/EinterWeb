@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
+import { useRefetchOnFocus } from "../hooks/useRefetchOnFocus";
 import {
   calcularResultados,
   calcularResumenContenedores,
@@ -154,6 +155,11 @@ export function InventarioInteligente() {
     fetchAll();
     fetchDemandaHD();
   }, [fetchAll, fetchDemandaHD]);
+
+  useRefetchOnFocus(useCallback(() => {
+    fetchAll();
+    fetchDemandaHD();
+  }, [fetchAll, fetchDemandaHD]));
 
   // ── Calcular resultados ────────────────────────────────────────────────────
   const resultados: ProductoResultado[] = useMemo(() => {

@@ -3,6 +3,7 @@ import { ProveedorModal } from "../components/ProveedorModal";
 import { DeleteConfirmModal } from "../components/DeleteConfirmModal";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
+import { useRefetchOnFocus } from "../hooks/useRefetchOnFocus";
 
 interface Proveedor {
   id: number;
@@ -82,6 +83,8 @@ export function Proveedores() {
     // fetchProveedores is a stable ref — safe to omit
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useRefetchOnFocus(fetchProveedores);
 
   // Apply filters whenever filter states change
   const applyFilters = useCallback(() => {

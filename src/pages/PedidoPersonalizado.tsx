@@ -222,6 +222,10 @@ export function PedidoPersonalizado() {
 
   useEffect(() => { cargarCatalogo(); }, [cargarCatalogo]);
 
+  // No refetch-on-focus aquí: cargarCatalogo hace setStep('supplier') al
+  // terminar, lo que regresaría al usuario al inicio del asistente si ya
+  // avanzó armando anclas/evaluando/viendo resultados.
+
   // ── Suppliers disponibles ─────────────────────────────────────────────────
   // Usar lista completa de proveedores del endpoint; si aún no cargó, derivar del catálogo
   const supplierNames = proveedores.length > 0
