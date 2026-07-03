@@ -7,8 +7,6 @@ import { fetchAPI } from "../lib/fetch";
 import type { Product } from "../lib/types";
 import { ColumnFilter, distinctValues } from "../components/ColumnFilter";
 
-const SYNC_STALE_MS = 15 * 60 * 1000; // 15 minutes
-const PRODUCTS_SYNC_KEY = "einter_productos_last_sync";
 const PAGE_SIZE = 20;
 const TABLE_GRID_COLUMNS =
   "7rem minmax(0,3fr) minmax(0,1.5fr) minmax(0,2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.5fr)";
@@ -34,6 +32,7 @@ const mapOdooProduct = (item: Record<string, unknown>): Product => ({
   category: item.id_categoria
     ? { id: Number(item.id_categoria), name: String(item.nombre_categoria ?? '') }
     : undefined,
+  qty_per_carton: item.cantidad_x_ctn != null ? Number(item.cantidad_x_ctn) : null,
 });
 
 const categoryName = (p: Product): string =>
@@ -86,9 +85,6 @@ export function Productos() {
   const [imageZoomVisible, setImageZoomVisible] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
-  const [syncLoading, setSyncLoading] = useState(false);
-  const [syncMsg,     setSyncMsg]     = useState<{ ok: boolean; text: string } | null>(null);
-  const [autoSyncing, setAutoSyncing] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
 
   const handleExportExcel = async () => {
@@ -157,34 +153,6 @@ export function Productos() {
     }
   };
 
-  const handleSyncOdoo = async (isAuto = false) => {
-    setSyncLoading(true);
-    if (isAuto) setAutoSyncing(true);
-    setSyncMsg(null);
-    try {
-      const provRes = await fetchAPI('/api/odoo/pull/proveedores', { method: 'POST' }) as { upserted?: number; deleted?: number };
-      const prodRes = await fetchAPI('/api/odoo/pull/productos',   { method: 'POST' }) as { upserted?: number; suppliersMapped?: number };
-      const provCount = provRes.upserted ?? 0;
-      const provDeleted = provRes.deleted ?? 0;
-      const prodCount = prodRes.upserted ?? 0;
-      const mapped    = prodRes.suppliersMapped ?? 0;
-      localStorage.setItem(PRODUCTS_SYNC_KEY, Date.now().toString());
-      if (!isAuto) {
-        const deletedMsg = provDeleted > 0 ? `, ${provDeleted} proveedores eliminados` : '';
-        setSyncMsg({
-          ok: true,
-          text: `Sync completado — ${provCount} proveedores${deletedMsg}, ${prodCount} productos (${mapped} con proveedor mapeado).`,
-        });
-      }
-      await fetchProducts();
-    } catch (err) {
-      setSyncMsg({ ok: false, text: err instanceof Error ? err.message : 'Error al sincronizar' });
-    } finally {
-      setSyncLoading(false);
-      setAutoSyncing(false);
-    }
-  };
-  
   // Load every product (all pages) so the Excel-style column filters and the
   // search box operate over the whole catalog, with client-side pagination.
   const fetchProducts = useCallback(async () => {
@@ -221,14 +189,8 @@ export function Productos() {
   }, []);
 
   useEffect(() => {
-    const lastSync = localStorage.getItem(PRODUCTS_SYNC_KEY);
-    const isStale = !lastSync || Date.now() - Number(lastSync) > SYNC_STALE_MS;
-    if (isStale) {
-      handleSyncOdoo(true);
-    } else {
-      fetchProducts();
-    }
-    // fetchProducts and handleSyncOdoo are stable refs — safe to omit
+    fetchProducts();
+    // fetchProducts is a stable ref — safe to omit
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -547,18 +509,6 @@ export function Productos() {
           </h1>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => handleSyncOdoo()}
-              disabled={syncLoading}
-              className="px-4 py-2 border border-gray-400 dark:border-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm font-medium text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {syncLoading ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                  Sincronizando...
-                </>
-              ) : '↻ Sync Odoo'}
-            </button>
-            <button
               onClick={handleExportExcel}
               disabled={exportLoading}
               className="px-4 py-2 border border-green-600 dark:border-green-500 text-green-700 dark:text-green-400 hover:bg-green-600 hover:text-white dark:hover:bg-green-500 dark:hover:text-white transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
@@ -628,12 +578,6 @@ export function Productos() {
           )}
         </div>
 
-        {syncMsg && (
-          <div className={`mt-4 p-3 border rounded-lg ${syncMsg.ok ? 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-900 border-red-300 dark:border-red-700 text-red-700 dark:text-red-300'}`}>
-            {syncMsg.text}
-          </div>
-        )}
-
         {error && (
           <div className="mt-4 p-3 bg-red-100 dark:bg-red-900 border border-red-300 dark:border-red-700 rounded-lg">
             <p className="text-red-700 dark:text-red-300">Error: {error}</p>
@@ -685,11 +629,11 @@ export function Productos() {
 
         {/* Excel-style data rows with grid lines */}
         <div className="flex-1 flex flex-col overflow-y-auto">
-          {(loading && products.length === 0) || autoSyncing ? (
+          {loading && products.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
               <p className="text-gray-500 font-robotoRegular mt-4">
-                {autoSyncing ? "Sincronizando con Odoo..." : "Cargando Productos..."}
+                Cargando Productos...
               </p>
             </div>
           ) : filteredProducts.length === 0 ? (
