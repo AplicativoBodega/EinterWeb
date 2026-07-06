@@ -25,7 +25,6 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
     { id: "thd-comparativo", label: "THD Comparativo", icon: "📊" },
     { id: "inventario-inteligente", label: "Inv. Inteligente", icon: "🧠" },
     { id: "pedido-personalizado", label: "Pedido Custom", icon: "📦" },
-    { id: "perfiles", label: "Perfiles", icon: "👤" },
     ...(isSuperAdmin ? [{ id: "users", label: "Usuarios", icon: "👥" }] : []),
   ];
 

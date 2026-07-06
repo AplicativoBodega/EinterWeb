@@ -13,7 +13,6 @@ import { Salidas } from './pages/Salidas'
 import { VentasHomeDepot } from './pages/VentasHomeDepot'
 import { InventarioInteligente } from './pages/InventarioInteligente'
 import { PedidoPersonalizado } from './pages/PedidoPersonalizado'
-import { Perfiles } from './pages/Perfiles'
 import { Categorias } from './pages/Categorias'
 import Profile from './components/Profile'
 import { UserManagement } from './pages/UserManagement'
@@ -51,8 +50,6 @@ function App() {
         return <Entradas />
       case 'categorias':
         return <Categorias/>
-      case 'perfiles':
-        return <Perfiles/>
       case 'profile':
         return <Profile />
       case 'users':
