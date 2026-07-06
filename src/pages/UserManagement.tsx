@@ -6,14 +6,24 @@ import { USER_ROLES, ROLE_LABELS } from '../lib/roles';
 import type { UserRole } from '../lib/roles';
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus';
 
+const emptyForm = { email: '', nombre: '', apellido: '' };
+const emptyEditForm = { nombre: '', apellido: '', email: '', isActive: true };
+
 export function UserManagement() {
   const { darkMode } = useDarkMode();
   const [users, setUsers] = useState<BackendUserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [selectedRole, setSelectedRole] = useState<UserRole | ''>('');
   const [error, setError] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const [editingUser, setEditingUser] = useState<BackendUserData | null>(null);
+  const [editForm, setEditForm] = useState(emptyEditForm);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   useEffect(() => {
     loadUsers();
@@ -35,27 +45,67 @@ export function UserManagement() {
 
   useRefetchOnFocus(loadUsers);
 
-  const handleRoleUpdate = async (uid: string) => {
-    if (!selectedRole) return;
+  const handleDelete = async (id: number, email: string) => {
+    if (!confirm(`¿Eliminar al usuario ${email}? Esta acción no se puede deshacer.`)) return;
 
     try {
-      await api.updateUserRole(uid, selectedRole);
+      await api.deleteUser(id);
       await loadUsers();
-      setEditingUserId(null);
-      setSelectedRole('');
     } catch (error: unknown) {
-      console.error('Error updating role:', error);
-      alert(error instanceof Error ? error.message : 'Error al actualizar el rol del usuario');
+      console.error('Error deleting user:', error);
+      alert(error instanceof Error ? error.message : 'Error al eliminar el usuario');
     }
   };
 
-  const handleToggleActive = async (uid: string, currentStatus: boolean) => {
+  const openEdit = (user: BackendUserData) => {
+    setEditingUser(user);
+    setEditForm({ nombre: user.nombre, apellido: user.apellido, email: user.email, isActive: user.isActive });
+    setEditError(null);
+  };
+
+  const closeEdit = () => {
+    setEditingUser(null);
+    setEditForm(emptyEditForm);
+    setEditError(null);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    setSavingEdit(true);
+    setEditError(null);
     try {
-      await api.toggleUserActive(uid, !currentStatus);
+      await api.updateUserProfile(editingUser.id_usuario, {
+        nombre: editForm.nombre,
+        apellido: editForm.apellido,
+        email: editForm.email,
+      });
+      if (editForm.isActive !== editingUser.isActive) {
+        await api.toggleUserActive(editingUser.id_usuario, editForm.isActive);
+      }
+      closeEdit();
       await loadUsers();
     } catch (error: unknown) {
-      console.error('Error toggling user status:', error);
-      alert(error instanceof Error ? error.message : 'Error al cambiar el estado del usuario');
+      setEditError(error instanceof Error ? error.message : 'Error al actualizar el usuario');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreating(true);
+    setCreateError(null);
+    try {
+      await api.createUser(form);
+      setShowCreateModal(false);
+      setForm(emptyForm);
+      await loadUsers();
+    } catch (error: unknown) {
+      setCreateError(error instanceof Error ? error.message : 'Error al crear el usuario');
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -83,16 +133,30 @@ export function UserManagement() {
     }
   };
 
+  const inputClass = `w-full px-3 py-2 rounded-lg border transition-colors ${
+    darkMode
+      ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500'
+      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+  }`;
+
   return (
     <div className={`min-h-screen p-6 transition-colors ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className={`text-3xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-            Gesti�n de Usuarios
-          </h1>
-          <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            Administra roles y permisos de usuarios
-          </p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className={`text-3xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Gestión de Usuarios
+            </h1>
+            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Administra el acceso de los usuarios al sistema
+            </p>
+          </div>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+          >
+            + Nuevo Usuario
+          </button>
         </div>
 
         <div className="mb-6">
@@ -101,11 +165,7 @@ export function UserManagement() {
             placeholder="Buscar por email o nombre..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className={`w-full px-4 py-3 rounded-lg border transition-colors ${
-              darkMode
-                ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500'
-                : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
-            }`}
+            className={inputClass}
           />
         </div>
 
@@ -135,7 +195,12 @@ export function UserManagement() {
                     <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
                       darkMode ? 'text-gray-300' : 'text-gray-700'
                     }`}>
-                      Usuario
+                      Nombre
+                    </th>
+                    <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                      darkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Apellido
                     </th>
                     <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
                       darkMode ? 'text-gray-300' : 'text-gray-700'
@@ -161,47 +226,20 @@ export function UserManagement() {
                 </thead>
                 <tbody className={`divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
                   {filteredUsers.map((user) => (
-                    <tr key={user.uid} className={darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <img
-                            src={user.photoURL || 'https://via.placeholder.com/40'}
-                            alt={user.displayName || 'User'}
-                            className="w-10 h-10 rounded-full object-cover"
-                          />
-                          <div className="ml-4">
-                            <div className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                              {user.displayName || 'Sin nombre'}
-                            </div>
-                          </div>
-                        </div>
+                    <tr key={user.id_usuario} className={darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {user.nombre || '—'}
+                      </td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {user.apellido || '—'}
                       </td>
                       <td className={`px-6 py-4 whitespace-nowrap text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                         {user.email}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {editingUserId === user.uid ? (
-                          <select
-                            value={selectedRole}
-                            onChange={(e) => setSelectedRole(e.target.value as UserRole)}
-                            className={`px-3 py-1 rounded-md border ${
-                              darkMode
-                                ? 'bg-gray-700 border-gray-600 text-white'
-                                : 'bg-white border-gray-300 text-gray-900'
-                            }`}
-                          >
-                            <option value="">Seleccionar rol...</option>
-                            {Object.entries(USER_ROLES).map(([key, value]) => (
-                              <option key={key} value={value}>
-                                {ROLE_LABELS[value]}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadgeColor(user.role)}`}>
-                            {ROLE_LABELS[user.role]}
-                          </span>
-                        )}
+                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadgeColor(user.role)}`}>
+                          {ROLE_LABELS[user.role]}
+                        </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -213,52 +251,24 @@ export function UserManagement() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        {editingUserId === user.uid ? (
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleRoleUpdate(user.uid)}
-                              disabled={!selectedRole}
-                              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              Guardar
-                            </button>
-                            <button
-                              onClick={() => {
-                                setEditingUserId(null);
-                                setSelectedRole('');
-                              }}
-                              className={`px-3 py-1 rounded ${
-                                darkMode
-                                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                              }`}
-                            >
-                              Cancelar
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => {
-                                setEditingUserId(user.uid);
-                                setSelectedRole(user.role);
-                              }}
-                              className="px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-                            >
-                              Cambiar Rol
-                            </button>
-                            <button
-                              onClick={() => handleToggleActive(user.uid, user.isActive as boolean)}
-                              className={`px-3 py-1 rounded ${
-                                user.isActive
-                                  ? 'bg-red-600 text-white hover:bg-red-700'
-                                  : 'bg-green-600 text-white hover:bg-green-700'
-                              }`}
-                            >
-                              {user.isActive ? 'Desactivar' : 'Activar'}
-                            </button>
-                          </div>
-                        )}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => openEdit(user)}
+                            className="px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => handleDelete(user.id_usuario, user.email)}
+                            className={`px-3 py-1 rounded ${
+                              darkMode
+                                ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
+                          >
+                            Eliminar
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -275,21 +285,140 @@ export function UserManagement() {
             )}
           </div>
         ) : null}
-
-        <div className={`mt-6 p-4 rounded-lg ${darkMode ? 'bg-blue-900/20 border border-blue-800' : 'bg-blue-50 border border-blue-200'}`}>
-          <h3 className={`font-semibold mb-2 ${darkMode ? 'text-blue-300' : 'text-blue-900'}`}>
-            Jerarqu�a de Roles
-          </h3>
-          <ul className={`text-sm space-y-1 ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>
-            <li>" <strong>Super Administrador:</strong> Acceso total al sistema</li>
-            <li>" <strong>Propietario:</strong> Control completo de la organizaci�n</li>
-            <li>" <strong>Administrador:</strong> Gesti�n avanzada del sistema</li>
-            <li>" <strong>Secretaria:</strong> Gesti�n de documentos y registros</li>
-            <li>" <strong>Trabajador:</strong> Acceso operativo</li>
-            <li>" <strong>Empleado:</strong> Acceso b�sico</li>
-          </ul>
-        </div>
       </div>
+
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className={`w-full max-w-md rounded-lg shadow-lg p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <h2 className={`text-xl font-bold mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Nuevo Usuario
+            </h2>
+            <p className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+              Dale acceso al sistema con su correo de Einter.
+            </p>
+            <form onSubmit={handleCreate} className="space-y-3">
+              <input
+                type="email"
+                required
+                placeholder="Email (@einter.mx)"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                className={inputClass}
+              />
+              <input
+                type="text"
+                required
+                placeholder="Nombre"
+                value={form.nombre}
+                onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                className={inputClass}
+              />
+              <input
+                type="text"
+                placeholder="Apellido"
+                value={form.apellido}
+                onChange={(e) => setForm({ ...form, apellido: e.target.value })}
+                className={inputClass}
+              />
+
+              {createError && (
+                <p className="text-sm text-red-500">{createError}</p>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setForm(emptyForm);
+                    setCreateError(null);
+                  }}
+                  className={`px-4 py-2 rounded ${
+                    darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {creating ? 'Creando...' : 'Crear'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editingUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className={`w-full max-w-md rounded-lg shadow-lg p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Editar Usuario
+            </h2>
+            <form onSubmit={handleSaveEdit} className="space-y-3">
+              <input
+                type="email"
+                required
+                placeholder="Email (@einter.mx)"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                className={inputClass}
+              />
+              <input
+                type="text"
+                required
+                placeholder="Nombre"
+                value={editForm.nombre}
+                onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })}
+                className={inputClass}
+              />
+              <input
+                type="text"
+                placeholder="Apellido"
+                value={editForm.apellido}
+                onChange={(e) => setEditForm({ ...editForm, apellido: e.target.value })}
+                className={inputClass}
+              />
+
+              <label className={`flex items-center gap-2 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                <input
+                  type="checkbox"
+                  checked={editForm.isActive}
+                  onChange={(e) => setEditForm({ ...editForm, isActive: e.target.checked })}
+                  className="w-4 h-4"
+                />
+                Usuario activo (tiene acceso al sistema)
+              </label>
+
+              {editError && (
+                <p className="text-sm text-red-500">{editError}</p>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={closeEdit}
+                  className={`px-4 py-2 rounded ${
+                    darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEdit}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {savingEdit ? 'Guardando...' : 'Guardar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

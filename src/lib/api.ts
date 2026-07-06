@@ -15,12 +15,42 @@ export function getAuthToken(): string | null {
 
 // Backend user response
 export interface BackendUserData {
-  uid: string;
+  id_usuario: number;
+  uid: string | null;
   email: string;
   role: UserRole;
+  nombre: string;
+  apellido: string;
   displayName?: string;
   photoURL?: string;
+  isActive: boolean;
   [key: string]: unknown;
+}
+
+// Raw row shape returned by GET /api/auth/users
+interface BackendUserRow {
+  id_usuario: number;
+  firebase_uid: string | null;
+  username: string;
+  email: string;
+  nombre: string;
+  apellido: string;
+  rol: UserRole;
+  is_active: boolean | number;
+  [key: string]: unknown;
+}
+
+function mapBackendUser(row: BackendUserRow): BackendUserData {
+  return {
+    id_usuario: row.id_usuario,
+    uid: row.firebase_uid,
+    email: row.email,
+    role: row.rol,
+    nombre: row.nombre || '',
+    apellido: row.apellido || '',
+    displayName: [row.nombre, row.apellido].filter(Boolean).join(' ') || row.username,
+    isActive: !!row.is_active,
+  };
 }
 
 // Login to backend after Firebase authentication
@@ -122,14 +152,30 @@ export const api = {
   }),
 
   // User management (SuperAdmin only - via auth router)
-  getAllUsers: () => apiRequest<BackendUserData[]>('/api/auth/users'),
-  updateUserRole: (id: string, role: UserRole) => apiRequest(`/api/auth/users/${id}`, {
+  getAllUsers: async () => {
+    const data = await apiRequest<{ users: BackendUserRow[] }>('/api/auth/users');
+    return data.users.map(mapBackendUser);
+  },
+  updateUserRole: (id: number | string, role: UserRole) => apiRequest(`/api/auth/users/${id}`, {
     method: 'PATCH',
     body: JSON.stringify({ rol: role })
   }),
-  toggleUserActive: (id: string, isActive: boolean) => apiRequest(`/api/auth/users/${id}/toggle-active`, {
+  updateUserProfile: (id: number | string, data: { nombre: string; apellido: string; email: string }) =>
+    apiRequest(`/api/auth/users/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data)
+    }),
+  toggleUserActive: (id: number | string, isActive: boolean) => apiRequest(`/api/auth/users/${id}/toggle-active`, {
     method: 'PATCH',
     body: JSON.stringify({ is_active: isActive })
+  }),
+  createUser: (data: { email: string; nombre: string; apellido?: string }) =>
+    apiRequest('/api/auth/users', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    }),
+  deleteUser: (id: number | string) => apiRequest(`/api/auth/users/${id}`, {
+    method: 'DELETE'
   }),
 
   // Dashboard
