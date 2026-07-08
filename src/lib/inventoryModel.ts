@@ -62,6 +62,8 @@ export interface ProductoResultado extends ProductoInput {
   volumenM3: number;           // volumen estimado del pedido
 }
 
+import { getMonterreyNow, MX_TIME_ZONE } from './dateMx';
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Calcula volumen en m³ a partir de dimensiones en cm (largo × ancho × alto / 1_000_000) */
@@ -119,12 +121,13 @@ export function calcularResultados(
       const d = diasInventario - params.alertaRojo;
       if (d > 0) {
         diasARojo = Math.round(d);
-        const fecha = new Date();
-        fecha.setDate(fecha.getDate() + diasARojo);
+        const fecha = getMonterreyNow();
+        fecha.setUTCDate(fecha.getUTCDate() + diasARojo);
         fechaRojo = fecha.toLocaleDateString('es-MX', {
           day: '2-digit',
           month: '2-digit',
           year: 'numeric',
+          timeZone: MX_TIME_ZONE,
         });
       }
     }

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { api } from "../lib/api";
 import { useRefetchOnFocus } from "../hooks/useRefetchOnFocus";
+import { getMonterreyNow } from "../lib/dateMx";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,18 +41,18 @@ const MESES_ES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep",
 function getLast6Months(): { key: string; mes: string }[] {
   const result = [];
   for (let i = 5; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(1);
-    d.setMonth(d.getMonth() - i);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    result.push({ key, mes: MESES_ES[d.getMonth()] });
+    const d = getMonterreyNow();
+    d.setUTCDate(1);
+    d.setUTCMonth(d.getUTCMonth() - i);
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    result.push({ key, mes: MESES_ES[d.getUTCMonth()] });
   }
   return result;
 }
 
 function currentMonthLabel(): string {
-  const d = new Date();
-  return `${MESES_ES[d.getMonth()]} ${d.getFullYear()}`;
+  const d = getMonterreyNow();
+  return `${MESES_ES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
 const impresoras = [

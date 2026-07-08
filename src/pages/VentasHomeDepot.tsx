@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import ExcelJS from "exceljs";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
+import { getMonterreyYear } from "../lib/dateMx";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -430,7 +431,7 @@ const ANIOS_DISPONIBLES = [2025, 2026];
 export function VentasHomeDepot() {
   useDarkMode();
 
-  const [anio, setAnio] = useState<number>(new Date().getFullYear());
+  const [anio, setAnio] = useState<number>(getMonterreyYear());
   const [matriz, setMatriz] = useState<MatrizResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
