@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 import { useRefetchOnFocus } from "../hooks/useRefetchOnFocus";
+import { getMonterreyYear } from "../lib/dateMx";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,7 +52,7 @@ const MONTHS = [
   { value: 11, label: "Noviembre" }, { value: 12, label: "Diciembre" },
 ];
 
-const CURRENT_YEAR = new Date().getFullYear();
+const CURRENT_YEAR = getMonterreyYear();
 const AVAILABLE_YEARS = [CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

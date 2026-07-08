@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { fetchAPI } from "../lib/fetch";
+import { getMonterreyDateISO } from "../lib/dateMx";
 
 export interface Producto {
   id: string;
@@ -69,7 +70,7 @@ export function VentaModal({
         setSelectedFolioId(orden.folios[0].id);
       }
     } else {
-      const today = new Date().toISOString().split("T")[0];
+      const today = getMonterreyDateISO();
       setFormData({
         id_orden: "",
         cliente: "",

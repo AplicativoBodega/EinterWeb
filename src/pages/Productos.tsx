@@ -7,6 +7,7 @@ import { fetchAPI } from "../lib/fetch";
 import type { Product } from "../lib/types";
 import { ColumnFilter, distinctValues } from "../components/ColumnFilter";
 import { useRefetchOnFocus } from "../hooks/useRefetchOnFocus";
+import { getMonterreyDateISO } from "../lib/dateMx";
 
 const PAGE_SIZE = 20;
 const TABLE_GRID_COLUMNS =
@@ -136,7 +137,7 @@ export function Productos() {
         worksheet.addRows(rows);
       }
 
-      const date = new Date().toISOString().slice(0, 10);
+      const date = getMonterreyDateISO();
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

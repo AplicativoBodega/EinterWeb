@@ -5,6 +5,7 @@ import { useRefetchOnFocus } from "../hooks/useRefetchOnFocus";
 import { auth } from "../lib/firebase";
 import { ColumnFilter, distinctValues } from "../components/ColumnFilter";
 import { SkuCombobox, type SkuOption } from "../components/SkuCombobox";
+import { getMonterreyDateISO } from "../lib/dateMx";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -202,7 +203,7 @@ function formatFecha(fecha: string) {
 }
 
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return getMonterreyDateISO();
 }
 
 // ── Expanded panel ─────────────────────────────────────────────────────────────

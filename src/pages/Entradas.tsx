@@ -5,6 +5,7 @@ import { useRefetchOnFocus } from "../hooks/useRefetchOnFocus";
 import { auth } from "../lib/firebase";
 import { ColumnFilter, distinctValues } from "../components/ColumnFilter";
 import { SkuCombobox, type SkuOption } from "../components/SkuCombobox";
+import { getMonterreyDateISO, getMonterreyYear } from "../lib/dateMx";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -112,7 +113,7 @@ const COLUMNS: { key: SortColumn; label: string; align: string }[] = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return getMonterreyDateISO();
 }
 
 function sortRows(
@@ -175,7 +176,7 @@ function parseFolio(folio: string): { orden: string; contenedores: string } {
 
 export function Entradas() {
   useDarkMode();
-  const currentYear = String(new Date().getFullYear());
+  const currentYear = String(getMonterreyYear());
 
   // Table state — all rows for the selected year/month are loaded at once and
   // filtered / sorted / paginated client-side so the Excel-style column filters

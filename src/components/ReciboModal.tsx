@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { fetchAPI } from "../lib/fetch";
+import { getMonterreyDateISO } from "../lib/dateMx";
 
 export interface Producto {
   id: string;
@@ -109,7 +110,7 @@ export function ReciboModal({
       const proveedor = proveedores.find((p) => p.id === recibo.proveedor_id);
       setSelectedProveedor(proveedor || null);
     } else {
-      const today = new Date().toISOString().split("T")[0];
+      const today = getMonterreyDateISO();
       setFormData({
         orden: "",
         proveedor_id: "",
