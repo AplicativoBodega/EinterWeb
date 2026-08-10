@@ -130,36 +130,11 @@ export const api = {
   login: loginToBackend,
   getCurrentUser,
 
-  // Productos
-  getProductos: () => apiRequest('/api/productos'),
-  createProducto: (data: Record<string, unknown>) => apiRequest('/api/productos', {
-    method: 'POST',
-    body: JSON.stringify(data)
-  }),
-  updateProducto: (id: string, data: Record<string, unknown>) => apiRequest(`/api/productos/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(data)
-  }),
-  deleteProducto: (id: string) => apiRequest(`/api/productos/${id}`, {
-    method: 'DELETE'
-  }),
-
-  // Proveedores
-  getProveedores: () => apiRequest('/api/proveedores'),
-  createProveedor: (data: Record<string, unknown>) => apiRequest('/api/proveedores', {
-    method: 'POST',
-    body: JSON.stringify(data)
-  }),
-
   // User management (SuperAdmin only - via auth router)
   getAllUsers: async () => {
     const data = await apiRequest<{ users: BackendUserRow[] }>('/api/auth/users');
     return data.users.map(mapBackendUser);
   },
-  updateUserRole: (id: number | string, role: UserRole) => apiRequest(`/api/auth/users/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ rol: role })
-  }),
   updateUserProfile: (id: number | string, data: { nombre: string; apellido: string; email: string }) =>
     apiRequest(`/api/auth/users/${id}`, {
       method: 'PATCH',
