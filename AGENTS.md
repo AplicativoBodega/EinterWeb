@@ -30,6 +30,15 @@ npm run dev   # Vite, puerto 5173
 
 No se borraron estos dos componentes en la limpieza — decide con el negocio si se conectan a alguna página o se eliminan.
 
+## Impresión de etiquetas — construida 2026-08-10
+
+No existía nada de esto antes. `src/components/EtiquetaModal.tsx` es un modal invocado desde el botón "Etiqueta" en cada fila de `Productos.tsx`:
+- Consulta `GET /api/odoo/barcode/:code` con el `master_sku` del producto — **Odoo en vivo, no `/api/odoo/productos` (que lee el cache local)**. Es el mismo endpoint que usa el escaneo de barcode en `EinterBodegaApp` (ver `EinterBodegaApp/AGENTS.md`).
+- Renderiza el código de barras con `jsbarcode` (nueva dependencia, formato CODE128 sobre el `default_code`/SKU).
+- Imprime con `window.print()` + CSS en `src/index.css` (`@media print`, oculta todo excepto `#etiqueta-print-area`) — no genera PDF, usa el diálogo de impresión nativo del navegador.
+
+Si agregas impresión de etiquetas en otra pantalla, reusa `EtiquetaModal` en vez de duplicar la lógica de `jsbarcode`/`window.print()`.
+
 ## Antes de tocar algo, ten en cuenta
 
 - `EinterBodegaApp` (Android) es un cliente separado del mismo backend, y hoy está desincronizado en varios endpoints. Un cambio aquí que además debería aplicar a mobile no se propaga solo — hay que replicarlo a mano (ver `../EinterBodegaApp/AGENTS.md`).
