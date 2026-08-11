@@ -15,7 +15,7 @@ import { Movimientos } from './pages/Movimientos'
 import { Salidas } from './pages/Salidas'
 import { VentasHomeDepot } from './pages/VentasHomeDepot'
 import { InventarioInteligente } from './pages/InventarioInteligente'
-import { PedidoPersonalizado } from './pages/PedidoPersonalizado'
+import { UnderConstruction } from './components/UnderConstruction'
 import { Categorias } from './pages/Categorias'
 import Profile from './components/Profile'
 import { UserManagement } from './pages/UserManagement'
@@ -46,7 +46,7 @@ function App() {
       case 'inventario-inteligente':
         return <InventarioInteligente />
       case 'pedido-personalizado':
-        return <PedidoPersonalizado />
+        return <UnderConstruction />
       case 'thd-comparativo':
         return <THDComparativo />
       case 'entradas':
