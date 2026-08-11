@@ -134,10 +134,10 @@ export function PedidoPersonalizado() {
       let transit: Record<string, number> = {};
       try { transit = JSON.parse(localStorage.getItem(LS_TRANSIT) || '{}'); } catch { /* ignore */ }
 
-      // Cargar demanda HD, suppliers y productos en paralelo
+      // Cargar demanda HD, proveedores y productos en paralelo
       const [demandaRes, provRes, ...productBatches] = await Promise.all([
         fetchAPI('/api/ventas-hd/demanda-diaria'),
-        fetchAPI('/api/odoo/suppliers?pageSize=500'),
+        fetchAPI('/api/odoo/proveedores?pageSize=500'),
         fetchAPI('/api/odoo/productos?page=1&pageSize=100'),
       ]) as [{ mod: string; demanda_diaria: number }[], { items?: Record<string, unknown>[] }, ...unknown[]];
 
@@ -506,7 +506,7 @@ export function PedidoPersonalizado() {
           <div>
             <div className="mb-6">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">Selecciona un proveedor</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{supplierStats.length} suppliers disponibles</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{supplierStats.length} proveedores disponibles</p>
             </div>
             <div className="grid gap-2.5">
               {supplierStats.map(s => {
