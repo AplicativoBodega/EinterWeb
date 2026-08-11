@@ -1,3 +1,5 @@
+// Firestore-backed user CRUD: profile sync, role assignment, and
+// active-status toggling.
 import { db } from './firebase';
 import {
   collection,

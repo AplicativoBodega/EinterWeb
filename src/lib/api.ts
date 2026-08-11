@@ -1,3 +1,5 @@
+// Backend REST client: auth token storage, generic request helper, and
+// typed methods for auth/user management endpoints.
 import type { UserRole } from './roles';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';

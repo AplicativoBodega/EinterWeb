@@ -1,4 +1,4 @@
-// User roles in the system
+// Defines user roles, their permission hierarchy, and display labels.
 export const USER_ROLES = {
   SUPERADMIN: 'superadmin',
   OWNER: 'owner',

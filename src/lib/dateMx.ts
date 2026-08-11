@@ -1,10 +1,6 @@
-/**
- * Utilidades de fecha centralizadas en la zona horaria de Monterrey, Nuevo
- * León, México. Úsalas en vez de `new Date().toISOString()` para que todas
- * las fechas insertadas o comparadas en la app coincidan, sin importar la
- * zona horaria del navegador del usuario.
- */
-
+// Utilidades de fecha centralizadas en la zona horaria de Monterrey.
+// Úsalas en vez de new Date().toISOString() para evitar desfases por la
+// zona horaria del navegador del usuario.
 export const MX_TIME_ZONE = "America/Monterrey";
 
 function getMonterreyParts(date: Date = new Date()) {
@@ -34,11 +30,6 @@ export function getMonterreyMonth(date: Date = new Date()): number {
   return Number(getMonterreyParts(date).month);
 }
 
-/**
- * Devuelve un Date anclado a medianoche del día actual en Monterrey,
- * representado en UTC. Es seguro hacerle aritmética con los métodos
- * `getUTC*` / `setUTC*` sin que la zona horaria del navegador la desfase.
- */
 export function getMonterreyNow(): Date {
   const { year, month, day } = getMonterreyParts(new Date());
   return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));

@@ -1,25 +1,27 @@
+// Wizard for building a custom container order: pick a supplier, set
+// anchor products, choose container type, and review the packed result.
 import { useState, useEffect, useCallback } from 'react';
 import { useDarkMode } from '../context/DarkModeContext';
 import { fetchAPI } from '../lib/fetch';
 import {
   ALL_CONTAINER_TYPES,
   getContainerType,
-  calcularNMin,
-  calcularCajasMaxRelleno,
-  clasificarSemaforo,
-  resolverPedido,
-  recomendarTipo,
-  generarTopOff,
-  aplicarTopOff,
-  resolverEscenarioA,
+  calculateMinContainers,
+  calculateMaxFillBoxes,
+  classifyStatus,
+  resolveOrder,
+  recommendType,
+  generateTopOff,
+  applyTopOff,
+  resolveScenarioA,
   getBinStats,
   type ContainerType,
-  type Ancla,
-  type CandidatoRelleno,
+  type Anchor,
+  type FillCandidate,
   type PackingResult,
-  type EvaluacionTipo,
-  type TopOffSugerencia,
-  type AnclaConContexto,
+  type TypeEvaluation,
+  type TopOffSuggestion,
+  type AnchorWithContext,
   type ScenarioAResult,
   type BinState,
 } from '../lib/packingEngine';
@@ -30,22 +32,22 @@ const LS_TRANSIT = 'einter_inv_transito';
 
 // ─── Tipos internos ────────────────────────────────────────────────────────────
 
-interface SkuCatalogo {
+interface CatalogSku {
   sku:            number;
   skuStr:         string;
-  desc:           string;
+  description:           string;
   supplier:       string;
   supplierId:     number;
-  invActual:      number;
-  pzsCaja:        number;   // cantidad_x_ctn
-  pesoCaja:       number;   // kg/caja
-  volCaja:        number;   // m³/caja
-  dI:             number;   // demanda piezas/día
-  invEfectivo:    number;
-  cobDias:        number;
-  semaforo:       string;
-  cajasMax:       number;
-  sinDimensiones: boolean; // true cuando faltan peso/dims/pzsCaja — excluir de relleno automático
+  currentStock:      number;
+  piecesPerBox:        number;   // cantidad_x_ctn
+  boxWeightKg:       number;   // kg/caja
+  boxVolM3:        number;   // m³/caja
+  dailyDemand:             number;   // demanda piezas/día
+  effectiveInventory:    number;
+  coverageDays:        number;
+  status:       string;
+  maxBoxes:       number;
+  missingDimensions: boolean; // true cuando faltan peso/dims/piecesPerBox, excluir de relleno automático
 }
 
 type Step = 'loading' | 'supplier' | 'anchors' | 'nmax' | 'container' | 'results';
@@ -59,16 +61,16 @@ const SEM_CFG: Record<string, { label: string; dot: string; badge: string; text:
   SOBRESTOCK: { label: 'Sobrestock', dot: '⚠️', badge: 'bg-blue-100 dark:bg-blue-900/40',   text: 'text-blue-700 dark:text-blue-300' },
 };
 
-const ESTADO_BIN: Record<string, { label: string; color: string; icon: string }> = {
+const BIN_STATUS_CFG: Record<string, { label: string; color: string; icon: string }> = {
   valid:    { label: 'En ventana', color: 'text-green-600 dark:text-green-400',  icon: '✔' },
   optimal:  { label: 'Óptimo',    color: 'text-blue-600 dark:text-blue-400',    icon: '🔷' },
   degraded: { label: 'Degradado', color: 'text-yellow-600 dark:text-yellow-400', icon: '⚠' },
   invalid:  { label: 'Inválido',  color: 'text-red-600 dark:text-red-400',      icon: '✖' },
 };
 
-function binEstado(stats: ReturnType<typeof getBinStats>): keyof typeof ESTADO_BIN {
-  if (stats.enVentana && !stats.optimo)  return 'valid';
-  if (stats.optimo)                      return 'optimal';
+function binStatus(stats: ReturnType<typeof getBinStats>): keyof typeof BIN_STATUS_CFG {
+  if (stats.inWindow && !stats.optimal)  return 'valid';
+  if (stats.optimal)                      return 'optimal';
   if (stats.degraded)                    return 'degraded';
   return 'invalid';
 }
@@ -97,45 +99,45 @@ export function PedidoPersonalizado() {
   useDarkMode();
 
   // ── Datos ─────────────────────────────────────────────────────────────────
-  const [catalogo,    setCatalogo]    = useState<SkuCatalogo[]>([]);
-  const [proveedores, setProveedores] = useState<{ id: number; nombre: string }[]>([]);
+  const [catalog,    setCatalog]    = useState<CatalogSku[]>([]);
+  const [suppliers, setSuppliers] = useState<{ id: number; nombre: string }[]>([]);
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState<string | null>(null);
 
   // ── Wizard state ──────────────────────────────────────────────────────────
   const [step,          setStep]          = useState<Step>('loading');
   const [supplier,      setSupplier]      = useState<string>('');
-  const [anclas,        setAnclas]        = useState<Ancla[]>([]);
+  const [anchors,        setAnchors]        = useState<Anchor[]>([]);
   const [nMax,          setNMax]          = useState<number>(3);
   const [nMaxInput,     setNMaxInput]     = useState<string>('3');
   const [ctype,         setCtype]         = useState<ContainerType>(getContainerType('40HC'));
-  const [evaluaciones,  setEvaluaciones]  = useState<EvaluacionTipo[]>([]);
+  const [evaluations,  setEvaluaciones]  = useState<TypeEvaluation[]>([]);
   const [packResult,    setPackResult]    = useState<PackingResult | null>(null);
   const [scenarioA,     setScenarioA]     = useState<ScenarioAResult | null>(null);
-  const [topOff,        setTopOff]        = useState<TopOffSugerencia[]>([]);
+  const [topOff,        setTopOff]        = useState<TopOffSuggestion[]>([]);
   const [topOffApplied, setTopOffApplied] = useState(false);
   const [resultBins,    setResultBins]    = useState<BinState[]>([]);
 
-  // ── Ancla form ────────────────────────────────────────────────────────────
-  const [anclaSkuInput,  setAnclaSkuInput]  = useState<string>('');
-  const [anclaQtyInput,  setAnclaQtyInput]  = useState<string>('');
-  const [anclaUnidad,    setAnclaUnidad]    = useState<'piezas' | 'cajas'>('piezas');
-  const [anclaError,     setAnclaError]     = useState<string | null>(null);
-  const [anclaWarning,   setAnclaWarning]   = useState<string | null>(null);
+  // ── Anchor form ────────────────────────────────────────────────────────────
+  const [anchorSkuInput,  setAnchorSkuInput]  = useState<string>('');
+  const [anchorQtyInput,  setAnchorQtyInput]  = useState<string>('');
+  const [anchorUnit,    setAnchorUnit]    = useState<'piezas' | 'boxes'>('piezas');
+  const [anchorError,     setAnchorError]     = useState<string | null>(null);
+  const [anchorWarning,   setAnchorWarning]   = useState<string | null>(null);
   const [catalogSearch,  setCatalogSearch]  = useState<string>('');
 
   // ── Cargar productos ──────────────────────────────────────────────────────
-  const cargarCatalogo = useCallback(async () => {
+  const loadCatalog = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       let transit: Record<string, number> = {};
       try { transit = JSON.parse(localStorage.getItem(LS_TRANSIT) || '{}'); } catch { /* ignore */ }
 
-      // Cargar demanda HD, proveedores y productos en paralelo
+      // Cargar demanda HD, suppliers y productos en paralelo
       const [demandaRes, provRes, ...productBatches] = await Promise.all([
         fetchAPI('/api/ventas-hd/demanda-diaria'),
-        fetchAPI('/api/odoo/proveedores?pageSize=500'),
+        fetchAPI('/api/odoo/suppliers?pageSize=500'),
         fetchAPI('/api/odoo/productos?page=1&pageSize=100'),
       ]) as [{ mod: string; demanda_diaria: number }[], { items?: Record<string, unknown>[] }, ...unknown[]];
 
@@ -144,7 +146,7 @@ export function PedidoPersonalizado() {
         if (d.demanda_diaria > 0) demanda[d.mod] = d.demanda_diaria;
       }
 
-      setProveedores(
+      setSuppliers(
         (provRes.items || []).map((p: Record<string, unknown>) => ({ id: p.id_proveedor as number, nombre: p.nombre as string }))
       );
 
@@ -161,57 +163,54 @@ export function PedidoPersonalizado() {
         page++;
       }
 
-      const skus: SkuCatalogo[] = items
+      const skus: CatalogSku[] = items
         .map(item => {
           const skuStr     = String(item.master_sku ?? item.id_articulo ?? '');
           const skuNum     = parseInt(skuStr, 10) || 0;
           const pzsCajaRaw = Number(item.cantidad_x_ctn);
-          const pzsCaja    = pzsCajaRaw > 0 ? pzsCajaRaw : 1;
+          const piecesPerBox    = pzsCajaRaw > 0 ? pzsCajaRaw : 1;
           const pesoUnitKg = Number(item.peso_kg) || 0;
-          const pesoCaja   = pesoUnitKg * pzsCaja;
+          const boxWeightKg   = pesoUnitKg * piecesPerBox;
           const largo      = Number(item.largo_cm) || 0;
           const ancho      = Number(item.ancho_cm) || 0;
           const alto       = Number(item.alto_cm)  || 0;
           const volUnitM3  = largo > 0 && ancho > 0 && alto > 0
             ? (largo * ancho * alto) / 1_000_000
             : 0;
-          const volCaja    = volUnitM3 * pzsCaja;
-          const invActual  = Number(item.existencias) || 0;
+          const boxVolM3    = volUnitM3 * piecesPerBox;
+          const currentStock  = Number(item.existencias) || 0;
           const pzsTrans   = transit[skuStr] || 0;
-          const invEfectivo = invActual + pzsTrans;
-          const dI         = demanda[skuStr] || 0;
-          const cobDias    = dI > 0 ? invEfectivo / dI : 9999;
-          const semaforo   = clasificarSemaforo(cobDias);
+          const effectiveInventory = currentStock + pzsTrans;
+          const dailyDemand         = demanda[skuStr] || 0;
+          const coverageDays    = dailyDemand > 0 ? effectiveInventory / dailyDemand : 9999;
+          const status   = classifyStatus(coverageDays);
 
-          // Dimensiones incompletas: sin peso, sin volumen o sin pzsCaja declarado.
-          // Se permite añadir como ancla (usuario decide a sabiendas) pero se excluye
-          // del relleno automático para no distorsionar el cubicaje.
-          const sinDimensiones = pesoCaja <= 0 || volCaja <= 0 || pzsCajaRaw <= 0;
+          const missingDimensions = boxWeightKg <= 0 || boxVolM3 <= 0 || pzsCajaRaw <= 0;
 
-          const cajasMax = sinDimensiones
+          const maxBoxes = missingDimensions
             ? 0
-            : calcularCajasMaxRelleno(invEfectivo, dI, pzsCaja);
+            : calculateMaxFillBoxes(effectiveInventory, dailyDemand, piecesPerBox);
 
           return {
             sku:      skuNum,
             skuStr,
-            desc:     String(item.nombre_producto ?? ''),
+            description:     String(item.nombre_producto ?? ''),
             supplier: String(item.proveedor_nombre ?? 'Sin proveedor').trim(),
             supplierId: Number(item.id_proveedor) || 0,
-            invActual,
-            pzsCaja,
-            pesoCaja: pesoCaja > 0 ? pesoCaja : 0.1,
-            volCaja:  volCaja  > 0 ? volCaja  : 0.001,
-            dI,
-            invEfectivo,
-            cobDias,
-            semaforo,
-            cajasMax,
-            sinDimensiones,
-          } as SkuCatalogo;
+            currentStock,
+            piecesPerBox,
+            boxWeightKg: boxWeightKg > 0 ? boxWeightKg : 0.1,
+            boxVolM3:  boxVolM3  > 0 ? boxVolM3  : 0.001,
+            dailyDemand,
+            effectiveInventory,
+            coverageDays,
+            status,
+            maxBoxes,
+            missingDimensions,
+          } as CatalogSku;
         });
 
-      setCatalogo(skus);
+      setCatalog(skus);
       setStep('supplier');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al cargar productos');
@@ -220,143 +219,137 @@ export function PedidoPersonalizado() {
     }
   }, []);
 
-  useEffect(() => { cargarCatalogo(); }, [cargarCatalogo]);
+  useEffect(() => { loadCatalog(); }, [loadCatalog]);
 
-  // No refetch-on-focus aquí: cargarCatalogo hace setStep('supplier') al
-  // terminar, lo que regresaría al usuario al inicio del asistente si ya
-  // avanzó armando anclas/evaluando/viendo resultados.
-
-  // ── Suppliers disponibles ─────────────────────────────────────────────────
-  // Usar lista completa de proveedores del endpoint; si aún no cargó, derivar del catálogo
-  const supplierNames = proveedores.length > 0
-    ? proveedores.map(p => p.nombre).sort()
-    : Array.from(new Set(catalogo.map(s => s.supplier))).sort();
+  const supplierNames = suppliers.length > 0
+    ? suppliers.map(p => p.nombre).sort()
+    : Array.from(new Set(catalog.map(s => s.supplier))).sort();
 
   const supplierStats = supplierNames
     .map(sup => {
-      const skus = catalogo.filter(s => s.supplier === sup);
+      const skus = catalog.filter(s => s.supplier === sup);
       return {
         supplier:   sup,
         total:      skus.length,
-        critico:    skus.filter(s => s.semaforo === 'CRITICO').length,
-        alerta:     skus.filter(s => s.semaforo === 'ALERTA').length,
-        ok:         skus.filter(s => s.semaforo === 'OK').length,
-        sobrestock: skus.filter(s => s.semaforo === 'SOBRESTOCK').length,
+        critico:    skus.filter(s => s.status === 'CRITICO').length,
+        alerta:     skus.filter(s => s.status === 'ALERTA').length,
+        ok:         skus.filter(s => s.status === 'OK').length,
+        sobrestock: skus.filter(s => s.status === 'SOBRESTOCK').length,
       };
     })
     .filter(s => s.total > 0);
 
   // ── Catálogo del proveedor seleccionado ───────────────────────────────────
-  const catalogoProv = catalogo.filter(s => s.supplier === supplier);
-  const catalogoFiltrado = catalogSearch
-    ? catalogoProv.filter(s =>
+  const supplierCatalog = catalog.filter(s => s.supplier === supplier);
+  const filteredCatalog = catalogSearch
+    ? supplierCatalog.filter(s =>
         s.skuStr.includes(catalogSearch) ||
-        s.desc.toLowerCase().includes(catalogSearch.toLowerCase())
+        s.description.toLowerCase().includes(catalogSearch.toLowerCase())
       )
-    : catalogoProv;
+    : supplierCatalog;
 
-  // ── Agregar ancla ─────────────────────────────────────────────────────────
-  function agregarAncla() {
-    setAnclaError(null);
-    setAnclaWarning(null);
-    const skuNum = parseInt(anclaSkuInput, 10);
-    const qty    = parseInt(anclaQtyInput, 10);
+  // ── Agregar anchor ─────────────────────────────────────────────────────────
+  function addAnchor() {
+    setAnchorError(null);
+    setAnchorWarning(null);
+    const skuNum = parseInt(anchorSkuInput, 10);
+    const qty    = parseInt(anchorQtyInput, 10);
 
-    if (isNaN(skuNum) || skuNum <= 0) { setAnclaError('SKU inválido'); return; }
-    if (isNaN(qty) || qty <= 0)       { setAnclaError('Cantidad debe ser > 0'); return; }
+    if (isNaN(skuNum) || skuNum <= 0) { setAnchorError('SKU inválido'); return; }
+    if (isNaN(qty) || qty <= 0)       { setAnchorError('Cantidad debe ser > 0'); return; }
 
-    const row = catalogoProv.find(s => s.sku === skuNum || s.skuStr === anclaSkuInput.trim());
-    if (!row) { setAnclaError(`SKU ${anclaSkuInput} no pertenece a este proveedor`); return; }
+    const row = supplierCatalog.find(s => s.sku === skuNum || s.skuStr === anchorSkuInput.trim());
+    if (!row) { setAnchorError(`SKU ${anchorSkuInput} no pertenece a este proveedor`); return; }
 
-    if (row.semaforo === 'SOBRESTOCK') {
-      if (!window.confirm(`SKU ${anclaSkuInput} está en SOBRESTOCK. ¿Continuar?`)) return;
+    if (row.status === 'SOBRESTOCK') {
+      if (!window.confirm(`SKU ${anchorSkuInput} está en SOBRESTOCK. ¿Continuar?`)) return;
     }
 
-    if (row.sinDimensiones) {
-      setAnclaWarning(`SKU ${row.sku} no tiene peso / dimensiones / pzsCaja completos — el cubicaje será aproximado y no se incluirá como relleno.`);
+    if (row.missingDimensions) {
+      setAnchorWarning(`SKU ${row.sku} no tiene peso / dimensiones / piecesPerBox completos. El cubicaje será aproximado y no se incluirá como relleno.`);
     }
 
-    const cajas = anclaUnidad === 'cajas'
+    const boxes = anchorUnit === 'boxes'
       ? qty
-      : Math.max(1, Math.ceil(qty / row.pzsCaja));
+      : Math.max(1, Math.ceil(qty / row.piecesPerBox));
 
-    if (cajas <= 0) { setAnclaError('La cantidad resulta en 0 cajas'); return; }
+    if (boxes <= 0) { setAnchorError('La cantidad resulta en 0 cajas'); return; }
 
-    setAnclas(prev => {
+    setAnchors(prev => {
       const exists = prev.find(a => a.sku === row.sku);
       if (exists) {
-        return prev.map(a => a.sku === row.sku ? { ...a, cajas: a.cajas + cajas } : a);
+        return prev.map(a => a.sku === row.sku ? { ...a, boxes: a.boxes + boxes } : a);
       }
       return [...prev, {
-        sku: row.sku, cajas, pesoCaja: row.pesoCaja,
-        volCaja: row.volCaja, pzsCaja: row.pzsCaja, desc: row.desc,
+        sku: row.sku, boxes, boxWeightKg: row.boxWeightKg,
+        boxVolM3: row.boxVolM3, piecesPerBox: row.piecesPerBox, description: row.description,
       }];
     });
-    setAnclaSkuInput('');
-    setAnclaQtyInput('');
+    setAnchorSkuInput('');
+    setAnchorQtyInput('');
   }
 
-  function quitarAncla(sku: number) {
-    setAnclas(prev => prev.filter(a => a.sku !== sku));
+  function removeAnchor(sku: number) {
+    setAnchors(prev => prev.filter(a => a.sku !== sku));
   }
 
   // ── Calcular y resolver ───────────────────────────────────────────────────
-  function calcularCandidatos(skusAncla: Set<number>): CandidatoRelleno[] {
-    return catalogoProv
+  function calculateCandidates(anchorSkus: Set<number>): FillCandidate[] {
+    return supplierCatalog
       .filter(s =>
-        !skusAncla.has(s.sku) &&
-        s.semaforo !== 'SOBRESTOCK' &&
-        s.cajasMax > 0 &&
-        !s.sinDimensiones   // sin peso/volumen/pzsCaja → no entra como relleno
+        !anchorSkus.has(s.sku) &&
+        s.status !== 'SOBRESTOCK' &&
+        s.maxBoxes > 0 &&
+        !s.missingDimensions   // sin peso/volumen/piecesPerBox → no entra como relleno
       )
       .map(s => ({
         sku:      s.sku,
-        dI:       s.dI,
-        cobDias:  s.cobDias,
-        estado:   s.semaforo,
-        pesoCaja: s.pesoCaja,
-        volCaja:  s.volCaja,
-        pzsCaja:  s.pzsCaja,
-        cajasMax: s.cajasMax,
-        desc:     s.desc,
+        dailyDemand:       s.dailyDemand,
+        coverageDays:  s.coverageDays,
+        status:   s.status,
+        boxWeightKg: s.boxWeightKg,
+        boxVolM3:  s.boxVolM3,
+        piecesPerBox:  s.piecesPerBox,
+        maxBoxes: s.maxBoxes,
+        description:     s.description,
       }));
   }
 
-  function irAContenedor() {
-    const candidatos = calcularCandidatos(new Set(anclas.map(a => a.sku)));
-    const { recomendado, evaluaciones: evals } = recomendarTipo(anclas, candidatos);
+  function goToContainer() {
+    const candidates = calculateCandidates(new Set(anchors.map(a => a.sku)));
+    const { recommended, evaluations: evals } = recommendType(anchors, candidates);
     setEvaluaciones(evals);
-    if (recomendado) setCtype(recomendado);
+    if (recommended) setCtype(recommended);
     setStep('container');
   }
 
-  function resolverYMostrar(ctOverride?: ContainerType) {
+  function resolveAndShow(ctOverride?: ContainerType) {
     const ct = ctOverride ?? ctype;
-    const candidatos = calcularCandidatos(new Set(anclas.map(a => a.sku)));
-    const result = resolverPedido(anclas, candidatos, ct, nMax);
+    const candidates = calculateCandidates(new Set(anchors.map(a => a.sku)));
+    const result = resolveOrder(anchors, candidates, ct, nMax);
 
-    if (result.excedeNMax) {
+    if (result.exceedsNMax) {
       // Escenario A
-      const anclasCtx: AnclaConContexto[] = anclas.map(a => {
-        const row = catalogoProv.find(s => s.sku === a.sku)!;
-        return { ancla: a, dI: row?.dI ?? 0, cobDias: row?.cobDias ?? 9999, estado: row?.semaforo ?? 'OK' };
+      const anclasCtx: AnchorWithContext[] = anchors.map(a => {
+        const row = supplierCatalog.find(s => s.sku === a.sku)!;
+        return { anchor: a, dailyDemand: row?.dailyDemand ?? 0, coverageDays: row?.coverageDays ?? 9999, status: row?.status ?? 'OK' };
       });
-      const rA = resolverEscenarioA(anclasCtx, ct, nMax);
+      const rA = resolveScenarioA(anclasCtx, ct, nMax);
       setScenarioA(rA);
       setPackResult(result);
       setStep('results');
       return;
     }
 
-    // Preparar cajasMaxFallback para top-off
-    const anclasConFallback: Ancla[] = anclas.map(a => {
-      const row = catalogoProv.find(s => s.sku === a.sku)!;
-      const cajasMaxTotal = row ? calcularCajasMaxRelleno(row.invEfectivo, row.dI, row.pzsCaja) : 0;
-      return { ...a, cajasMaxFallback: Math.max(0, cajasMaxTotal - a.cajas) };
+    // Preparar maxFallbackBoxes para top-off
+    const anclasConFallback: Anchor[] = anchors.map(a => {
+      const row = supplierCatalog.find(s => s.sku === a.sku)!;
+      const cajasMaxTotal = row ? calculateMaxFillBoxes(row.effectiveInventory, row.dailyDemand, row.piecesPerBox) : 0;
+      return { ...a, maxFallbackBoxes: Math.max(0, cajasMaxTotal - a.boxes) };
     });
 
     const bins = result.config.bins;
-    const topOffSugs = generarTopOff(bins, candidatos, anclasConFallback);
+    const topOffSugs = generateTopOff(bins, candidates, anclasConFallback);
 
     setPackResult(result);
     setResultBins(bins.map(b => ({ ...b, assignments: [...b.assignments.map(a => ({ ...a }))] })));
@@ -366,12 +359,12 @@ export function PedidoPersonalizado() {
     setStep('results');
   }
 
-  function aceptarEscenarioAYResolver(ajustadas: Ancla[]) {
-    setAnclas(ajustadas);
-    const candidatos = calcularCandidatos(new Set(ajustadas.map(a => a.sku)));
-    const result = resolverPedido(ajustadas, candidatos, ctype, nMax);
+  function acceptScenarioAAndResolve(ajustadas: Anchor[]) {
+    setAnchors(ajustadas);
+    const candidates = calculateCandidates(new Set(ajustadas.map(a => a.sku)));
+    const result = resolveOrder(ajustadas, candidates, ctype, nMax);
     const bins = result.config.bins;
-    const topOffSugs = generarTopOff(bins, candidatos, ajustadas);
+    const topOffSugs = generateTopOff(bins, candidates, ajustadas);
     setPackResult(result);
     setResultBins(bins.map(b => ({ ...b, assignments: [...b.assignments.map(a => ({ ...a }))] })));
     setTopOff(topOffSugs);
@@ -379,16 +372,16 @@ export function PedidoPersonalizado() {
     setScenarioA(null);
   }
 
-  function handleAplicarTopOff() {
+  function handleApplyTopOff() {
     if (topOffApplied || !packResult) return;
     const newBins = resultBins.map(b => ({ ...b, assignments: [...b.assignments.map(a => ({ ...a }))] }));
-    aplicarTopOff(newBins, topOff);
+    applyTopOff(newBins, topOff);
     setResultBins(newBins);
     setTopOffApplied(true);
   }
 
-  function resetPedido() {
-    setAnclas([]);
+  function resetOrder() {
+    setAnchors([]);
     setNMax(3);
     setNMaxInput('3');
     setPackResult(null);
@@ -442,7 +435,7 @@ export function PedidoPersonalizado() {
               <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
             </div>
             <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">{error}</p>
-            <button onClick={cargarCatalogo} className="px-5 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors">
+            <button onClick={loadCatalog} className="px-5 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors">
               Reintentar
             </button>
           </div>
@@ -496,7 +489,7 @@ export function PedidoPersonalizado() {
 
           {step !== 'supplier' && (
             <button
-              onClick={resetPedido}
+              onClick={resetOrder}
               className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-red-200 hover:bg-red-50 hover:text-red-500 dark:hover:border-red-800 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-all"
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2 6h8M2 6l3-3M2 6l3 3"/></svg>
@@ -513,7 +506,7 @@ export function PedidoPersonalizado() {
           <div>
             <div className="mb-6">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">Selecciona un proveedor</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{supplierStats.length} proveedores disponibles</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{supplierStats.length} suppliers disponibles</p>
             </div>
             <div className="grid gap-2.5">
               {supplierStats.map(s => {
@@ -521,7 +514,7 @@ export function PedidoPersonalizado() {
                 return (
                   <button
                     key={s.supplier}
-                    onClick={() => { setSupplier(s.supplier); setAnclas([]); setStep('anchors'); }}
+                    onClick={() => { setSupplier(s.supplier); setAnchors([]); setStep('anchors'); }}
                     className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl px-5 py-4 text-left hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm transition-all group"
                   >
                     <div className="flex items-center justify-between gap-4">
@@ -574,9 +567,9 @@ export function PedidoPersonalizado() {
                   <label className="text-xs font-medium text-gray-600 dark:text-gray-400">SKU</label>
                   <input
                     type="number"
-                    value={anclaSkuInput}
-                    onChange={e => setAnclaSkuInput(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && agregarAncla()}
+                    value={anchorSkuInput}
+                    onChange={e => setAnchorSkuInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addAnchor()}
                     placeholder="Ej. 1234"
                     className="w-32 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   />
@@ -585,9 +578,9 @@ export function PedidoPersonalizado() {
                   <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Cantidad</label>
                   <input
                     type="number"
-                    value={anclaQtyInput}
-                    onChange={e => setAnclaQtyInput(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && agregarAncla()}
+                    value={anchorQtyInput}
+                    onChange={e => setAnchorQtyInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addAnchor()}
                     placeholder="Ej. 5000"
                     className="w-32 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   />
@@ -595,48 +588,48 @@ export function PedidoPersonalizado() {
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Unidad</label>
                   <select
-                    value={anclaUnidad}
-                    onChange={e => setAnclaUnidad(e.target.value as 'piezas' | 'cajas')}
+                    value={anchorUnit}
+                    onChange={e => setAnchorUnit(e.target.value as 'piezas' | 'boxes')}
                     className="px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   >
                     <option value="piezas">Piezas</option>
-                    <option value="cajas">Cajas</option>
+                    <option value="boxes">Cajas</option>
                   </select>
                 </div>
                 <button
-                  onClick={agregarAncla}
+                  onClick={addAnchor}
                   className="flex items-center gap-1.5 px-4 py-2 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm shadow-blue-200 dark:shadow-none"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 14 14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M7 2v10M2 7h10"/></svg>
                   Agregar
                 </button>
               </div>
-              {anclaError && (
+              {anchorError && (
                 <div className="mt-3 flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
                   <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 16 16" stroke="currentColor" strokeWidth="2"><circle cx="8" cy="8" r="6"/><path strokeLinecap="round" d="M8 5v4m0 2.5v.5"/></svg>
-                  {anclaError}
+                  {anchorError}
                 </div>
               )}
-              {anclaWarning && (
+              {anchorWarning && (
                 <div className="mt-3 flex items-start gap-2 text-sm text-amber-600 dark:text-amber-400">
                   <svg className="w-4 h-4 flex-shrink-0 mt-px" fill="none" viewBox="0 0 16 16" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M8 3l6 10H2L8 3zm0 4v3m0 2.5v.5"/></svg>
-                  {anclaWarning}
+                  {anchorWarning}
                 </div>
               )}
             </div>
 
             {/* Anclas del pedido */}
-            {anclas.length > 0 && (
+            {anchors.length > 0 && (
               <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
                 <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
                   <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Anclas del pedido</span>
-                  <span className="text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">{anclas.length}</span>
+                  <span className="text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">{anchors.length}</span>
                 </div>
                 <div className="divide-y divide-gray-50 dark:divide-gray-800">
-                  {anclas.map(a => {
-                    const row = catalogoProv.find(s => s.sku === a.sku);
-                    const sem = row ? SEM_CFG[row.semaforo] : null;
-                    const pzsTotal = a.cajas * a.pzsCaja;
+                  {anchors.map(a => {
+                    const row = supplierCatalog.find(s => s.sku === a.sku);
+                    const sem = row ? SEM_CFG[row.status] : null;
+                    const pzsTotal = a.boxes * a.piecesPerBox;
                     return (
                       <div key={a.sku} className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
                         <div className="flex-1 min-w-0">
@@ -647,22 +640,22 @@ export function PedidoPersonalizado() {
                                 {sem.dot} {sem.label}
                               </span>
                             )}
-                            {row?.sinDimensiones && (
+                            {row?.missingDimensions && (
                               <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
                                 ⚠ Sin dims
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{a.desc}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{a.description}</p>
                           <div className="flex gap-3 text-xs text-gray-400 dark:text-gray-500 mt-1">
-                            <span>{fmt(a.cajas)} cajas</span>
+                            <span>{fmt(a.boxes)} cajas</span>
                             <span>{fmt(pzsTotal)} pzs</span>
-                            <span>{(a.cajas * a.pesoCaja).toFixed(1)} kg</span>
-                            <span>{(a.cajas * a.volCaja).toFixed(3)} m³</span>
+                            <span>{(a.boxes * a.boxWeightKg).toFixed(1)} kg</span>
+                            <span>{(a.boxes * a.boxVolM3).toFixed(3)} m³</span>
                           </div>
                         </div>
                         <button
-                          onClick={() => quitarAncla(a.sku)}
+                          onClick={() => removeAnchor(a.sku)}
                           className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 dark:text-gray-600 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-400 transition-all flex-shrink-0"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 14 14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg>
@@ -672,8 +665,8 @@ export function PedidoPersonalizado() {
                   })}
                 </div>
                 <div className="px-5 py-3 bg-gray-50 dark:bg-gray-800/40 flex gap-5 text-xs">
-                  <span className="text-gray-500 dark:text-gray-400">Peso: <strong className="text-gray-700 dark:text-gray-200">{fmt(anclas.reduce((s, a) => s + a.cajas * a.pesoCaja, 0), 1)} kg</strong></span>
-                  <span className="text-gray-500 dark:text-gray-400">Volumen: <strong className="text-gray-700 dark:text-gray-200">{anclas.reduce((s, a) => s + a.cajas * a.volCaja, 0).toFixed(2)} m³</strong></span>
+                  <span className="text-gray-500 dark:text-gray-400">Peso: <strong className="text-gray-700 dark:text-gray-200">{fmt(anchors.reduce((s, a) => s + a.boxes * a.boxWeightKg, 0), 1)} kg</strong></span>
+                  <span className="text-gray-500 dark:text-gray-400">Volumen: <strong className="text-gray-700 dark:text-gray-200">{anchors.reduce((s, a) => s + a.boxes * a.boxVolM3, 0).toFixed(2)} m³</strong></span>
                 </div>
               </div>
             )}
@@ -682,7 +675,7 @@ export function PedidoPersonalizado() {
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between gap-3">
                 <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Catálogo <span className="normal-case font-medium text-gray-400">({catalogoProv.length} SKUs)</span>
+                  Catálogo <span className="normal-case font-medium text-gray-400">({supplierCatalog.length} SKUs)</span>
                 </span>
                 <div className="relative">
                   <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 16 16" stroke="currentColor" strokeWidth="2"><circle cx="6.5" cy="6.5" r="4"/><path strokeLinecap="round" d="M11 11l3 3"/></svg>
@@ -708,43 +701,43 @@ export function PedidoPersonalizado() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                    {catalogoFiltrado.slice(0, 100).map(s => {
-                      const sem = SEM_CFG[s.semaforo];
-                      const yaEsAncla = anclas.some(a => a.sku === s.sku);
+                    {filteredCatalog.slice(0, 100).map(s => {
+                      const sem = SEM_CFG[s.status];
+                      const isAlreadyAnchor = anchors.some(a => a.sku === s.sku);
                       return (
                         <tr
                           key={s.sku}
-                          className={`cursor-pointer transition-colors ${yaEsAncla ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}
-                          onClick={() => setAnclaSkuInput(String(s.sku))}
+                          className={`cursor-pointer transition-colors ${isAlreadyAnchor ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}
+                          onClick={() => setAnchorSkuInput(String(s.sku))}
                         >
                           <td className="px-5 py-2.5 font-mono text-gray-700 dark:text-gray-300">
-                            {yaEsAncla && <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 mr-2 mb-0.5" />}
+                            {isAlreadyAnchor && <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 mr-2 mb-0.5" />}
                             {s.skuStr}
                           </td>
-                          <td className="px-4 py-2.5 text-gray-600 dark:text-gray-400 max-w-[180px] truncate">{s.desc}</td>
-                          <td className="px-4 py-2.5 text-right text-gray-600 dark:text-gray-400 tabular-nums">{fmt(s.invActual)}</td>
+                          <td className="px-4 py-2.5 text-gray-600 dark:text-gray-400 max-w-[180px] truncate">{s.description}</td>
+                          <td className="px-4 py-2.5 text-right text-gray-600 dark:text-gray-400 tabular-nums">{fmt(s.currentStock)}</td>
                           <td className="px-4 py-2.5 text-right text-gray-600 dark:text-gray-400 tabular-nums">
-                            {s.cobDias >= 9999 ? '—' : s.cobDias > 999 ? '+999d' : `${s.cobDias.toFixed(0)}d`}
+                            {s.coverageDays >= 9999 ? '-' : s.coverageDays > 999 ? '+999d' : `${s.coverageDays.toFixed(0)}d`}
                           </td>
                           <td className="px-4 py-2.5 text-center">
                             <div className="flex flex-col items-center gap-0.5">
                               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${sem.badge} ${sem.text}`}>
                                 {sem.dot} {sem.label}
                               </span>
-                              {s.sinDimensiones && (
+                              {s.missingDimensions && (
                                 <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">Sin dims</span>
                               )}
                             </div>
                           </td>
-                          <td className="px-5 py-2.5 text-right text-gray-600 dark:text-gray-400 tabular-nums">{fmt(s.pzsCaja)}</td>
+                          <td className="px-5 py-2.5 text-right text-gray-600 dark:text-gray-400 tabular-nums">{fmt(s.piecesPerBox)}</td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
-                {catalogoFiltrado.length > 100 && (
+                {filteredCatalog.length > 100 && (
                   <p className="text-center text-xs text-gray-400 dark:text-gray-600 py-3 border-t border-gray-50 dark:border-gray-800">
-                    Mostrando 100 de {catalogoFiltrado.length} — filtra para ver más
+                    Mostrando 100 de {filteredCatalog.length}, filtra para ver más
                   </p>
                 )}
               </div>
@@ -752,7 +745,7 @@ export function PedidoPersonalizado() {
 
             <div className="flex justify-end">
               <button
-                disabled={anclas.length === 0}
+                disabled={anchors.length === 0}
                 onClick={() => setStep('nmax')}
                 className="flex items-center gap-2 px-6 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-colors shadow-sm shadow-blue-200 dark:shadow-none text-sm"
               >
@@ -794,14 +787,14 @@ export function PedidoPersonalizado() {
                 >+</button>
               </div>
               <p className="text-xs text-center text-gray-400 dark:text-gray-500 mt-4">
-                N_MIN estimado (40HC): <span className="font-semibold text-gray-600 dark:text-gray-300">{calcularNMin(anclas, getContainerType('40HC'))}</span> contenedor(es)
+                N_MIN estimado (40HC): <span className="font-semibold text-gray-600 dark:text-gray-300">{calculateMinContainers(anchors, getContainerType('40HC'))}</span> contenedor(es)
               </p>
             </div>
 
             <div className="flex gap-3">
               <BackBtn onClick={() => setStep('anchors')} />
               <button
-                onClick={irAContenedor}
+                onClick={goToContainer}
                 className="flex-1 flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-xl transition-colors shadow-sm shadow-blue-200 dark:shadow-none text-sm"
               >
                 Evaluar contenedores
@@ -821,8 +814,8 @@ export function PedidoPersonalizado() {
 
             <div className="grid gap-3">
               {ALL_CONTAINER_TYPES.map(ct => {
-                const ev = evaluaciones.find(e => e.ctype.name === ct.name);
-                const isRec      = ev && evaluaciones[0]?.ctype.name === ct.name;
+                const ev = evaluations.find(e => e.ctype.name === ct.name);
+                const isRec      = ev && evaluations[0]?.ctype.name === ct.name;
                 const isSelected = ctype.name === ct.name;
                 const statusColor = ev
                   ? ev.allValid ? 'text-green-600 dark:text-green-400'
@@ -832,7 +825,7 @@ export function PedidoPersonalizado() {
                 return (
                   <button
                     key={ct.name}
-                    onClick={() => { setCtype(ct); resolverYMostrar(ct); }}
+                    onClick={() => { setCtype(ct); resolveAndShow(ct); }}
                     className={`w-full rounded-xl border-2 p-4 text-left transition-all ${
                       isSelected
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 shadow-sm'
@@ -845,14 +838,14 @@ export function PedidoPersonalizado() {
                         {isRec && <span className="text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full font-medium">Recomendado</span>}
                         {isSelected && <span className="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full font-medium">Seleccionado</span>}
                       </div>
-                      <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0 mt-0.5">{fmt(ct.pesoMaxKg)} kg · {ct.volMaxM3} m³</span>
+                      <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0 mt-0.5">{fmt(ct.maxWeightKg)} kg · {ct.maxVolM3} m³</span>
                     </div>
                     {ev ? (
                       <div className="grid grid-cols-4 gap-2">
                         {[
                           { label: 'Contenedores', value: String(ev.nBins) },
-                          { label: '% Peso',       value: `${ev.pctPeso.toFixed(1)}%` },
-                          { label: '% Volumen',    value: `${ev.pctVol.toFixed(1)}%` },
+                          { label: '% Peso',       value: `${ev.weightPct.toFixed(1)}%` },
+                          { label: '% Volumen',    value: `${ev.volPct.toFixed(1)}%` },
                           { label: 'Estado',       value: ev.allValid ? 'En ventana' : ev.degraded ? 'Degradado' : 'Inválido', cls: statusColor },
                         ].map(col => (
                           <div key={col.label} className="bg-white/60 dark:bg-gray-800/40 rounded-lg p-2">
@@ -872,7 +865,7 @@ export function PedidoPersonalizado() {
             <div className="flex gap-3">
               <BackBtn onClick={() => setStep('nmax')} />
               <button
-                onClick={() => resolverYMostrar()}
+                onClick={() => resolveAndShow()}
                 className="flex-1 flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-xl transition-colors shadow-sm shadow-blue-200 dark:shadow-none text-sm"
               >
                 Resolver cubicaje
@@ -891,7 +884,7 @@ export function PedidoPersonalizado() {
             </div>
 
             {/* Escenario A */}
-            {packResult.excedeNMax && scenarioA && (
+            {packResult.exceedsNMax && scenarioA && (
               <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl p-5 space-y-4">
                 <div className="flex items-start gap-3">
                   <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center flex-shrink-0">
@@ -907,22 +900,22 @@ export function PedidoPersonalizado() {
                 {scenarioA.feasible ? (
                   <>
                     <div className="bg-white/60 dark:bg-gray-800/40 rounded-lg divide-y divide-amber-100 dark:divide-amber-900/30">
-                      {scenarioA.recortes.map((r, i) => (
+                      {scenarioA.trims.map((r, i) => (
                         <div key={i} className="px-3 py-2.5 flex gap-3 text-xs">
                           <span className="font-mono font-semibold text-amber-800 dark:text-amber-300 w-12 flex-shrink-0">{r.sku}</span>
-                          <span className="text-amber-600 dark:text-amber-400 flex-shrink-0">{r.razon}</span>
-                          <span className="text-amber-700 dark:text-amber-300">{r.cajasOriginales} → <strong>{r.cajasFinales}</strong> cajas (−{r.cajasRemovidas})</span>
+                          <span className="text-amber-600 dark:text-amber-400 flex-shrink-0">{r.reason}</span>
+                          <span className="text-amber-700 dark:text-amber-300">{r.originalBoxes} → <strong>{r.finalBoxes}</strong> cajas (−{r.removedBoxes})</span>
                         </div>
                       ))}
                     </div>
                     <div className="flex gap-2">
                       <button
-                        onClick={() => aceptarEscenarioAYResolver(scenarioA.anclaAjustadas)}
+                        onClick={() => acceptScenarioAAndResolve(scenarioA.adjustedAnchors)}
                         className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors"
                       >
                         Aceptar y continuar
                       </button>
-                      <button onClick={resetPedido} className="px-4 py-2 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 text-sm rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/20 transition-colors">
+                      <button onClick={resetOrder} className="px-4 py-2 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 text-sm rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/20 transition-colors">
                         Cancelar
                       </button>
                     </div>
@@ -934,7 +927,7 @@ export function PedidoPersonalizado() {
             )}
 
             {/* Bins */}
-            {!packResult.excedeNMax && resultBins.length > 0 && (
+            {!packResult.exceedsNMax && resultBins.length > 0 && (
               <>
                 {/* Resumen global */}
                 <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-5">
@@ -962,13 +955,13 @@ export function PedidoPersonalizado() {
                 <div className="space-y-3">
                   {resultBins.map((bin, i) => {
                     const stats  = getBinStats(bin);
-                    const estado = binEstado(stats);
-                    const cfg    = ESTADO_BIN[estado];
-                    const anclaAssign = bin.assignments.filter(a => a.role === 'ancla');
-                    const rellAssign  = bin.assignments.filter(a => a.role === 'relleno');
-                    const borderCls = estado === 'optimal' ? 'border-blue-200 dark:border-blue-800'
-                      : estado === 'valid' ? 'border-green-200 dark:border-green-900'
-                      : estado === 'degraded' ? 'border-yellow-200 dark:border-yellow-800'
+                    const status = binStatus(stats);
+                    const cfg    = BIN_STATUS_CFG[status];
+                    const anchorAssign = bin.assignments.filter(a => a.role === 'anchor');
+                    const fillAssign  = bin.assignments.filter(a => a.role === 'relleno');
+                    const borderCls = status === 'optimal' ? 'border-blue-200 dark:border-blue-800'
+                      : status === 'valid' ? 'border-green-200 dark:border-green-900'
+                      : status === 'degraded' ? 'border-yellow-200 dark:border-yellow-800'
                       : 'border-red-200 dark:border-red-900';
                     return (
                       <div key={i} className={`bg-white dark:bg-gray-900 border rounded-xl overflow-hidden ${borderCls}`}>
@@ -978,7 +971,7 @@ export function PedidoPersonalizado() {
                             <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-gray-50 dark:bg-gray-800 ${cfg.color}`}>{cfg.icon} {cfg.label}</span>
                           </div>
                           <div className="text-xs text-gray-400 dark:text-gray-500 tabular-nums">
-                            {stats.pesoCargado.toFixed(0)} kg · {stats.volCargado.toFixed(2)} m³
+                            {stats.loadedWeight.toFixed(0)} kg · {stats.loadedVol.toFixed(2)} m³
                           </div>
                         </div>
                         <div className="p-5 space-y-4">
@@ -987,32 +980,32 @@ export function PedidoPersonalizado() {
                             <div>
                               <div className="flex justify-between text-xs mb-1.5">
                                 <span className="text-gray-400 dark:text-gray-500">Peso</span>
-                                <span className="font-semibold text-gray-700 dark:text-gray-300">{stats.pctPeso.toFixed(1)}%</span>
+                                <span className="font-semibold text-gray-700 dark:text-gray-300">{stats.weightPct.toFixed(1)}%</span>
                               </div>
-                              <PctBar val={stats.pctPeso} low={50} high={95} />
+                              <PctBar val={stats.weightPct} low={50} high={95} />
                             </div>
                             <div>
                               <div className="flex justify-between text-xs mb-1.5">
                                 <span className="text-gray-400 dark:text-gray-500">Volumen</span>
-                                <span className="font-semibold text-gray-700 dark:text-gray-300">{stats.pctVol.toFixed(1)}%</span>
+                                <span className="font-semibold text-gray-700 dark:text-gray-300">{stats.volPct.toFixed(1)}%</span>
                               </div>
-                              <PctBar val={stats.pctVol} low={75} high={90} />
+                              <PctBar val={stats.volPct} low={75} high={90} />
                             </div>
                           </div>
 
                           {/* Anclas */}
-                          {anclaAssign.length > 0 && (
+                          {anchorAssign.length > 0 && (
                             <div>
                               <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Anclas</p>
                               <div className="space-y-1.5">
-                                {anclaAssign.map(a => (
-                                  <div key={`${a.sku}-ancla`} className="flex items-center justify-between text-xs gap-2">
+                                {anchorAssign.map(a => (
+                                  <div key={`${a.sku}-anchor`} className="flex items-center justify-between text-xs gap-2">
                                     <span className="text-gray-700 dark:text-gray-300 truncate">
                                       <span className="font-mono text-gray-400 dark:text-gray-500 mr-1.5">{a.sku}</span>
-                                      {a.desc}
+                                      {a.description}
                                     </span>
                                     <span className="text-gray-500 dark:text-gray-400 flex-shrink-0 tabular-nums">
-                                      {fmt(a.cajas)} cj · {fmt(a.cajas * a.pzsCaja)} pzs
+                                      {fmt(a.boxes)} cj · {fmt(a.boxes * a.piecesPerBox)} pzs
                                     </span>
                                   </div>
                                 ))}
@@ -1021,16 +1014,16 @@ export function PedidoPersonalizado() {
                           )}
 
                           {/* Relleno */}
-                          {rellAssign.length > 0 && (
+                          {fillAssign.length > 0 && (
                             <div>
                               <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Relleno sugerido</p>
                               <div className="space-y-1.5">
-                                {rellAssign.map(a => (
+                                {fillAssign.map(a => (
                                   <div key={`${a.sku}-rell`} className="flex items-center justify-between text-xs gap-2">
                                     <span className="text-gray-500 dark:text-gray-400 truncate">
-                                      <span className="font-mono mr-1.5">{a.sku}</span>{a.desc}
+                                      <span className="font-mono mr-1.5">{a.sku}</span>{a.description}
                                     </span>
-                                    <span className="text-gray-400 dark:text-gray-500 flex-shrink-0 tabular-nums">{fmt(a.cajas)} cj</span>
+                                    <span className="text-gray-400 dark:text-gray-500 flex-shrink-0 tabular-nums">{fmt(a.boxes)} cj</span>
                                   </div>
                                 ))}
                               </div>
@@ -1051,7 +1044,7 @@ export function PedidoPersonalizado() {
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-300">Sugerencias de Top-Off</p>
-                        <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5">Contenedores por debajo del piso de ventana — se puede optimizar el llenado</p>
+                        <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5">Contenedores por debajo del piso de ventana, se puede optimizar el llenado</p>
                       </div>
                     </div>
                     <div className="space-y-3">
@@ -1059,20 +1052,20 @@ export function PedidoPersonalizado() {
                         <div key={i} className="bg-white/60 dark:bg-gray-800/30 rounded-lg p-3 space-y-2">
                           <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
                             Contenedor {s.binIdx + 1}:
-                            <span className="font-normal ml-1">{s.pctPesoAntes.toFixed(1)}%p/{s.pctVolAntes.toFixed(1)}%v → {s.pctPesoDespues.toFixed(1)}%/{s.pctVolDespues.toFixed(1)}%</span>
+                            <span className="font-normal ml-1">{s.weightPctBefore.toFixed(1)}%p/{s.volPctBefore.toFixed(1)}%v → {s.weightPctAfter.toFixed(1)}%/{s.volPctAfter.toFixed(1)}%</span>
                           </p>
-                          {s.sugerencias.map((sk, j) => (
+                          {s.suggestions.map((sk, j) => (
                             <div key={j} className="flex gap-2 text-xs text-indigo-600 dark:text-indigo-400 pl-2">
                               <span className="font-mono font-medium">{sk.sku}</span>
-                              <span className="truncate">{sk.desc}</span>
-                              <span className="font-semibold flex-shrink-0">+{sk.cajas} cj</span>
+                              <span className="truncate">{sk.description}</span>
+                              <span className="font-semibold flex-shrink-0">+{sk.boxes} cj</span>
                             </div>
                           ))}
                         </div>
                       ))}
                     </div>
                     <button
-                      onClick={handleAplicarTopOff}
+                      onClick={handleApplyTopOff}
                       className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 14 14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M2 7l4 4 6-6"/></svg>
@@ -1083,7 +1076,7 @@ export function PedidoPersonalizado() {
                 {topOffApplied && (
                   <div className="flex items-center gap-3 bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 rounded-xl px-5 py-4">
                     <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M5 10l4 4 6-6"/></svg>
-                    <p className="text-sm text-green-700 dark:text-green-300">Top-off aplicado — contenedores actualizados.</p>
+                    <p className="text-sm text-green-700 dark:text-green-300">Top-off aplicado, contenedores actualizados.</p>
                   </div>
                 )}
 
@@ -1091,7 +1084,7 @@ export function PedidoPersonalizado() {
                 <div className="flex gap-3 pt-1">
                   <BackBtn onClick={() => setStep('container')} label="Cambiar contenedor" />
                   <button
-                    onClick={resetPedido}
+                    onClick={resetOrder}
                     className="flex items-center gap-2 px-6 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-xl transition-colors shadow-sm shadow-blue-200 dark:shadow-none text-sm"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 16 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M8 3v10M3 8h10"/></svg>

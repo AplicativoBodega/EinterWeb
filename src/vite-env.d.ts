@@ -1,3 +1,5 @@
+// Ambient type declarations for Vite env vars and the global fetchAPI
+// helper.
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {

@@ -1,3 +1,5 @@
+// Excel-style table column header with sort and multi-select filter dropdown.
+// Also exports distinctValues, a helper to build the filter option list.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 export type SortDir = "asc" | "desc" | null;
@@ -17,13 +19,6 @@ interface ColumnFilterProps {
   textClass?: string;
 }
 
-/**
- * Excel-style column header with an auto-filter dropdown:
- * sort asc/desc + searchable multi-select checklist of distinct values.
- *
- * The dropdown is rendered with fixed positioning anchored to the header
- * button so it is never clipped by the table card's `overflow-hidden`.
- */
 export function ColumnFilter({
   label,
   options,
@@ -214,9 +209,6 @@ export function ColumnFilter({
   );
 }
 
-/**
- * Distinct, sorted display values for a column across a row set.
- */
 export function distinctValues<T>(rows: T[], accessor: (row: T) => string): string[] {
   const set = new Set<string>();
   for (const r of rows) {

@@ -1,3 +1,5 @@
+// Page for recording and browsing container entradas (inbound shipments),
+// with filtering, pagination, and create/detail modals.
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
@@ -5,6 +7,7 @@ import { useRefetchOnFocus } from "../hooks/useRefetchOnFocus";
 import { auth } from "../lib/firebase";
 import { ColumnFilter, distinctValues } from "../components/ColumnFilter";
 import { SkuCombobox, type SkuOption } from "../components/SkuCombobox";
+import { ContenedorEtiquetaModal } from "../components/ContenedorEtiquetaModal";
 import { getMonterreyDateISO, getMonterreyYear } from "../lib/dateMx";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -160,8 +163,6 @@ function extractTamano(folio: string): string {
   return m[0].replace(/\s/g, "").toUpperCase();
 }
 
-// Split a folio like "ORDEN KEN040 2X40" into orden ("KEN040") and the
-// container token ("2X40"). The date is shown in its own column already.
 function parseFolio(folio: string): { orden: string; contenedores: string } {
   const raw = (folio || "").trim();
   const contenedores = extractTamano(raw);
@@ -178,9 +179,6 @@ export function Entradas() {
   useDarkMode();
   const currentYear = String(getMonterreyYear());
 
-  // Table state — all rows for the selected year/month are loaded at once and
-  // filtered / sorted / paginated client-side so the Excel-style column filters
-  // span the whole dataset.
   const [data, setData] = useState<ContenedorRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -209,6 +207,7 @@ export function Entradas() {
   const [detail, setDetail] = useState<ContenedorDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [etiquetaVisible, setEtiquetaVisible] = useState(false);
 
   // Create / edit modal state
   const [createVisible, setCreateVisible] = useState(false);
@@ -257,8 +256,6 @@ export function Entradas() {
     setPage(1);
   }, [searchText, colFilters, dateDesde, dateHasta, tamanoFilter, skuFilter, facturaFilter]);
 
-  // Main data fetch — load every entrada for the selected year/month so the
-  // search / filters / pagination all run client-side over the whole dataset.
   useEffect(() => {
     let cancelled = false;
 
@@ -287,8 +284,6 @@ export function Entradas() {
                 total_piezas: Number(r.total_piezas) || 0,
                 num_productos: Number(r.num_productos) || 0,
                 orden: parsed.orden,
-                // Size is now its own column in the DB; fall back to the legacy
-                // name-derived token for rows created before that change.
                 contenedores: r.tamano || parsed.contenedores,
               };
             })
@@ -344,7 +339,7 @@ export function Entradas() {
   };
 
   const formatDate = (iso: string) => {
-    if (!iso) return "—";
+    if (!iso) return "-";
     const d = new Date(iso);
     return d.toLocaleDateString("es-MX", {
       year: "numeric",
@@ -491,8 +486,6 @@ export function Entradas() {
       return;
     }
 
-    // Validate SKUs against the catalog before hitting the API so the user
-    // gets an immediate, specific message instead of a generic 400.
     if (knownSkus.size > 0) {
       const unknown = validItems
         .map((i) => i.master_sku)
@@ -935,7 +928,7 @@ export function Entradas() {
                       className="text-gray-900 dark:text-gray-100 text-sm font-mono font-medium truncate"
                       title={row.folio_orden}
                     >
-                      {row.orden || "—"}
+                      {row.orden || "-"}
                     </span>
                   </div>
                   {/* Contenedores */}
@@ -953,7 +946,7 @@ export function Entradas() {
                       className="text-gray-700 dark:text-gray-300 text-sm truncate"
                       title={row.productos ?? ""}
                     >
-                      {row.productos || "—"}
+                      {row.productos || "-"}
                     </span>
                   </div>
                   {/* Piezas */}
@@ -965,7 +958,7 @@ export function Entradas() {
                   {/* Fecha de pedido */}
                   <div className="py-3 px-3 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
                     <span className="text-gray-600 dark:text-gray-400 text-sm">
-                      {row.fecha_pedido ? formatDate(row.fecha_pedido) : "—"}
+                      {row.fecha_pedido ? formatDate(row.fecha_pedido) : "-"}
                     </span>
                   </div>
                   {/* Fecha de llegada */}
@@ -1230,7 +1223,7 @@ export function Entradas() {
                     >
                       <div className="py-2.5 px-4 border-r border-gray-200 dark:border-gray-600 flex items-center justify-center">
                         <span className="text-gray-700 dark:text-gray-300 text-sm font-mono">
-                          {item.master_sku || "—"}
+                          {item.master_sku || "-"}
                         </span>
                       </div>
                       <div className="py-2.5 px-4 border-r border-gray-200 dark:border-gray-600 flex items-center">
@@ -1238,7 +1231,7 @@ export function Entradas() {
                           className="text-gray-900 dark:text-gray-100 text-sm truncate"
                           title={item.nombre_producto}
                         >
-                          {item.nombre_producto || "—"}
+                          {item.nombre_producto || "-"}
                         </span>
                       </div>
                       <div className="py-2.5 px-4 flex items-center justify-center">
@@ -1261,17 +1254,31 @@ export function Entradas() {
                     {detail.total_piezas.toLocaleString("es-MX")}
                   </span>
                 </span>
-                <button
-                  onClick={closeDetail}
-                  className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm font-robotoMedium"
-                >
-                  Cerrar
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setEtiquetaVisible(true)}
+                    className="px-4 py-2 rounded-lg bg-gray-600 text-white hover:bg-gray-700 transition-colors text-sm font-robotoMedium"
+                  >
+                    Imprimir barcode
+                  </button>
+                  <button
+                    onClick={closeDetail}
+                    className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm font-robotoMedium"
+                  >
+                    Cerrar
+                  </button>
+                </div>
               </div>
             )}
           </div>
         </div>
       )}
+
+      <ContenedorEtiquetaModal
+        visible={etiquetaVisible}
+        detail={detail}
+        onClose={() => setEtiquetaVisible(false)}
+      />
 
       {/* ── Create modal ────────────────────────────────────────────────────── */}
       {createVisible && (

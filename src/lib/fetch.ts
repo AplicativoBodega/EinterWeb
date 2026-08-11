@@ -1,18 +1,11 @@
-/**
- * API Client for BodegaEinter Backend
- * Base URL: http://localhost:3000 (configurable via VITE_API_BASE_URL)
- */
-
+// API client for the BodegaEinter backend: fetchAPI handles authenticated
+// requests, and useFetch wraps it with React loading/error state.
 import { useState, useEffect } from 'react';
 import { auth } from './firebase';
 
 // Use relative path for API in development, absolute URL from env in production
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? '' : 'http://localhost:3000');
 
-/**
- * Global fetchAPI function used throughout the application
- * Handles API requests with Firebase authentication and proper error handling
- */
 export async function fetchAPI(path: string, options: RequestInit = {}): Promise<unknown> {
   // Convert /(api)/ prefix to /api/
   const normalizedPath = path.replace('/(api)/', '/api/');
@@ -42,9 +35,6 @@ export async function fetchAPI(path: string, options: RequestInit = {}): Promise
       headers,
     });
 
-    // Detect non-JSON responses (e.g. an SPA index.html or a gateway/timeout
-    // error page) so callers get a clear message instead of the cryptic
-    // "Unexpected token '<'" JSON parse error.
     const contentType = response.headers.get('content-type') || '';
     const isJson = contentType.includes('application/json');
 
@@ -81,9 +71,6 @@ export async function fetchAPI(path: string, options: RequestInit = {}): Promise
   }
 }
 
-/**
- * React hook for fetching data with loading and error states
- */
 export function useFetch<T>(url: string, options?: RequestInit) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);

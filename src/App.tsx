@@ -1,3 +1,6 @@
+// Root component: handles auth gating and renders the active page based on
+// the current navigation state.
+// Wraps the app shell (navbar, sidebar) once the user is authenticated.
 import { useState } from 'react'
 import { useAuth } from './context/AuthContext'
 import { DarkModeProvider } from './context/DarkModeContext'

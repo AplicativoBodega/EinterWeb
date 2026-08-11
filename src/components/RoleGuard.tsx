@@ -1,3 +1,5 @@
+// Renders children only if the current user has the required role or
+// super admin status, otherwise renders the fallback.
 import { type ReactNode } from 'react';
 import { useRole } from '../hooks/useRole';
 import type { UserRole } from '../lib/roles';

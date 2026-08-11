@@ -1,3 +1,5 @@
+// Modal for creating or editing a product, including image upload and
+// supplier/category lookups.
 import { useState, useEffect } from "react";
 import { fetchAPI } from "../lib/fetch";
 import type { Product } from "../lib/types";

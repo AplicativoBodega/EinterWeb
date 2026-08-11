@@ -27,14 +27,21 @@ npm run dev   # Vite, puerto 5173
 
 `src/components/ReciboModal.tsx` y `src/components/VentaDetailModal.tsx` existían pero no se importaban en ninguna página — confirmado sin uso y borrados. Si el dominio `recibos` o el detalle de venta por `id_orden` se necesitan en el futuro, hay que reconstruirlos: el backend real para detalle de venta es `GET /api/ventas/:id` (por `id_venta`, no `id_orden`), que ya devuelve el detalle embebido — `VentaDetailModal.tsx` tenía esto mal (apuntaba a `/api/ventas-web/...`, ruta que no existe).
 
-## Impresión de etiquetas — construida 2026-08-10
+## Impresión de etiquetas — construida 2026-08-10, arquitectura corregida el mismo día
 
-No existía nada de esto antes. `src/components/EtiquetaModal.tsx` es un modal invocado desde el botón "Etiqueta" en cada fila de `Productos.tsx`:
-- Consulta `GET /api/odoo/barcode/:code` con el `master_sku` del producto — **Odoo en vivo, no `/api/odoo/productos` (que lee el cache local)**. Es el mismo endpoint que usa el escaneo de barcode en `EinterBodegaApp` (ver `EinterBodegaApp/AGENTS.md`).
-- Renderiza el código de barras con `jsbarcode` (nueva dependencia, formato CODE128 sobre el `default_code`/SKU).
-- Imprime con `window.print()` + CSS en `src/index.css` (`@media print`, oculta todo excepto `#etiqueta-print-area`) — no genera PDF, usa el diálogo de impresión nativo del navegador.
+**El barcode siempre se lee de la BD, nunca de Odoo.** El `master_sku` de un producto nace en nuestra BD al darlo de alta — Odoo no lo genera (ni siquiera sincronizamos su campo `barcode`, solo `default_code`). Un endpoint `GET /api/odoo/barcode/:code` que consultaba Odoo en vivo se construyó y se **borró el mismo día** al caer en cuenta de esto — si ves referencias a él en el historial, es ese experimento fallido.
 
-Si agregas impresión de etiquetas en otra pantalla, reusa `EtiquetaModal` en vez de duplicar la lógica de `jsbarcode`/`window.print()`.
+Tres modales de impresión, todos con el mismo patrón (`jsbarcode` CODE128 + `window.print()` + `#etiqueta-print-area` con CSS `@media print` en `src/index.css`):
+
+- **`src/components/EtiquetaModal.tsx`** — un producto. Botón "Etiqueta" por fila en `Productos.tsx`. Lee `GET /api/productos?search=<sku>` y filtra por coincidencia exacta de `sku`.
+- **`src/components/ContenedorEtiquetaModal.tsx`** — barcode "master" de un contenedor (folio → varios productos con cantidad). Botón "Imprimir barcode" en el modal de detalle de `Entradas.tsx`, reusa los datos que ese modal ya cargó de `GET /api/contenedores/:folio` (sin fetch propio).
+- **`src/components/TarimaEtiquetaModal.tsx`** — barcode "master" de una tarima (SKU → varios cartones, potencialmente de productos distintos — el schema ya lo soporta, ver `EINTER_API/AGENTS.md`). Se busca por SKU desde un buscador nuevo en `src/pages/Ubicaciones.tsx` (arriba del árbol mock existente — no lo toques, esa página sigue siendo 100% datos de ejemplo sin conectar, ver más abajo) vía `GET /api/tarimas?sku=` + `GET /api/tarimas/:id/cartones`.
+
+Si agregas impresión de etiquetas en otra pantalla, reusa uno de estos tres patrones en vez de reimplementar `jsbarcode`/`window.print()` desde cero.
+
+## `src/pages/Ubicaciones.tsx` — mayormente mock, no lo confundas con datos reales
+
+Todo el árbol Ubicación→Master QR→Sub-QR de esta página usa `sampleData` hardcodeado en el propio archivo — no llama a ningún endpoint, no refleja la BD real. El único bloque real en esta página es `TarimaBarcodeSearch` (agregado 2026-08-10, arriba del header del árbol mock), que sí habla con el backend. Si vas a conectar el resto de la página a datos reales, probablemente quieras generalizar ese mismo patrón a islas/tarimas reales en vez de mantener `sampleData`.
 
 ## Antes de tocar algo, ten en cuenta
 

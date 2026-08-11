@@ -1,3 +1,5 @@
+// Product catalog page: search, filter, paginate, edit, and export
+// products to Excel.
 import { useState, useEffect, useCallback } from "react";
 import ExcelJS from "exceljs";
 import { ProductModal } from "../components/ProductModal";
@@ -160,8 +162,6 @@ export function Productos() {
     }
   };
 
-  // Load every product (all pages) so the Excel-style column filters and the
-  // search box operate over the whole catalog, with client-side pagination.
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -197,7 +197,6 @@ export function Productos() {
 
   useEffect(() => {
     fetchProducts();
-    // fetchProducts is a stable ref — safe to omit
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -480,9 +479,6 @@ export function Productos() {
     setModalVisible(true);
   };
 
-  // Open modal for editing. Refetch the product fresh from the server instead
-  // of reusing the (possibly stale) row from the last list load, so a save
-  // doesn't clobber changes someone else made in the meantime.
   const openEditModal = async (product: Product) => {
     setModalMode("edit");
     setSelectedProduct(product);
@@ -709,7 +705,7 @@ export function Productos() {
                 {/* Proveedor */}
                 <div className="flex-[2] py-4 px-3 border-r border-gray-300 dark:border-gray-700 flex justify-center items-center">
                   <p className="text-gray-900 dark:text-white font-robotoRegular text-base text-center truncate">
-                    {product.supplier?.name || "—"}
+                    {product.supplier?.name || "-"}
                   </p>
                 </div>
 

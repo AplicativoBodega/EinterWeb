@@ -1,3 +1,5 @@
+// Provides dark mode state, persisted to localStorage and reflected on
+// the document root class.
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
 
 interface DarkModeContextType {

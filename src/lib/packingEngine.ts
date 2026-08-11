@@ -1,46 +1,38 @@
-/**
- * packingEngine.ts — Motor de cubicaje Einter v1.2 (port TypeScript)
- *
- * Implementa FFD para anclas + Greedy Knapsack para relleno + scoring +
- * recomendador de contenedor + top-off + Escenario A de recorte.
- *
- * Greedy knapsack en lugar de MILP (PuLP/CBC) — produce resultados de
- * calidad equivalente para el tamaño de problema típico (< 100 SKUs).
- */
-
+// Motor de cubicaje: FFD para anchors, greedy knapsack para relleno,
+// scoring, recomendador de contenedor, top-off y recorte (Escenario A).
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 export const CONTAINER_SPECS = {
-  '20ft': { pesoMaxKg: 21_700, volMaxM3: 33.0 },
-  '40ft': { pesoMaxKg: 26_500, volMaxM3: 67.0 },
-  '40HC': { pesoMaxKg: 26_500, volMaxM3: 76.0 },
+  '20ft': { maxWeightKg: 21_700, maxVolM3: 33.0 },
+  '40ft': { maxWeightKg: 26_500, maxVolM3: 67.0 },
+  '40HC': { maxWeightKg: 26_500, maxVolM3: 76.0 },
 } as const;
 
 export type ContainerName = keyof typeof CONTAINER_SPECS;
 
-const VENTANA_PESO_MIN = 0.50;
-const VENTANA_PESO_MAX = 0.95;
-const VENTANA_VOL_MIN  = 0.75;
-const VENTANA_VOL_MAX  = 0.90;
-const MIN_PZS_SKU_RELLENO = 1_000;
-const MIN_PZS_TOP_OFF     = 500;
-const LEAD_TIME_DIAS          = 60;
-const DIAS_OBJETIVO_COBERTURA = 150;
-const UMBRAL_SOBRESTOCK = 300;
-const ALERTA_ROJO       = 60;
-const ALERTA_AMARILLO   = 80;
+const WINDOW_WEIGHT_MIN = 0.50;
+const WINDOW_WEIGHT_MAX = 0.95;
+const WINDOW_VOL_MIN  = 0.75;
+const WINDOW_VOL_MAX  = 0.90;
+const MIN_PIECES_SKU_FILL = 1_000;
+const MIN_PIECES_TOP_OFF     = 500;
+const LEAD_TIME_DAYS          = 60;
+const TARGET_COVERAGE_DAYS = 150;
+const OVERSTOCK_THRESHOLD = 300;
+const RED_ALERT       = 60;
+const YELLOW_ALERT   = 80;
 
 // ─── Tipos básicos ────────────────────────────────────────────────────────────
 
 export interface ContainerType {
   name: ContainerName;
-  pesoMaxKg: number;
-  volMaxM3:  number;
+  maxWeightKg: number;
+  maxVolM3:  number;
 }
 
 export function getContainerType(name: ContainerName): ContainerType {
   const s = CONTAINER_SPECS[name];
-  return { name, pesoMaxKg: s.pesoMaxKg, volMaxM3: s.volMaxM3 };
+  return { name, maxWeightKg: s.maxWeightKg, maxVolM3: s.maxVolM3 };
 }
 
 export const ALL_CONTAINER_TYPES: ContainerType[] = (
@@ -49,12 +41,12 @@ export const ALL_CONTAINER_TYPES: ContainerType[] = (
 
 export interface Assignment {
   sku:      number;
-  cajas:    number;
-  pesoCaja: number; // kg/caja
-  volCaja:  number; // m³/caja
-  pzsCaja:  number;
-  role:     'ancla' | 'relleno';
-  desc:     string;
+  boxes:    number;
+  boxWeightKg: number; // kg/caja
+  boxVolM3:  number; // m³/caja
+  piecesPerBox:  number;
+  role:     'anchor' | 'relleno';
+  description:     string;
 }
 
 export interface BinState {
@@ -62,112 +54,112 @@ export interface BinState {
   assignments:   Assignment[];
 }
 
-export interface Ancla {
+export interface Anchor {
   sku:             number;
-  cajas:           number;
-  pesoCaja:        number;
-  volCaja:         number;
-  pzsCaja:         number;
-  desc:            string;
-  cajasMaxFallback?: number; // para top-off fallback
+  boxes:           number;
+  boxWeightKg:        number;
+  boxVolM3:         number;
+  piecesPerBox:         number;
+  description:            string;
+  maxFallbackBoxes?: number; // para top-off fallback
 }
 
-export interface CandidatoRelleno {
+export interface FillCandidate {
   sku:      number;
-  dI:       number; // demanda piezas/día
-  cobDias:  number;
-  estado:   string; // CRITICO | ALERTA | OK | SOBRESTOCK
-  pesoCaja: number;
-  volCaja:  number;
-  pzsCaja:  number;
-  cajasMax: number;
-  desc:     string;
+  dailyDemand:       number; // demanda piezas/día
+  coverageDays:  number;
+  status:   string; // CRITICO | ALERTA | OK | SOBRESTOCK
+  boxWeightKg: number;
+  boxVolM3:  number;
+  piecesPerBox:  number;
+  maxBoxes: number;
+  description:     string;
 }
 
-export type SemaforoStatus = 'CRITICO' | 'ALERTA' | 'OK' | 'SOBRESTOCK';
+export type FillStatus = 'CRITICO' | 'ALERTA' | 'OK' | 'SOBRESTOCK';
 
 // ─── Semáforo ─────────────────────────────────────────────────────────────────
 
-export function clasificarSemaforo(cobDias: number): SemaforoStatus {
-  if (cobDias > UMBRAL_SOBRESTOCK) return 'SOBRESTOCK';
-  if (cobDias < ALERTA_ROJO)       return 'CRITICO';
-  if (cobDias < ALERTA_AMARILLO)   return 'ALERTA';
+export function classifyStatus(coverageDays: number): FillStatus {
+  if (coverageDays > OVERSTOCK_THRESHOLD) return 'SOBRESTOCK';
+  if (coverageDays < RED_ALERT)       return 'CRITICO';
+  if (coverageDays < YELLOW_ALERT)   return 'ALERTA';
   return 'OK';
 }
 
-export function calcularCajasMaxRelleno(
-  invEfectivo: number,
-  dI:          number,
-  pzsCaja:     number,
+export function calculateMaxFillBoxes(
+  effectiveInventory: number,
+  dailyDemand:          number,
+  piecesPerBox:     number,
 ): number {
-  if (pzsCaja <= 0 || dI <= 0) return 0;
-  const invRecepcion  = Math.max(0, invEfectivo - dI * LEAD_TIME_DIAS);
-  const pzsNecesarias = Math.max(0, dI * DIAS_OBJETIVO_COBERTURA - invRecepcion);
-  return Math.floor(pzsNecesarias / pzsCaja);
+  if (piecesPerBox <= 0 || dailyDemand <= 0) return 0;
+  const inventoryAtReceipt  = Math.max(0, effectiveInventory - dailyDemand * LEAD_TIME_DAYS);
+  const piecesNeeded = Math.max(0, dailyDemand * TARGET_COVERAGE_DAYS - inventoryAtReceipt);
+  return Math.floor(piecesNeeded / piecesPerBox);
 }
 
 // ─── Helpers de Bin ───────────────────────────────────────────────────────────
 
-function pesoCargado(b: BinState): number {
-  return b.assignments.reduce((s, a) => s + a.cajas * a.pesoCaja, 0);
+function loadedWeight(b: BinState): number {
+  return b.assignments.reduce((s, a) => s + a.boxes * a.boxWeightKg, 0);
 }
-function volCargado(b: BinState): number {
-  return b.assignments.reduce((s, a) => s + a.cajas * a.volCaja, 0);
+function loadedVol(b: BinState): number {
+  return b.assignments.reduce((s, a) => s + a.boxes * a.boxVolM3, 0);
 }
-function pctPeso(b: BinState): number {
-  return 100 * pesoCargado(b) / b.containerType.pesoMaxKg;
+function weightPct(b: BinState): number {
+  return 100 * loadedWeight(b) / b.containerType.maxWeightKg;
 }
-function pctVol(b: BinState): number {
-  return 100 * volCargado(b) / b.containerType.volMaxM3;
+function volPct(b: BinState): number {
+  return 100 * loadedVol(b) / b.containerType.maxVolM3;
 }
-function espacioPesoFisico(b: BinState): number {
-  return b.containerType.pesoMaxKg - pesoCargado(b);
+function physicalWeightSpace(b: BinState): number {
+  return b.containerType.maxWeightKg - loadedWeight(b);
 }
-function espacioVolFisico(b: BinState): number {
-  return b.containerType.volMaxM3 - volCargado(b);
+function physicalVolSpace(b: BinState): number {
+  return b.containerType.maxVolM3 - loadedVol(b);
 }
-function espacioPesoVentana(b: BinState): number {
-  return Math.max(0, b.containerType.pesoMaxKg * VENTANA_PESO_MAX - pesoCargado(b));
+function windowWeightSpace(b: BinState): number {
+  return Math.max(0, b.containerType.maxWeightKg * WINDOW_WEIGHT_MAX - loadedWeight(b));
 }
-function espacioVolVentana(b: BinState): number {
-  return Math.max(0, b.containerType.volMaxM3 * VENTANA_VOL_MAX - volCargado(b));
+function windowVolSpace(b: BinState): number {
+  return Math.max(0, b.containerType.maxVolM3 * WINDOW_VOL_MAX - loadedVol(b));
 }
-function cabesFisicamente(b: BinState, peso: number, vol: number): boolean {
+function fitsPhysically(b: BinState, peso: number, vol: number): boolean {
   return (
-    pesoCargado(b) + peso <= b.containerType.pesoMaxKg + 1e-6 &&
-    volCargado(b)  + vol  <= b.containerType.volMaxM3  + 1e-6
+    loadedWeight(b) + peso <= b.containerType.maxWeightKg + 1e-6 &&
+    loadedVol(b)  + vol  <= b.containerType.maxVolM3  + 1e-6
   );
 }
-function estaEnVentana(b: BinState): boolean {
-  const p = pesoCargado(b);
-  const v = volCargado(b);
+function isInWindow(b: BinState): boolean {
+  const p = loadedWeight(b);
+  const v = loadedVol(b);
   const c = b.containerType;
-  if (p < c.pesoMaxKg * VENTANA_PESO_MIN - 1e-6) return false;
-  if (v < c.volMaxM3  * VENTANA_VOL_MIN  - 1e-6) return false;
-  if (p > c.pesoMaxKg + 1e-6) return false;
-  if (v > c.volMaxM3  + 1e-6) return false;
+  if (p < c.maxWeightKg * WINDOW_WEIGHT_MIN - 1e-6) return false;
+  if (v < c.maxVolM3  * WINDOW_VOL_MIN  - 1e-6) return false;
+  if (p > c.maxWeightKg + 1e-6) return false;
+  if (v > c.maxVolM3  + 1e-6) return false;
   return true;
 }
-function gapPpFueraVentana(b: BinState): number {
-  const gapP = Math.max(0, VENTANA_PESO_MIN * 100 - pctPeso(b));
-  const gapV = Math.max(0, VENTANA_VOL_MIN  * 100 - pctVol(b));
+function gapPctOutsideWindow(b: BinState): number {
+  const gapP = Math.max(0, WINDOW_WEIGHT_MIN * 100 - weightPct(b));
+  const gapV = Math.max(0, WINDOW_VOL_MIN  * 100 - volPct(b));
   return Math.max(gapP, gapV);
 }
-function desbalancePp(b: BinState): number {
-  return Math.abs(pctPeso(b) - pctVol(b));
+function pctImbalance(b: BinState): number {
+  return Math.abs(weightPct(b) - volPct(b));
 }
-function esOptimoPorAnclas(b: BinState): boolean {
+function isOptimalByAnchors(b: BinState): boolean {
   const c = b.containerType;
-  const p = pesoCargado(b);
-  const v = volCargado(b);
-  const excedeOp = p > c.pesoMaxKg * VENTANA_PESO_MAX + 1e-6 || v > c.volMaxM3 * VENTANA_VOL_MAX + 1e-6;
-  const dentroFisico = p <= c.pesoMaxKg + 1e-6 && v <= c.volMaxM3 + 1e-6;
+  const p = loadedWeight(b);
+  const v = loadedVol(b);
+  const excedeOp = p > c.maxWeightKg * WINDOW_WEIGHT_MAX + 1e-6 || v > c.maxVolM3 * WINDOW_VOL_MAX + 1e-6;
+  const dentroFisico = p <= c.maxWeightKg + 1e-6 && v <= c.maxVolM3 + 1e-6;
   return excedeOp && dentroFisico;
 }
 
 function addAssignment(b: BinState, a: Assignment): void {
   const existing = b.assignments.find(e => e.sku === a.sku && e.role === a.role);
-  if (existing) { existing.cajas += a.cajas; }
+  if (existing) { existing.boxes += a.boxes; }
   else          { b.assignments.push({ ...a }); }
 }
 
@@ -177,482 +169,482 @@ function copyBin(b: BinState): BinState {
 
 export function getBinStats(b: BinState) {
   return {
-    pesoCargado:  pesoCargado(b),
-    volCargado:   volCargado(b),
-    pctPeso:      pctPeso(b),
-    pctVol:       pctVol(b),
-    enVentana:    estaEnVentana(b),
-    gapPp:        gapPpFueraVentana(b),
-    optimo:       esOptimoPorAnclas(b),
-    degraded:     !estaEnVentana(b) && gapPpFueraVentana(b) <= 5.0,
+    loadedWeight:  loadedWeight(b),
+    loadedVol:   loadedVol(b),
+    weightPct:      weightPct(b),
+    volPct:       volPct(b),
+    inWindow:    isInWindow(b),
+    gapPct:        gapPctOutsideWindow(b),
+    optimal:       isOptimalByAnchors(b),
+    degraded:     !isInWindow(b) && gapPctOutsideWindow(b) <= 5.0,
   };
 }
 
 // ─── FFD ──────────────────────────────────────────────────────────────────────
 
-function anclaFootprint(a: Ancla): number {
-  return (a.cajas * a.pesoCaja / 26_500) + (a.cajas * a.volCaja / 76);
+function anchorFootprint(a: Anchor): number {
+  return (a.boxes * a.boxWeightKg / 26_500) + (a.boxes * a.boxVolM3 / 76);
 }
 
-export function calcularNMin(anclas: Ancla[], ctype: ContainerType): number {
-  const totalPeso = anclas.reduce((s, a) => s + a.cajas * a.pesoCaja, 0);
-  const totalVol  = anclas.reduce((s, a) => s + a.cajas * a.volCaja,  0);
-  const nPorPeso  = totalPeso > 0 ? Math.ceil(totalPeso / ctype.pesoMaxKg) : 0;
-  const nPorVol   = totalVol  > 0 ? Math.ceil(totalVol  / ctype.volMaxM3)  : 0;
-  return Math.max(1, nPorPeso, nPorVol);
+export function calculateMinContainers(anchors: Anchor[], ctype: ContainerType): number {
+  const totalWeight = anchors.reduce((s, a) => s + a.boxes * a.boxWeightKg, 0);
+  const totalVol  = anchors.reduce((s, a) => s + a.boxes * a.boxVolM3,  0);
+  const byWeight  = totalWeight > 0 ? Math.ceil(totalWeight / ctype.maxWeightKg) : 0;
+  const byVol   = totalVol  > 0 ? Math.ceil(totalVol  / ctype.maxVolM3)  : 0;
+  return Math.max(1, byWeight, byVol);
 }
 
-function distribuirFFD(
-  anclas: Ancla[],
+function distributeFFD(
+  anchors: Anchor[],
   ctype:  ContainerType,
   nBins:  number,
-): { bins: BinState[]; nFragmentos: number } {
+): { bins: BinState[]; fragmentCount: number } {
   const bins: BinState[] = Array.from({ length: nBins }, () => ({
     containerType: ctype,
     assignments:   [],
   }));
-  let nFragmentos = 0;
+  let fragmentCount = 0;
 
-  const sorted = [...anclas].sort((a, b) => anclaFootprint(b) - anclaFootprint(a));
+  const sorted = [...anchors].sort((a, b) => anchorFootprint(b) - anchorFootprint(a));
 
   for (const a of sorted) {
-    const pesoTotal = a.cajas * a.pesoCaja;
-    const volTotal  = a.cajas * a.volCaja;
+    const pesoTotal = a.boxes * a.boxWeightKg;
+    const volTotal  = a.boxes * a.boxVolM3;
 
-    // Intento 1: colocar completa en mejor bin
+    // Intento 1: colocar completa en best bin
     let bestBin: BinState | null = null;
     let bestSpace = -Infinity;
     for (const b of bins) {
-      if (cabesFisicamente(b, pesoTotal, volTotal)) {
+      if (fitsPhysically(b, pesoTotal, volTotal)) {
         const freeAfter =
-          (b.containerType.pesoMaxKg - pesoCargado(b) - pesoTotal) / b.containerType.pesoMaxKg +
-          (b.containerType.volMaxM3  - volCargado(b)  - volTotal)  / b.containerType.volMaxM3;
+          (b.containerType.maxWeightKg - loadedWeight(b) - pesoTotal) / b.containerType.maxWeightKg +
+          (b.containerType.maxVolM3  - loadedVol(b)  - volTotal)  / b.containerType.maxVolM3;
         if (freeAfter > bestSpace) { bestSpace = freeAfter; bestBin = b; }
       }
     }
     if (bestBin) {
-      addAssignment(bestBin, { sku: a.sku, cajas: a.cajas, pesoCaja: a.pesoCaja, volCaja: a.volCaja, pzsCaja: a.pzsCaja, role: 'ancla', desc: a.desc });
+      addAssignment(bestBin, { sku: a.sku, boxes: a.boxes, boxWeightKg: a.boxWeightKg, boxVolM3: a.boxVolM3, piecesPerBox: a.piecesPerBox, role: 'anchor', description: a.description });
       continue;
     }
 
     // Intento 2: fragmentar caja por caja
-    let cajasPendientes = a.cajas;
-    while (cajasPendientes > 0) {
+    let pendingBoxes = a.boxes;
+    while (pendingBoxes > 0) {
       let targetBin: BinState | null = null;
-      let maxCajasCaben = 0;
+      let maxBoxesFit = 0;
       for (const b of bins) {
-        const espP = espacioPesoFisico(b);
-        const espV = espacioVolFisico(b);
-        const cP = a.pesoCaja > 0 ? Math.floor(espP / a.pesoCaja) : cajasPendientes;
-        const cV = a.volCaja  > 0 ? Math.floor(espV / a.volCaja)  : cajasPendientes;
-        const caben = Math.min(cP, cV, cajasPendientes);
-        if (caben > maxCajasCaben) { maxCajasCaben = caben; targetBin = b; }
+        const espP = physicalWeightSpace(b);
+        const espV = physicalVolSpace(b);
+        const cP = a.boxWeightKg > 0 ? Math.floor(espP / a.boxWeightKg) : pendingBoxes;
+        const cV = a.boxVolM3  > 0 ? Math.floor(espV / a.boxVolM3)  : pendingBoxes;
+        const caben = Math.min(cP, cV, pendingBoxes);
+        if (caben > maxBoxesFit) { maxBoxesFit = caben; targetBin = b; }
       }
-      if (!targetBin || maxCajasCaben === 0) {
-        throw new Error(`No se puede distribuir SKU ${a.sku}: faltan ${cajasPendientes} cajas`);
+      if (!targetBin || maxBoxesFit === 0) {
+        throw new Error(`No se puede distribuir SKU ${a.sku}: faltan ${pendingBoxes} cajas`);
       }
-      addAssignment(targetBin, { sku: a.sku, cajas: maxCajasCaben, pesoCaja: a.pesoCaja, volCaja: a.volCaja, pzsCaja: a.pzsCaja, role: 'ancla', desc: a.desc });
-      cajasPendientes -= maxCajasCaben;
+      addAssignment(targetBin, { sku: a.sku, boxes: maxBoxesFit, boxWeightKg: a.boxWeightKg, boxVolM3: a.boxVolM3, piecesPerBox: a.piecesPerBox, role: 'anchor', description: a.description });
+      pendingBoxes -= maxBoxesFit;
     }
-    const binsConSku = bins.filter(b => b.assignments.some(ag => ag.sku === a.sku)).length;
-    if (binsConSku > 1) nFragmentos += binsConSku - 1;
+    const binsWithSku = bins.filter(b => b.assignments.some(ag => ag.sku === a.sku)).length;
+    if (binsWithSku > 1) fragmentCount += binsWithSku - 1;
   }
 
-  return { bins, nFragmentos };
+  return { bins, fragmentCount };
 }
 
 // ─── Scoring SKU candidato ────────────────────────────────────────────────────
 
-const SEMAFORO_FACTOR: Record<string, number> = {
+const STATUS_FACTOR: Record<string, number> = {
   CRITICO: 3.0, ALERTA: 2.0, OK: 1.0, SOBRESTOCK: 0.0,
 };
 
-function scoreSkuCandidato(
-  c: CandidatoRelleno,
-  espPeso: number,
-  espVol:  number,
+function scoreCandidateSku(
+  c: FillCandidate,
+  weightSpace: number,
+  volSpace:  number,
 ): number {
-  if (c.estado === 'SOBRESTOCK') return 0;
-  const urgS   = c.dI / Math.max(c.cobDias, 1);
-  const urgSem = SEMAFORO_FACTOR[c.estado] ?? 1.0;
-  const rhoSku = c.volCaja > 0 ? c.pesoCaja / c.volCaja : 0;
-  const rhoGap = espVol    > 0 ? espPeso    / espVol    : 0;
-  let fDens = 0;
-  if (rhoSku > 0 && rhoGap > 0) {
-    fDens = Math.exp(-Math.abs(Math.log(rhoSku / rhoGap)) * 1.5);
+  if (c.status === 'SOBRESTOCK') return 0;
+  const urgency   = c.dailyDemand / Math.max(c.coverageDays, 1);
+  const statusUrgency = STATUS_FACTOR[c.status] ?? 1.0;
+  const skuDensity = c.boxVolM3 > 0 ? c.boxWeightKg / c.boxVolM3 : 0;
+  const gapDensity = volSpace    > 0 ? weightSpace    / volSpace    : 0;
+  let densityFactor = 0;
+  if (skuDensity > 0 && gapDensity > 0) {
+    densityFactor = Math.exp(-Math.abs(Math.log(skuDensity / gapDensity)) * 1.5);
   }
-  return urgS * fDens * urgSem + c.dI * 0.001;
+  return urgency * densityFactor * statusUrgency + c.dailyDemand * 0.001;
 }
 
 // ─── Greedy Knapsack ──────────────────────────────────────────────────────────
 
-function cajasMinRelleno(pzsCaja: number): number {
-  return pzsCaja <= 0 ? 1 : Math.ceil(MIN_PZS_SKU_RELLENO / pzsCaja);
+function minFillBoxes(piecesPerBox: number): number {
+  return piecesPerBox <= 0 ? 1 : Math.ceil(MIN_PIECES_SKU_FILL / piecesPerBox);
 }
 
-function rellenarBinGreedy(
+function fillBinGreedy(
   bin:            BinState,
-  candidatos:     CandidatoRelleno[],
-  skusExcluidos:  Set<number>,
+  candidates:     FillCandidate[],
+  excludedSkus:  Set<number>,
 ): void {
-  const elegibles = candidatos.filter(c => {
-    if (skusExcluidos.has(c.sku)) return false;
-    if (c.estado === 'SOBRESTOCK') return false;
-    if (c.cajasMax <= 0) return false;
-    const cmin = cajasMinRelleno(c.pzsCaja);
-    if (cmin > c.cajasMax) return false;
-    const espP = espacioPesoVentana(bin);
-    const espV = espacioVolVentana(bin);
-    if (cmin * c.pesoCaja > espP + 1e-6) return false;
-    if (cmin * c.volCaja  > espV + 1e-6) return false;
+  const eligible = candidates.filter(c => {
+    if (excludedSkus.has(c.sku)) return false;
+    if (c.status === 'SOBRESTOCK') return false;
+    if (c.maxBoxes <= 0) return false;
+    const cmin = minFillBoxes(c.piecesPerBox);
+    if (cmin > c.maxBoxes) return false;
+    const espP = windowWeightSpace(bin);
+    const espV = windowVolSpace(bin);
+    if (cmin * c.boxWeightKg > espP + 1e-6) return false;
+    if (cmin * c.boxVolM3  > espV + 1e-6) return false;
     return true;
   });
 
-  const scored = elegibles
-    .map(c => ({ c, score: scoreSkuCandidato(c, espacioPesoVentana(bin), espacioVolVentana(bin)) }))
+  const scored = eligible
+    .map(c => ({ c, score: scoreCandidateSku(c, windowWeightSpace(bin), windowVolSpace(bin)) }))
     .sort((a, b) => b.score - a.score);
 
   for (const { c } of scored) {
-    const espP = espacioPesoVentana(bin);
-    const espV = espacioVolVentana(bin);
+    const espP = windowWeightSpace(bin);
+    const espV = windowVolSpace(bin);
     if (espP <= 0 || espV <= 0) break;
 
-    const cmin = cajasMinRelleno(c.pzsCaja);
-    const cP   = c.pesoCaja > 0 ? Math.floor(espP / c.pesoCaja) : c.cajasMax;
-    const cV   = c.volCaja  > 0 ? Math.floor(espV / c.volCaja)  : c.cajasMax;
-    const cajas = Math.min(c.cajasMax, cP, cV);
-    if (cajas < cmin) continue;
+    const cmin = minFillBoxes(c.piecesPerBox);
+    const cP   = c.boxWeightKg > 0 ? Math.floor(espP / c.boxWeightKg) : c.maxBoxes;
+    const cV   = c.boxVolM3  > 0 ? Math.floor(espV / c.boxVolM3)  : c.maxBoxes;
+    const boxes = Math.min(c.maxBoxes, cP, cV);
+    if (boxes < cmin) continue;
 
-    addAssignment(bin, { sku: c.sku, cajas, pesoCaja: c.pesoCaja, volCaja: c.volCaja, pzsCaja: c.pzsCaja, role: 'relleno', desc: c.desc });
+    addAssignment(bin, { sku: c.sku, boxes, boxWeightKg: c.boxWeightKg, boxVolM3: c.boxVolM3, piecesPerBox: c.piecesPerBox, role: 'relleno', description: c.description });
   }
 }
 
 // ─── Scoring de configuración ─────────────────────────────────────────────────
 
-const SCORE_VALIDEZ_TOTAL   = 100_000;
-const SCORE_DEGRADADO       =  50_000;
-const SCORE_PENAL_BIN_INVAL =  -5_000;
-const SCORE_APROV_POR_PP    =      50;
-const SCORE_POR_CONTENEDOR  =    -500;
-const SCORE_POR_FRAGMENTO   =     -50;
-const SCORE_DESBALANCE_PP   =     -10;
+const SCORE_FULL_VALIDITY   = 100_000;
+const SCORE_DEGRADED       =  50_000;
+const SCORE_INVALID_BIN_PENALTY =  -5_000;
+const SCORE_UTIL_PER_PCT    =      50;
+const SCORE_PER_CONTAINER  =    -500;
+const SCORE_PER_FRAGMENT   =     -50;
+const SCORE_IMBALANCE_PCT   =     -10;
 
 export interface PackingConfig {
   bins:         BinState[];
   score:        number;
-  nFragmentos:  number;
+  fragmentCount:  number;
   valid:        boolean;
   degraded:     boolean;
 }
 
 function scoreConfig(config: PackingConfig): { score: number; breakdown: Record<string, number> } {
-  const { bins, nFragmentos } = config;
-  const valid  = bins.every(estaEnVentana);
-  const maxGap = bins.length > 0 ? Math.max(...bins.map(gapPpFueraVentana)) : 0;
+  const { bins, fragmentCount } = config;
+  const valid  = bins.every(isInWindow);
+  const maxGap = bins.length > 0 ? Math.max(...bins.map(gapPctOutsideWindow)) : 0;
 
-  let sValidez: number;
-  if (valid)          sValidez = SCORE_VALIDEZ_TOTAL;
-  else if (maxGap <= 5.0) sValidez = SCORE_DEGRADADO;
-  else sValidez = SCORE_PENAL_BIN_INVAL * bins.filter(b => !estaEnVentana(b)).length;
+  let validityScore: number;
+  if (valid)          validityScore = SCORE_FULL_VALIDITY;
+  else if (maxGap <= 5.0) validityScore = SCORE_DEGRADED;
+  else validityScore = SCORE_INVALID_BIN_PENALTY * bins.filter(b => !isInWindow(b)).length;
 
-  const sAprov  = (
-    bins.reduce((s, b) => s + pctPeso(b), 0) / (bins.length || 1) +
-    bins.reduce((s, b) => s + pctVol(b),  0) / (bins.length || 1)
-  ) * SCORE_APROV_POR_PP;
-  const sNbins  = bins.length * SCORE_POR_CONTENEDOR;
-  const sFrag   = nFragmentos * SCORE_POR_FRAGMENTO;
-  const sDesbal = (bins.length > 0 ? Math.max(...bins.map(desbalancePp)) : 0) * SCORE_DESBALANCE_PP;
-  const total   = sValidez + sAprov + sNbins + sFrag + sDesbal;
+  const utilizationScore  = (
+    bins.reduce((s, b) => s + weightPct(b), 0) / (bins.length || 1) +
+    bins.reduce((s, b) => s + volPct(b),  0) / (bins.length || 1)
+  ) * SCORE_UTIL_PER_PCT;
+  const containerCountScore  = bins.length * SCORE_PER_CONTAINER;
+  const fragmentScore   = fragmentCount * SCORE_PER_FRAGMENT;
+  const imbalanceScore = (bins.length > 0 ? Math.max(...bins.map(pctImbalance)) : 0) * SCORE_IMBALANCE_PCT;
+  const total   = validityScore + utilizationScore + containerCountScore + fragmentScore + imbalanceScore;
 
   return {
     score: total,
-    breakdown: { S_validez: sValidez, S_aprov: +sAprov.toFixed(1), S_nbins: sNbins, S_frag: sFrag, S_desbal: +sDesbal.toFixed(1), TOTAL: +total.toFixed(1) },
+    breakdown: { S_validez: validityScore, S_aprov: +utilizationScore.toFixed(1), S_nbins: containerCountScore, S_frag: fragmentScore, S_desbal: +imbalanceScore.toFixed(1), TOTAL: +total.toFixed(1) },
   };
 }
 
 // ─── Motor principal ──────────────────────────────────────────────────────────
 
-function construirConfig(
-  anclas:     Ancla[],
-  candidatos: CandidatoRelleno[],
+function buildConfig(
+  anchors:     Anchor[],
+  candidates: FillCandidate[],
   ctype:      ContainerType,
   nBins:      number,
 ): PackingConfig {
-  const { bins, nFragmentos } = distribuirFFD(anclas, ctype, nBins);
+  const { bins, fragmentCount } = distributeFFD(anchors, ctype, nBins);
   for (const b of bins) {
-    const skusAncla = new Set(b.assignments.filter(a => a.role === 'ancla').map(a => a.sku));
-    rellenarBinGreedy(b, candidatos, skusAncla);
+    const anchorSkus = new Set(b.assignments.filter(a => a.role === 'anchor').map(a => a.sku));
+    fillBinGreedy(b, candidates, anchorSkus);
   }
-  return { bins, score: 0, nFragmentos, valid: false, degraded: false };
+  return { bins, score: 0, fragmentCount, valid: false, degraded: false };
 }
 
 export interface PackingResult {
   config:         PackingConfig;
   scoreBreakdown: Record<string, number>;
   nMin:           number;
-  excedeNMax:     boolean;
+  exceedsNMax:     boolean;
 }
 
-export function resolverPedido(
-  anclas:     Ancla[],
-  candidatos: CandidatoRelleno[],
+export function resolveOrder(
+  anchors:     Anchor[],
+  candidates: FillCandidate[],
   ctype:      ContainerType,
   nMax:       number | null,
 ): PackingResult {
-  const nMin = calcularNMin(anclas, ctype);
+  const nMin = calculateMinContainers(anchors, ctype);
 
   if (nMax !== null && nMin > nMax) {
-    return { config: { bins: [], score: -Infinity, nFragmentos: 0, valid: false, degraded: false }, scoreBreakdown: {}, nMin, excedeNMax: true };
+    return { config: { bins: [], score: -Infinity, fragmentCount: 0, valid: false, degraded: false }, scoreBreakdown: {}, nMin, exceedsNMax: true };
   }
 
-  const rangoMax = nMax !== null ? Math.min(nMin + 2, nMax) : nMin + 2;
-  let mejor:          PackingConfig | null = null;
-  let mejorScore      = -Infinity;
-  let mejorBreakdown: Record<string, number> = {};
+  const maxRange = nMax !== null ? Math.min(nMin + 2, nMax) : nMin + 2;
+  let best:          PackingConfig | null = null;
+  let bestScore      = -Infinity;
+  let bestBreakdown: Record<string, number> = {};
 
-  for (let n = nMin; n <= rangoMax; n++) {
+  for (let n = nMin; n <= maxRange; n++) {
     try {
-      const cfg = construirConfig(anclas, candidatos, ctype, n);
+      const cfg = buildConfig(anchors, candidates, ctype, n);
       const { score, breakdown } = scoreConfig(cfg);
       cfg.score    = score;
-      cfg.valid    = cfg.bins.every(estaEnVentana);
-      cfg.degraded = !cfg.valid && (cfg.bins.length > 0 ? Math.max(...cfg.bins.map(gapPpFueraVentana)) : 0) <= 5.0;
-      if (score > mejorScore) { mejorScore = score; mejor = cfg; mejorBreakdown = breakdown; }
+      cfg.valid    = cfg.bins.every(isInWindow);
+      cfg.degraded = !cfg.valid && (cfg.bins.length > 0 ? Math.max(...cfg.bins.map(gapPctOutsideWindow)) : 0) <= 5.0;
+      if (score > bestScore) { bestScore = score; best = cfg; bestBreakdown = breakdown; }
     } catch { /* skip n si FFD falla */ }
   }
 
-  if (!mejor) mejor = { bins: [], score: -Infinity, nFragmentos: 0, valid: false, degraded: false };
-  return { config: mejor, scoreBreakdown: mejorBreakdown, nMin, excedeNMax: false };
+  if (!best) best = { bins: [], score: -Infinity, fragmentCount: 0, valid: false, degraded: false };
+  return { config: best, scoreBreakdown: bestBreakdown, nMin, exceedsNMax: false };
 }
 
 // ─── Recomendador de tipo ─────────────────────────────────────────────────────
 
-export interface EvaluacionTipo {
+export interface TypeEvaluation {
   ctype:    ContainerType;
   score:    number;
   nBins:    number;
   allValid: boolean;
-  pctPeso:  number;
-  pctVol:   number;
+  weightPct:  number;
+  volPct:   number;
   degraded: boolean;
   breakdown: Record<string, number>;
 }
 
-export function recomendarTipo(
-  anclas:     Ancla[],
-  candidatos: CandidatoRelleno[],
-): { recomendado: ContainerType | null; evaluaciones: EvaluacionTipo[] } {
-  const evaluaciones: EvaluacionTipo[] = [];
+export function recommendType(
+  anchors:     Anchor[],
+  candidates: FillCandidate[],
+): { recommended: ContainerType | null; evaluations: TypeEvaluation[] } {
+  const evaluations: TypeEvaluation[] = [];
 
   for (const ctype of ALL_CONTAINER_TYPES) {
     try {
-      const result = resolverPedido(anclas, candidatos, ctype, null);
+      const result = resolveOrder(anchors, candidates, ctype, null);
       if (result.config.bins.length === 0) continue;
       const bins = result.config.bins;
-      evaluaciones.push({
+      evaluations.push({
         ctype,
         score:    result.config.score,
         nBins:    bins.length,
-        allValid: bins.every(estaEnVentana),
-        pctPeso:  bins.reduce((s, b) => s + pctPeso(b), 0) / bins.length,
-        pctVol:   bins.reduce((s, b) => s + pctVol(b),  0) / bins.length,
+        allValid: bins.every(isInWindow),
+        weightPct:  bins.reduce((s, b) => s + weightPct(b), 0) / bins.length,
+        volPct:   bins.reduce((s, b) => s + volPct(b),  0) / bins.length,
         degraded: result.config.degraded,
         breakdown: result.scoreBreakdown,
       });
     } catch { /* skip */ }
   }
 
-  evaluaciones.sort((a, b) => {
+  evaluations.sort((a, b) => {
     if (a.allValid !== b.allValid) return b.allValid ? 1 : -1;
     return b.score - a.score;
   });
 
-  return { recomendado: evaluaciones[0]?.ctype ?? null, evaluaciones };
+  return { recommended: evaluations[0]?.ctype ?? null, evaluations };
 }
 
 // ─── Top-off ──────────────────────────────────────────────────────────────────
 
-export interface SugerenciaSKU {
+export interface SkuSuggestion {
   sku:    number;
-  desc:   string;
-  cajas:  number;
-  fuente: 'complemento' | 'fallback';
-  pesoCaja: number;
-  volCaja:  number;
-  pzsCaja:  number;
+  description:   string;
+  boxes:  number;
+  source: 'complemento' | 'fallback';
+  boxWeightKg: number;
+  boxVolM3:  number;
+  piecesPerBox:  number;
 }
 
-export interface TopOffSugerencia {
+export interface TopOffSuggestion {
   binIdx:         number;
-  pctPesoAntes:   number;
-  pctVolAntes:    number;
-  pctPesoDespues: number;
-  pctVolDespues:  number;
-  sugerencias:    SugerenciaSKU[];
+  weightPctBefore:   number;
+  volPctBefore:    number;
+  weightPctAfter: number;
+  volPctAfter:  number;
+  suggestions:    SkuSuggestion[];
 }
 
-export function generarTopOff(
+export function generateTopOff(
   bins:           BinState[],
-  candidatos:     CandidatoRelleno[],
-  anclasUsuario:  Ancla[],
-): TopOffSugerencia[] {
-  const resultado: TopOffSugerencia[] = [];
+  candidates:     FillCandidate[],
+  userAnchors:  Anchor[],
+): TopOffSuggestion[] {
+  const result: TopOffSuggestion[] = [];
 
   for (let i = 0; i < bins.length; i++) {
-    if (estaEnVentana(bins[i])) continue;
+    if (isInWindow(bins[i])) continue;
 
     const sim = copyBin(bins[i]);
-    const pctPesoAntes = pctPeso(sim);
-    const pctVolAntes  = pctVol(sim);
-    const sugerencias: SugerenciaSKU[] = [];
-    const skusEnBin = new Set(sim.assignments.map(a => a.sku));
+    const weightPctBefore = weightPct(sim);
+    const volPctBefore  = volPct(sim);
+    const suggestions: SkuSuggestion[] = [];
+    const skusInBin = new Set(sim.assignments.map(a => a.sku));
 
-    // Pasada 1: complementos (no anclas)
-    const comps = candidatos.filter(c => {
-      if (skusEnBin.has(c.sku)) return false;
-      if (c.estado === 'SOBRESTOCK') return false;
-      if (c.cajasMax <= 0) return false;
-      const cmin = Math.ceil(MIN_PZS_TOP_OFF / c.pzsCaja);
-      if (cmin * c.pesoCaja > espacioPesoFisico(sim) + 1e-6) return false;
-      if (cmin * c.volCaja  > espacioVolFisico(sim)  + 1e-6) return false;
+    // Pasada 1: complementos (no anchors)
+    const comps = candidates.filter(c => {
+      if (skusInBin.has(c.sku)) return false;
+      if (c.status === 'SOBRESTOCK') return false;
+      if (c.maxBoxes <= 0) return false;
+      const cmin = Math.ceil(MIN_PIECES_TOP_OFF / c.piecesPerBox);
+      if (cmin * c.boxWeightKg > physicalWeightSpace(sim) + 1e-6) return false;
+      if (cmin * c.boxVolM3  > physicalVolSpace(sim)  + 1e-6) return false;
       return true;
     });
 
     const scored = comps
-      .map(c => ({ c, score: scoreSkuCandidato(c, espacioPesoFisico(sim), espacioVolFisico(sim)) }))
+      .map(c => ({ c, score: scoreCandidateSku(c, physicalWeightSpace(sim), physicalVolSpace(sim)) }))
       .sort((a, b) => b.score - a.score);
 
     for (const { c } of scored) {
-      if (estaEnVentana(sim)) break;
-      const espP = espacioPesoFisico(sim);
-      const espV = espacioVolFisico(sim);
-      const cmin  = Math.ceil(MIN_PZS_TOP_OFF / c.pzsCaja);
-      const cajas = Math.min(c.cajasMax, Math.floor(espP / c.pesoCaja), Math.floor(espV / c.volCaja));
-      if (cajas < cmin) continue;
-      addAssignment(sim, { sku: c.sku, cajas, pesoCaja: c.pesoCaja, volCaja: c.volCaja, pzsCaja: c.pzsCaja, role: 'relleno', desc: c.desc });
-      sugerencias.push({ sku: c.sku, desc: c.desc, cajas, fuente: 'complemento', pesoCaja: c.pesoCaja, volCaja: c.volCaja, pzsCaja: c.pzsCaja });
+      if (isInWindow(sim)) break;
+      const espP = physicalWeightSpace(sim);
+      const espV = physicalVolSpace(sim);
+      const cmin  = Math.ceil(MIN_PIECES_TOP_OFF / c.piecesPerBox);
+      const boxes = Math.min(c.maxBoxes, Math.floor(espP / c.boxWeightKg), Math.floor(espV / c.boxVolM3));
+      if (boxes < cmin) continue;
+      addAssignment(sim, { sku: c.sku, boxes, boxWeightKg: c.boxWeightKg, boxVolM3: c.boxVolM3, piecesPerBox: c.piecesPerBox, role: 'relleno', description: c.description });
+      suggestions.push({ sku: c.sku, description: c.description, boxes, source: 'complemento', boxWeightKg: c.boxWeightKg, boxVolM3: c.boxVolM3, piecesPerBox: c.piecesPerBox });
     }
 
-    // Pasada 2: fallback a anclas del usuario
-    if (!estaEnVentana(sim)) {
-      for (const ancla of anclasUsuario) {
-        if (!ancla.cajasMaxFallback || ancla.cajasMaxFallback <= 0) continue;
-        const espP = espacioPesoFisico(sim);
-        const espV = espacioVolFisico(sim);
-        const cajas = Math.min(ancla.cajasMaxFallback, Math.floor(espP / ancla.pesoCaja), Math.floor(espV / ancla.volCaja));
-        if (cajas <= 0) continue;
-        addAssignment(sim, { sku: ancla.sku, cajas, pesoCaja: ancla.pesoCaja, volCaja: ancla.volCaja, pzsCaja: ancla.pzsCaja, role: 'relleno', desc: ancla.desc });
-        sugerencias.push({ sku: ancla.sku, desc: ancla.desc, cajas, fuente: 'fallback', pesoCaja: ancla.pesoCaja, volCaja: ancla.volCaja, pzsCaja: ancla.pzsCaja });
-        if (estaEnVentana(sim)) break;
+    // Pasada 2: fallback a anchors del usuario
+    if (!isInWindow(sim)) {
+      for (const anchor of userAnchors) {
+        if (!anchor.maxFallbackBoxes || anchor.maxFallbackBoxes <= 0) continue;
+        const espP = physicalWeightSpace(sim);
+        const espV = physicalVolSpace(sim);
+        const boxes = Math.min(anchor.maxFallbackBoxes, Math.floor(espP / anchor.boxWeightKg), Math.floor(espV / anchor.boxVolM3));
+        if (boxes <= 0) continue;
+        addAssignment(sim, { sku: anchor.sku, boxes, boxWeightKg: anchor.boxWeightKg, boxVolM3: anchor.boxVolM3, piecesPerBox: anchor.piecesPerBox, role: 'relleno', description: anchor.description });
+        suggestions.push({ sku: anchor.sku, description: anchor.description, boxes, source: 'fallback', boxWeightKg: anchor.boxWeightKg, boxVolM3: anchor.boxVolM3, piecesPerBox: anchor.piecesPerBox });
+        if (isInWindow(sim)) break;
       }
     }
 
-    if (sugerencias.length > 0) {
-      resultado.push({
+    if (suggestions.length > 0) {
+      result.push({
         binIdx: i,
-        pctPesoAntes,
-        pctVolAntes,
-        pctPesoDespues: pctPeso(sim),
-        pctVolDespues:  pctVol(sim),
-        sugerencias,
+        weightPctBefore,
+        volPctBefore,
+        weightPctAfter: weightPct(sim),
+        volPctAfter:  volPct(sim),
+        suggestions,
       });
     }
   }
 
-  return resultado;
+  return result;
 }
 
-export function aplicarTopOff(bins: BinState[], sugerencias: TopOffSugerencia[]): void {
-  for (const s of sugerencias) {
+export function applyTopOff(bins: BinState[], suggestions: TopOffSuggestion[]): void {
+  for (const s of suggestions) {
     const b = bins[s.binIdx];
-    for (const sk of s.sugerencias) {
-      addAssignment(b, { sku: sk.sku, cajas: sk.cajas, pesoCaja: sk.pesoCaja, volCaja: sk.volCaja, pzsCaja: sk.pzsCaja, role: 'relleno', desc: sk.desc });
+    for (const sk of s.suggestions) {
+      addAssignment(b, { sku: sk.sku, boxes: sk.boxes, boxWeightKg: sk.boxWeightKg, boxVolM3: sk.boxVolM3, piecesPerBox: sk.piecesPerBox, role: 'relleno', description: sk.description });
     }
   }
 }
 
 // ─── Escenario A (greedy de recorte) ─────────────────────────────────────────
 
-export interface AnclaConContexto {
-  ancla:   Ancla;
-  dI:      number;
-  cobDias: number;
-  estado:  string;
+export interface AnchorWithContext {
+  anchor:   Anchor;
+  dailyDemand:      number;
+  coverageDays: number;
+  status:  string;
 }
 
-export interface Recorte {
+export interface Trim {
   sku:              number;
-  desc:             string;
-  cajasOriginales:  number;
-  cajasFinales:     number;
-  cajasRemovidas:   number;
-  razon:            string;
+  description:             string;
+  originalBoxes:  number;
+  finalBoxes:     number;
+  removedBoxes:   number;
+  reason:            string;
 }
 
 export interface ScenarioAResult {
-  anclaAjustadas: Ancla[];
-  recortes:       Recorte[];
+  adjustedAnchors: Anchor[];
+  trims:       Trim[];
   feasible:       boolean;
-  totalPeso:      number;
+  totalWeight:      number;
   totalVol:       number;
 }
 
-function valorAnclaCtx(ctx: AnclaConContexto): number {
-  const urg = SEMAFORO_FACTOR[ctx.estado] ?? 0.5;
+function anchorContextValue(ctx: AnchorWithContext): number {
+  const urg = STATUS_FACTOR[ctx.status] ?? 0.5;
   const urgAdj = urg === 0 ? 0.5 : urg;
-  const pzsOrig = ctx.ancla.cajas * ctx.ancla.pzsCaja;
-  return urgAdj * Math.max(ctx.dI, 0.01) * Math.sqrt(pzsOrig);
+  const originalPieces = ctx.anchor.boxes * ctx.anchor.piecesPerBox;
+  return urgAdj * Math.max(ctx.dailyDemand, 0.01) * Math.sqrt(originalPieces);
 }
 
-export function resolverEscenarioA(
-  anclasCxt: AnclaConContexto[],
+export function resolveScenarioA(
+  anchorsCtx: AnchorWithContext[],
   ctype:     ContainerType,
   nMax:      number,
 ): ScenarioAResult {
-  const maxPeso = nMax * ctype.pesoMaxKg;
-  const maxVol  = nMax * ctype.volMaxM3;
+  const maxWeight = nMax * ctype.maxWeightKg;
+  const maxVol  = nMax * ctype.maxVolM3;
 
-  const anclas = anclasCxt.map(ctx => ({ ...ctx.ancla }));
-  const recortes: Recorte[] = [];
+  const anchors = anchorsCtx.map(ctx => ({ ...ctx.anchor }));
+  const trims: Trim[] = [];
 
-  let totalPeso = anclas.reduce((s, a) => s + a.cajas * a.pesoCaja, 0);
-  let totalVol  = anclas.reduce((s, a) => s + a.cajas * a.volCaja,  0);
+  let totalWeight = anchors.reduce((s, a) => s + a.boxes * a.boxWeightKg, 0);
+  let totalVol  = anchors.reduce((s, a) => s + a.boxes * a.boxVolM3,  0);
 
-  if (totalPeso <= maxPeso && totalVol <= maxVol) {
-    return { anclaAjustadas: anclas, recortes: [], feasible: true, totalPeso, totalVol };
+  if (totalWeight <= maxWeight && totalVol <= maxVol) {
+    return { adjustedAnchors: anchors, trims: [], feasible: true, totalWeight, totalVol };
   }
 
   // Cortar los menos valiosos primero
-  const ctxOrdenados = [...anclasCxt].sort((a, b) => valorAnclaCtx(a) - valorAnclaCtx(b));
+  const orderedCtx = [...anchorsCtx].sort((a, b) => anchorContextValue(a) - anchorContextValue(b));
 
-  for (const ctx of ctxOrdenados) {
-    if (totalPeso <= maxPeso && totalVol <= maxVol) break;
-    const ancla = anclas.find(a => a.sku === ctx.ancla.sku);
-    if (!ancla || ancla.cajas <= 0) continue;
+  for (const ctx of orderedCtx) {
+    if (totalWeight <= maxWeight && totalVol <= maxVol) break;
+    const anchor = anchors.find(a => a.sku === ctx.anchor.sku);
+    if (!anchor || anchor.boxes <= 0) continue;
 
-    const cajasOriginales = ancla.cajas;
-    const excesoPeso = Math.max(0, totalPeso - maxPeso);
-    const excesoVol  = Math.max(0, totalVol  - maxVol);
-    const caPorPeso  = ancla.pesoCaja > 0 ? Math.ceil(excesoPeso / ancla.pesoCaja) : 0;
-    const caPorVol   = ancla.volCaja  > 0 ? Math.ceil(excesoVol  / ancla.volCaja)  : 0;
-    const cajasARemover = Math.min(ancla.cajas, Math.max(caPorPeso, caPorVol));
-    if (cajasARemover <= 0) continue;
+    const originalBoxes = anchor.boxes;
+    const weightExcess = Math.max(0, totalWeight - maxWeight);
+    const volExcess  = Math.max(0, totalVol  - maxVol);
+    const boxesByWeight  = anchor.boxWeightKg > 0 ? Math.ceil(weightExcess / anchor.boxWeightKg) : 0;
+    const boxesByVol   = anchor.boxVolM3  > 0 ? Math.ceil(volExcess  / anchor.boxVolM3)  : 0;
+    const boxesToRemove = Math.min(anchor.boxes, Math.max(boxesByWeight, boxesByVol));
+    if (boxesToRemove <= 0) continue;
 
-    totalPeso  -= cajasARemover * ancla.pesoCaja;
-    totalVol   -= cajasARemover * ancla.volCaja;
-    ancla.cajas -= cajasARemover;
+    totalWeight  -= boxesToRemove * anchor.boxWeightKg;
+    totalVol   -= boxesToRemove * anchor.boxVolM3;
+    anchor.boxes -= boxesToRemove;
 
-    recortes.push({
-      sku: ancla.sku,
-      desc: ancla.desc,
-      cajasOriginales,
-      cajasFinales:   ancla.cajas,
-      cajasRemovidas: cajasARemover,
-      razon: ancla.cajas === 0 ? 'Ancla eliminada' : 'Ancla reducida',
+    trims.push({
+      sku: anchor.sku,
+      description: anchor.description,
+      originalBoxes,
+      finalBoxes:   anchor.boxes,
+      removedBoxes: boxesToRemove,
+      reason: anchor.boxes === 0 ? 'Ancla eliminada' : 'Ancla reducida',
     });
   }
 
-  const anclaAjustadas = anclas.filter(a => a.cajas > 0);
-  const feasible = totalPeso <= maxPeso + 1 && totalVol <= maxVol + 1;
-  return { anclaAjustadas, recortes, feasible, totalPeso, totalVol };
+  const adjustedAnchors = anchors.filter(a => a.boxes > 0);
+  const feasible = totalWeight <= maxWeight + 1 && totalVol <= maxVol + 1;
+  return { adjustedAnchors, trims, feasible, totalWeight, totalVol };
 }

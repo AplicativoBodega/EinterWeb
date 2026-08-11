@@ -1,3 +1,5 @@
+// App entry point: mounts the React tree and wraps it with the auth
+// provider.
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'

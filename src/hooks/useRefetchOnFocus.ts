@@ -1,13 +1,7 @@
+// Hook that re-runs a callback when the tab regains focus or visibility,
+// throttled by a minimum interval between runs.
 import { useEffect, useRef } from 'react';
 
-/**
- * Re-runs `callback` when the tab regains focus/visibility, so data loaded
- * once on mount doesn't go stale for the rest of a long-lived session (e.g.
- * a warehouse operator leaving the page open all day while others edit the
- * same records elsewhere).
- *
- * Throttled by `minIntervalMs` so rapid alt-tabbing doesn't spam refetches.
- */
 export function useRefetchOnFocus(
   callback: () => void,
   minIntervalMs = 15000

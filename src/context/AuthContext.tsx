@@ -1,3 +1,5 @@
+// Auth provider: syncs Firebase auth state with the backend user record
+// and exposes login/logout/signup helpers plus the current role.
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { User } from 'firebase/auth';
 import {

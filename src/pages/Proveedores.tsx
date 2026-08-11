@@ -1,3 +1,4 @@
+// Supplier management page: list, create, edit, and delete proveedores.
 import { useState, useEffect, useCallback } from "react";
 import { ProveedorModal } from "../components/ProveedorModal";
 import { DeleteConfirmModal } from "../components/DeleteConfirmModal";
@@ -12,9 +13,6 @@ interface Proveedor {
   lead_time: number;
 }
 
-// Shared column widths so the header and every data row line up exactly,
-// using minmax(0,…) so long values clip instead of pushing columns out of
-// alignment (avoids the flexbox min-width:auto problem).
 const TABLE_GRID_COLUMNS =
   "minmax(0,3fr) minmax(0,2fr) minmax(0,1.5fr) minmax(0,1.5fr)";
 
@@ -80,7 +78,6 @@ export function Proveedores() {
 
   useEffect(() => {
     fetchProveedores();
-    // fetchProveedores is a stable ref — safe to omit
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -398,12 +395,12 @@ export function Proveedores() {
                 </div>
                 <div className="flex-2 py-4 px-4 border-r border-gray-300 dark:border-gray-700 flex justify-center items-center">
                   <p className="text-gray-900 dark:text-white font-robotoRegular text-lg text-center">
-                    {proveedor.city || "—"}
+                    {proveedor.city || "-"}
                   </p>
                 </div>
                 <div className="flex-[1.5] py-4 px-4 border-r border-gray-300 dark:border-gray-700 flex justify-center items-center">
                   <p className="text-gray-900 dark:text-white font-robotoRegular text-lg text-center">
-                    {proveedor.lead_time ? `${proveedor.lead_time}` : "—"}
+                    {proveedor.lead_time ? `${proveedor.lead_time}` : "-"}
                   </p>
                 </div>
                 <div className="flex-[1.5] py-2 px-2 flex justify-center items-center flex-row gap-2">

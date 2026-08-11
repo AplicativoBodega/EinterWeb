@@ -1,3 +1,5 @@
+// Category management page: master-detail view listing categories and the
+// products assigned to the selected one.
 import React, { useState, useEffect } from "react";
 import { fetchAPI } from "../lib/fetch";
 import { useDarkMode } from "../context/DarkModeContext";

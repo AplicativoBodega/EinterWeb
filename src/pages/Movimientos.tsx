@@ -1,3 +1,4 @@
+// Page listing inventory movements between locations.
 import { useState, useEffect, useCallback } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
@@ -274,32 +275,32 @@ export function Movimientos() {
                 </div>
                 <div className="flex-1 py-4 px-4 border-r border-gray-300 dark:border-gray-700 flex items-center justify-center">
                   <span className="text-gray-900 dark:text-white font-robotoRegular text-lg text-center">
-                    {m.id_ubicacion_origen || "—"}
+                    {m.id_ubicacion_origen || "-"}
                   </span>
                 </div>
                 <div className="flex-1 py-4 px-4 border-r border-gray-300 dark:border-gray-700 flex items-center justify-center">
                   <span className="text-gray-900 dark:text-white font-robotoRegular text-lg text-center">
-                    {m.id_ubicacion_destino || "—"}
+                    {m.id_ubicacion_destino || "-"}
                   </span>
                 </div>
                 <div className="flex-[1.5] py-4 px-4 border-r border-gray-300 dark:border-gray-700 flex items-center justify-center">
                   <span className="text-gray-900 dark:text-white font-robotoRegular text-lg text-center">
-                    {m.old_masterSKU || "—"}
+                    {m.old_masterSKU || "-"}
                   </span>
                 </div>
                 <div className="flex-[1.5] py-4 px-4 border-r border-gray-300 dark:border-gray-700 flex items-center justify-center">
                   <span className="text-gray-900 dark:text-white font-robotoRegular text-lg text-center">
-                    {m.new_masterSKU || "—"}
+                    {m.new_masterSKU || "-"}
                   </span>
                 </div>
                 <div className="flex-1 py-4 px-4 border-r border-gray-300 dark:border-gray-700 flex items-center justify-center">
                   <span className="text-gray-900 dark:text-white font-robotoRegular text-lg text-center">
-                    {m.cantidad || "—"}
+                    {m.cantidad || "-"}
                   </span>
                 </div>
                 <div className="flex-[1.2] py-4 px-4 flex items-center justify-center">
                   <span className="text-gray-900 dark:text-white font-robotoRegular text-lg text-center">
-                    {m.fecha ? new Date(m.fecha).toLocaleDateString() : "—"}
+                    {m.fecha ? new Date(m.fecha).toLocaleDateString() : "-"}
                   </span>
                 </div>
               </div>

@@ -1,12 +1,4 @@
-/**
- * TypeScript Type Definitions for BodegaEinter API
- * Based on API.txt specification
- */
-
-// ============================================================================
-// Common Types
-// ============================================================================
-
+// TypeScript type definitions for the BodegaEinter API, based on API.txt.
 export interface ApiPaginationMeta {
   page: number;
   pageSize: number;
@@ -27,10 +19,6 @@ export interface ApiResponse<T = unknown> {
   error?: string;
   success?: boolean;
 }
-
-// ============================================================================
-// User Types
-// ============================================================================
 
 export interface User {
   id_usuario: number;
@@ -72,10 +60,6 @@ export interface UserUpdateRequest {
   password?: string;
   rol?: number;
 }
-
-// ============================================================================
-// Product Types
-// ============================================================================
 
 export interface ProductDimensions {
   largo: number;
@@ -142,10 +126,6 @@ export interface ProductUpdateRequest {
   id_proveedor?: number;
 }
 
-// ============================================================================
-// Supplier Types
-// ============================================================================
-
 export interface Supplier {
   id: number;
   name: string;
@@ -164,10 +144,6 @@ export interface SupplierUpdateRequest {
   ciudad?: string;
   tiempo_envio?: number;
 }
-
-// ============================================================================
-// Inventory Types
-// ============================================================================
 
 export interface InventoryLocation {
   id_inventario: number;
@@ -203,10 +179,6 @@ export interface InventoryUpdateRequest {
   t_distintas?: number;
   escaneado?: boolean;
 }
-
-// ============================================================================
-// Receipt Types
-// ============================================================================
 
 export interface Receipt {
   id_recibo: number;
@@ -245,10 +217,6 @@ export interface ReceiptStats {
   precio_maximo: number;
 }
 
-// ============================================================================
-// Order Types
-// ============================================================================
-
 export interface OrderDetail {
   id_articulo: number;
   sku?: string;
@@ -285,10 +253,6 @@ export interface OrderListResponse {
   pagination: ApiPaginationMeta;
 }
 
-// ============================================================================
-// Sales Types
-// ============================================================================
-
 export interface Sale {
   id_venta: number;
   id_orden: string;
@@ -299,10 +263,6 @@ export interface Sale {
   fecha: string;
 }
 
-// ============================================================================
-// Notification Types
-// ============================================================================
-
 export interface Notification {
   id: number;
   id_usuario: number;
@@ -312,10 +272,6 @@ export interface Notification {
   created_at: string;
   nombre: string;
 }
-
-// ============================================================================
-// Movement Types
-// ============================================================================
 
 export interface Movement {
   id_movimiento: number;

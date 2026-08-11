@@ -1,3 +1,4 @@
+// Google sign-in button with loading and Firebase error handling.
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 

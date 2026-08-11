@@ -1,3 +1,4 @@
+// Collapsible side navigation menu with dark mode toggle.
 import { useState } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { useRole } from "../hooks/useRole";

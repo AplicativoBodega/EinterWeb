@@ -3,15 +3,12 @@ import JsBarcode from "jsbarcode";
 import { fetchAPI } from "../lib/fetch";
 import { useDarkMode } from "../context/DarkModeContext";
 
-interface OdooBarcodeProducto {
+// Modal that looks up a product by SKU and renders a printable barcode label.
+interface ProductoLocal {
   id: number;
-  name: string | null;
-  default_code: string | null;
-  barcode: string | null;
-  list_price: number | null;
-  standard_price: number | null;
-  qty_available: number | null;
-  weight: number | null;
+  sku: string;
+  name: string;
+  price: number;
 }
 
 interface EtiquetaModalProps {
@@ -22,7 +19,7 @@ interface EtiquetaModalProps {
 
 export function EtiquetaModal({ visible, masterSku, onClose }: EtiquetaModalProps) {
   useDarkMode();
-  const [producto, setProducto] = useState<OdooBarcodeProducto | null>(null);
+  const [producto, setProducto] = useState<ProductoLocal | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -34,10 +31,14 @@ export function EtiquetaModal({ visible, masterSku, onClose }: EtiquetaModalProp
     setError(null);
     setLoading(true);
 
-    fetchAPI(`/api/odoo/barcode/${encodeURIComponent(masterSku)}`)
+    fetchAPI(`/api/productos?search=${encodeURIComponent(masterSku)}&pageSize=5`)
       .then((res: unknown) => {
-        const data = res as { producto?: OdooBarcodeProducto };
-        setProducto(data.producto ?? null);
+        const data = res as { items?: ProductoLocal[] };
+        const match = (data.items ?? []).find((p) => p.sku === masterSku) ?? null;
+        if (!match) {
+          setError(`Producto no encontrado: ${masterSku}`);
+        }
+        setProducto(match);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
@@ -45,7 +46,7 @@ export function EtiquetaModal({ visible, masterSku, onClose }: EtiquetaModalProp
 
   useEffect(() => {
     if (!producto || !svgRef.current) return;
-    const code = producto.default_code || producto.barcode || masterSku || "";
+    const code = producto.sku || masterSku || "";
     if (!code) return;
     try {
       JsBarcode(svgRef.current, code, {
@@ -89,19 +90,19 @@ export function EtiquetaModal({ visible, masterSku, onClose }: EtiquetaModalProp
           {loading ? (
             <div className="flex flex-col items-center justify-center py-8 gap-3">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-              <p className="text-sm text-gray-500 dark:text-gray-400">Buscando en Odoo...</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Buscando producto...</p>
             </div>
           ) : error ? (
             <p className="text-center text-red-500 py-8 text-sm">{error}</p>
           ) : producto ? (
             <div id="etiqueta-print-area" className="flex flex-col items-center gap-2 border border-gray-300 dark:border-gray-600 rounded p-4">
               <p className="font-bold text-gray-900 dark:text-white text-center line-clamp-2">
-                {producto.name ?? "—"}
+                {producto.name ?? "-"}
               </p>
               <svg ref={svgRef} />
-              {producto.list_price != null && (
+              {producto.price != null && (
                 <p className="text-gray-700 dark:text-gray-300">
-                  ${Number(producto.list_price).toFixed(2)}
+                  ${Number(producto.price).toFixed(2)}
                 </p>
               )}
             </div>
