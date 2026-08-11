@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 import { TarimaEtiquetaModal, type TarimaEtiquetaCarton } from "../components/TarimaEtiquetaModal";
+import { FilaEtiquetaModal } from "../components/FilaEtiquetaModal";
 
 type Product = {
   id: string;
@@ -318,6 +319,68 @@ function TarimaBarcodeSearch() {
   );
 }
 
+// Real (non-mock) row (isla) barcode lookup — one label per row with a table
+// of every tarima position it contains, via GET /api/islas?sku= +
+// GET /api/islas/:id/tarimas + GET /api/tarimas/:id/cartones.
+function FilaBarcodeSearch() {
+  const [skuInput, setSkuInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [etiquetaVisible, setEtiquetaVisible] = useState(false);
+  const [isla, setIsla] = useState<{
+    id_isla: number;
+    master_sku: string;
+    nombre_isla?: string | null;
+  } | null>(null);
+
+  const handleSearch = async () => {
+    const sku = skuInput.trim();
+    if (!sku) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const islaRes = (await fetchAPI(
+        `/api/islas?sku=${encodeURIComponent(sku)}`
+      )) as { id_isla: number; master_sku: string; nombre_isla?: string | null };
+      setIsla(islaRes);
+      setEtiquetaVisible(true);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-4">
+      <div className="flex items-center gap-2 max-w-lg">
+        <input
+          type="text"
+          value={skuInput}
+          onChange={(e) => setSkuInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+          placeholder="Buscar fila (isla) por SKU para imprimir su etiqueta..."
+          className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+        />
+        <button
+          onClick={handleSearch}
+          disabled={loading || !skuInput.trim()}
+          className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-robotoMedium disabled:opacity-50"
+        >
+          {loading ? "Buscando..." : "Buscar"}
+        </button>
+      </div>
+      {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+
+      <FilaEtiquetaModal
+        visible={etiquetaVisible}
+        isla={isla}
+        onClose={() => setEtiquetaVisible(false)}
+      />
+    </div>
+  );
+}
+
 export function Ubicaciones() {
   useDarkMode();
   const [data, setData] = useState<Ubicacion[]>(sampleData);
@@ -386,6 +449,7 @@ export function Ubicaciones() {
       </div>
 
       <TarimaBarcodeSearch />
+      <FilaBarcodeSearch />
 
       {/* Layout maestro-detalle */}
       <div className="flex-1 flex flex-col md:flex-row gap-6 px-8 py-6 overflow-hidden">
