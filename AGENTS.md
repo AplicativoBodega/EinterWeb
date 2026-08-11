@@ -23,12 +23,9 @@ npm run dev   # Vite, puerto 5173
 - Varias pantallas (`Productos.tsx`, `InventarioInteligente.tsx`, `PedidoPersonalizado.tsx`) reimplementan cada una su propio loop de paginación contra `/api/odoo/productos` — si tocas ese endpoint, revisa los tres sitios, no solo uno.
 - Subida/descarga de PDF (`Entradas.tsx` líneas ~553/579, `THDComparativo.tsx` ~886) usa `fetch()` nativo en vez de `fetchAPI`, porque necesitan `FormData`/blob. Es intencional, no un descuido — no lo "arregles" migrándolo a `fetchAPI` sin más, tendrías que replicar el manejo de auth manualmente.
 
-## Componentes huérfanos (no se importan en ninguna página)
+## Componentes eliminados 2026-08-10
 
-- `src/components/ReciboModal.tsx` — completo, incluyendo llamadas a `/api/odoo/proveedores` y `/api/odoo/productos`, pero nadie lo renderiza. El dominio `recibos` no está conectado en el frontend web pese a existir en el backend.
-- `src/components/VentaDetailModal.tsx` — completo, pero también huérfano. Además, su fallback fetch (`/api/ventas-web/${venta.id_orden}/detalle`) apunta a una ruta que **no existe** en el backend (no hay `app.use('/api/ventas-web', ...)` en `EINTER_API/src/index.tsx`); el endpoint real equivalente es `GET /api/ventas/:id` (por `id_venta`, no `id_orden`), que ya devuelve el detalle embebido. Si algún día conectas este componente, corrige esa llamada primero.
-
-No se borraron estos dos componentes en la limpieza — decide con el negocio si se conectan a alguna página o se eliminan.
+`src/components/ReciboModal.tsx` y `src/components/VentaDetailModal.tsx` existían pero no se importaban en ninguna página — confirmado sin uso y borrados. Si el dominio `recibos` o el detalle de venta por `id_orden` se necesitan en el futuro, hay que reconstruirlos: el backend real para detalle de venta es `GET /api/ventas/:id` (por `id_venta`, no `id_orden`), que ya devuelve el detalle embebido — `VentaDetailModal.tsx` tenía esto mal (apuntaba a `/api/ventas-web/...`, ruta que no existe).
 
 ## Impresión de etiquetas — construida 2026-08-10
 
