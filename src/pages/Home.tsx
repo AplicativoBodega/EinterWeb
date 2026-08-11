@@ -4,6 +4,7 @@ import { useDarkMode } from "../context/DarkModeContext";
 import { api } from "../lib/api";
 import { useRefetchOnFocus } from "../hooks/useRefetchOnFocus";
 import { getMonterreyNow } from "../lib/dateMx";
+import { EtiquetaModal } from "../components/EtiquetaModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -17,17 +18,9 @@ type DashboardKpi = {
 type VentaMes = { mes: string; monto: number };
 type TopProducto = { nombre: string; unidades: number };
 type ProductoAlerta = { nombre: string; diasCobertura: number; semaforo: "CRITICO" | "ALERTA" };
-type CatalogoProducto = { id: string; nombre: string; codigo: string; precio: string };
+type CatalogoProducto = { id: string; nombre: string; codigo: string };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmt(n: number) {
-  return n.toLocaleString("es-MX", {
-    style: "currency",
-    currency: "MXN",
-    maximumFractionDigits: 0,
-  });
-}
 
 function fmtImporte(n: number) {
   return n.toLocaleString("es-MX", {
@@ -54,59 +47,6 @@ function getLast6Months(): { key: string; mes: string }[] {
 function currentMonthLabel(): string {
   const d = getMonterreyNow();
   return `${MESES_ES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-}
-
-const impresoras = [
-  "Zebra ZD420 (Oficina)",
-  "HP LaserJet 1020 (Almacén)",
-  "Brother QL-820NWB (Recepción)",
-  "Zebra ZP450 (Embarque)",
-];
-
-// ─── SVG micro-components ─────────────────────────────────────────────────────
-
-function FakeQR({ size = 140 }: { size?: number }) {
-  const rows = [
-    "1111111011010111111",
-    "1000001000101000001",
-    "1011101011101011101",
-    "1011101001001011101",
-    "1011101010001011101",
-    "1000001001001000001",
-    "1111111010101111111",
-    "0000000011000000000",
-    "1101011010101101011",
-    "0110100101010110100",
-    "1001011010110011011",
-    "0010100111000010100",
-    "1111111001011010111",
-    "1000001010100010001",
-    "1011101000010110001",
-    "1011101010100011001",
-    "1011101001010011011",
-    "1000001011001010100",
-    "1111111010101001101",
-  ];
-  const cell = size / rows.length;
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <rect width={size} height={size} fill="white" />
-      {rows.map((row, r) =>
-        row.split("").map((c, col) =>
-          c === "1" ? (
-            <rect
-              key={`${r}-${col}`}
-              x={col * cell}
-              y={r * cell}
-              width={cell + 0.5}
-              height={cell + 0.5}
-              fill="#111"
-            />
-          ) : null
-        )
-      )}
-    </svg>
-  );
 }
 
 // ─── Charts ───────────────────────────────────────────────────────────────────
@@ -237,9 +177,10 @@ export function Home() {
   const [catalogoProductos, setCatalogoProductos] = useState<CatalogoProducto[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [qrProductIdx, setQrProductIdx] = useState(0);
-  const [qrPrinterIdx, setQrPrinterIdx] = useState(0);
-  const [qrMsg, setQrMsg] = useState("");
+  const [barcodeSearch, setBarcodeSearch] = useState("");
+  const [barcodeSuggestOpen, setBarcodeSuggestOpen] = useState(false);
+  const [selectedForLabels, setSelectedForLabels] = useState<CatalogoProducto[]>([]);
+  const [etiquetaVisible, setEtiquetaVisible] = useState(false);
 
   const load = useCallback(async () => {
       try {
@@ -289,7 +230,6 @@ export function Home() {
             id: String(p.id),
             nombre: p.name as string,
             codigo: p.sku as string,
-            precio: fmt(Number(p.price)),
           }))
         );
       } catch (err) {
@@ -305,14 +245,25 @@ export function Home() {
 
   useRefetchOnFocus(load);
 
-  const handlePrintQR = () => {
-    if (catalogoProductos.length === 0) return;
-    const prod = catalogoProductos[qrProductIdx];
-    setQrMsg(`Enviando QR de "${prod.nombre}" a ${impresoras[qrPrinterIdx]}…`);
-    setTimeout(() => setQrMsg(`✓ QR enviado correctamente a ${impresoras[qrPrinterIdx]}.`), 1500);
+  const barcodeSuggestions = barcodeSearch.trim()
+    ? catalogoProductos.filter(
+        (p) =>
+          p.nombre.toLowerCase().includes(barcodeSearch.trim().toLowerCase()) ||
+          p.codigo.toLowerCase().includes(barcodeSearch.trim().toLowerCase())
+      ).slice(0, 8)
+    : [];
+
+  const handleSelectBarcodeProduct = (p: CatalogoProducto) => {
+    setBarcodeSearch("");
+    setBarcodeSuggestOpen(false);
+    setSelectedForLabels((prev) =>
+      prev.some((sel) => sel.id === p.id) ? prev : [...prev, p]
+    );
   };
 
-  const currentQrProduct = catalogoProductos[qrProductIdx];
+  const handleRemoveFromLabels = (id: string) => {
+    setSelectedForLabels((prev) => prev.filter((p) => p.id !== id));
+  };
 
   return (
     <div className="flex-1 bg-gray-50 dark:bg-gray-900 min-h-screen overflow-auto">
@@ -462,10 +413,10 @@ export function Home() {
           </div>
         </div>
 
-        {/* ── Impresión QR ────────────────────────────────────────────────── */}
+        {/* ── Impresión de barcode ────────────────────────────────────────── */}
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 max-w-lg">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
-            Imprimir código QR de producto
+            Imprimir barcodes de producto
           </h2>
 
           {loading || catalogoProductos.length === 0 ? (
@@ -473,56 +424,81 @@ export function Home() {
               {loading ? "Cargando productos…" : "No hay productos disponibles"}
             </div>
           ) : (
-            <div className="flex gap-4 items-start">
-              <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-2 bg-white shrink-0">
-                <FakeQR size={118} />
-                <p className="text-center text-[9px] text-gray-400 mt-1 font-mono">
-                  {currentQrProduct?.codigo}
-                </p>
-              </div>
-
-              <div className="flex-1 space-y-3 min-w-0">
-                <div>
-                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Producto</label>
-                  <select
-                    className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={qrProductIdx}
-                    onChange={(e) => { setQrProductIdx(Number(e.target.value)); setQrMsg(""); }}
-                  >
-                    {catalogoProductos.map((p, i) => (
-                      <option key={p.id} value={i}>{p.nombre}</option>
+            <div>
+              <div className="relative">
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  Buscar producto por nombre o SKU
+                </label>
+                <input
+                  type="text"
+                  value={barcodeSearch}
+                  onChange={(e) => {
+                    setBarcodeSearch(e.target.value);
+                    setBarcodeSuggestOpen(true);
+                  }}
+                  onFocus={() => setBarcodeSuggestOpen(true)}
+                  onBlur={() => setTimeout(() => setBarcodeSuggestOpen(false), 150)}
+                  placeholder="Escribe para buscar y agregar…"
+                  className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {barcodeSuggestOpen && barcodeSuggestions.length > 0 && (
+                  <ul className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg max-h-56 overflow-auto">
+                    {barcodeSuggestions.map((p) => (
+                      <li key={p.id}>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectBarcodeProduct(p)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"
+                        >
+                          {p.nombre} <span className="text-gray-400 font-mono text-xs">({p.codigo})</span>
+                        </button>
+                      </li>
                     ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Impresora</label>
-                  <select
-                    className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={qrPrinterIdx}
-                    onChange={(e) => { setQrPrinterIdx(Number(e.target.value)); setQrMsg(""); }}
-                  >
-                    {impresoras.map((imp, i) => <option key={i} value={i}>{imp}</option>)}
-                  </select>
-                </div>
-
-                <button
-                  onClick={handlePrintQR}
-                  className="w-full bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded-md transition-colors"
-                >
-                  Imprimir QR
-                </button>
-
-                {qrMsg && (
-                  <p className={`text-xs ${qrMsg.startsWith("✓") ? "text-green-500" : "text-blue-500"}`}>
-                    {qrMsg}
-                  </p>
+                  </ul>
                 )}
               </div>
+
+              {selectedForLabels.length > 0 && (
+                <ul className="mt-3 space-y-1 max-h-40 overflow-auto">
+                  {selectedForLabels.map((p) => (
+                    <li
+                      key={p.id}
+                      className="flex items-center justify-between text-sm bg-gray-50 dark:bg-gray-700 rounded px-3 py-1.5"
+                    >
+                      <span className="text-gray-800 dark:text-gray-200 truncate">
+                        {p.nombre} <span className="text-gray-400 font-mono text-xs">({p.codigo})</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFromLabels(p.id)}
+                        className="text-gray-400 hover:text-red-500 ml-2 shrink-0"
+                        aria-label="Quitar"
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setEtiquetaVisible(true)}
+                disabled={selectedForLabels.length === 0}
+                className="w-full mt-3 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Imprimir etiquetas{selectedForLabels.length > 0 ? ` (${selectedForLabels.length})` : ""}
+              </button>
             </div>
           )}
         </div>
       </div>
+
+      <EtiquetaModal
+        visible={etiquetaVisible}
+        masterSkus={selectedForLabels.map((p) => p.codigo)}
+        onClose={() => setEtiquetaVisible(false)}
+      />
     </div>
   );
 }

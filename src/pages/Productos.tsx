@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import ExcelJS from "exceljs";
 import { ProductModal } from "../components/ProductModal";
 import { DeleteConfirmModal } from "../components/DeleteConfirmModal";
-import { EtiquetaModal } from "../components/EtiquetaModal";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 import type { Product } from "../lib/types";
@@ -90,9 +89,6 @@ export function Productos() {
 
   const [imageZoomVisible, setImageZoomVisible] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
-
-  const [etiquetaModalVisible, setEtiquetaModalVisible] = useState(false);
-  const [etiquetaSku, setEtiquetaSku] = useState<string | null>(null);
 
   const [exportLoading, setExportLoading] = useState(false);
 
@@ -744,16 +740,6 @@ export function Productos() {
                   >
                     Eliminar
                   </button>
-                  <button
-                    onClick={() => {
-                      setEtiquetaSku(product.sku);
-                      setEtiquetaModalVisible(true);
-                    }}
-                    disabled={!product.sku}
-                    className="px-3 py-1.5 bg-gray-600 rounded hover:bg-gray-700 text-white text-xs font-robotoMedium disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Etiqueta
-                  </button>
                 </div>
               </div>
             ))
@@ -814,15 +800,6 @@ export function Productos() {
         onCancel={() => {
           setDeleteModalVisible(false);
           setProductToDelete(null);
-        }}
-      />
-
-      <EtiquetaModal
-        visible={etiquetaModalVisible}
-        masterSku={etiquetaSku}
-        onClose={() => {
-          setEtiquetaModalVisible(false);
-          setEtiquetaSku(null);
         }}
       />
 
