@@ -1,3 +1,5 @@
+// Modal for creating or editing a product category.
+// Handles its own name field, validation, and save/loading state.
 import { useState, useEffect } from "react";
 
 interface CategoryModalProps {

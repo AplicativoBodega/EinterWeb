@@ -1,3 +1,4 @@
+// Compares Home Depot orders vs actual salidas, by product and by order.
 import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
@@ -252,7 +253,7 @@ function ExpandedPanel({
             Número de folio
           </p>
           <p className="text-sm text-gray-900 dark:text-white font-mono">
-            {row.numero_folio ?? "—"}
+            {row.numero_folio ?? "-"}
           </p>
         </div>
         <div>

@@ -1,3 +1,5 @@
+// Searchable SKU/model dropdown input, rendered via portal so it isn't
+// clipped by scrollable ancestors.
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 

@@ -1,21 +1,23 @@
+// Smart inventory page: applies the replenishment model to flag products
+// by semaforo status and estimate container fill.
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 import { useRefetchOnFocus } from "../hooks/useRefetchOnFocus";
 import {
-  calcularResultados,
-  calcularResumenContenedores,
-  sortResultados,
+  calculateResults,
+  calculateContainerSummary,
+  sortResults,
   DEFAULT_PARAMS,
   type ModelParams,
-  type ProductoResultado,
-  type ResumenContenedor,
-  type SemaforoStatus,
+  type ProductResult,
+  type ContainerSummary,
+  type InventoryStatus,
 } from "../lib/inventoryModel";
 
 // ─── Helpers de estilo por estado ────────────────────────────────────────────
 const STATUS_CFG: Record<
-  SemaforoStatus,
+  InventoryStatus,
   {
     label: string;
     dot: string;
@@ -72,7 +74,7 @@ function fmt(n: number, dec = 0) {
 }
 
 function fmtDias(d: number) {
-  if (d >= 9999) return "—";
+  if (d >= 9999) return "-";
   if (d > 999) return "+999";
   return fmt(d, 1) + "d";
 }
@@ -88,7 +90,7 @@ export function InventarioInteligente() {
   const [error, setError] = useState<string | null>(null);
 
   // Demanda calculada automáticamente desde ventas Home Depot
-  const [demandaHD, setDemandaHD] = useState<Record<string, number>>({});
+  const [hdDailyDemand, setHdDailyDemand] = useState<Record<string, number>>({});
   const [loadingHD, setLoadingHD] = useState(false);
 
   // Parámetros del modelo (solo configuración global, no edición por fila)
@@ -96,10 +98,10 @@ export function InventarioInteligente() {
   const [showConfig, setShowConfig] = useState(false);
 
   // UI
-  const [tab, setTab] = useState<"semaforo" | "contenedores">("semaforo");
+  const [tab, setTab] = useState<"status" | "containers">("status");
   const [search, setSearch] = useState("");
   const [filterSupplier, setFilterSupplier] = useState("");
-  const [filterStatus, setFilterStatus] = useState<SemaforoStatus | "">("");
+  const [filterStatus, setFilterStatus] = useState<InventoryStatus | "">("");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 50;
 
@@ -130,9 +132,7 @@ export function InventarioInteligente() {
     }
   }, []);
 
-  // ── Fetch demanda diaria desde ventas Home Depot ──────────────────────────
-  // El cruce es por MOD (= master_sku en articulos = default_code en Odoo)
-  const fetchDemandaHD = useCallback(async () => {
+  const fetchHdDailyDemand = useCallback(async () => {
     setLoadingHD(true);
     try {
       const data = (await fetchAPI("/api/ventas-hd/demanda-diaria")) as {
@@ -143,9 +143,9 @@ export function InventarioInteligente() {
       for (const item of data) {
         if (item.demanda_diaria > 0) map[item.mod] = item.demanda_diaria;
       }
-      setDemandaHD(map);
+      setHdDailyDemand(map);
     } catch {
-      // silencioso — el modelo muestra sin_datos para esos MODs
+      // silencioso: el modelo muestra sin_datos para esos MODs
     } finally {
       setLoadingHD(false);
     }
@@ -153,16 +153,16 @@ export function InventarioInteligente() {
 
   useEffect(() => {
     fetchAll();
-    fetchDemandaHD();
-  }, [fetchAll, fetchDemandaHD]);
+    fetchHdDailyDemand();
+  }, [fetchAll, fetchHdDailyDemand]);
 
   useRefetchOnFocus(useCallback(() => {
     fetchAll();
-    fetchDemandaHD();
-  }, [fetchAll, fetchDemandaHD]));
+    fetchHdDailyDemand();
+  }, [fetchAll, fetchHdDailyDemand]));
 
   // ── Calcular resultados ────────────────────────────────────────────────────
-  const resultados: ProductoResultado[] = useMemo(() => {
+  const results: ProductResult[] = useMemo(() => {
     const inputs = rawItems.map((item) => {
       const i = item as Record<string, unknown>;
       // master_sku en articulos = default_code en Odoo = MOD del producto
@@ -184,31 +184,31 @@ export function InventarioInteligente() {
                 alto: Number(i.alto_cm) || 0,
               }
             : undefined,
-        pzsEnTransito: 0,
-        // Cruce por MOD: demandaHD tiene keys = String(mod)
-        demandaDiaria: demandaHD[mod] || 0,
+        piecesInTransit: 0,
+        // Cruce por MOD: hdDailyDemand tiene keys = String(mod)
+        dailyDemand: hdDailyDemand[mod] || 0,
       };
     });
-    return sortResultados(calcularResultados(inputs, params));
-  }, [rawItems, demandaHD, params]);
+    return sortResults(calculateResults(inputs, params));
+  }, [rawItems, hdDailyDemand, params]);
 
   // ── Conteos de semáforo ───────────────────────────────────────────────────
   const counts = useMemo(() => {
     const c = { rojo: 0, amarillo: 0, verde: 0, sin_datos: 0, sobrestock: 0 };
-    for (const r of resultados) c[r.semaforo]++;
+    for (const r of results) c[r.status]++;
     return c;
-  }, [resultados]);
+  }, [results]);
 
   // ── Proveedores únicos ────────────────────────────────────────────────────
   const suppliers = useMemo(
-    () => [...new Set(resultados.map((r) => r.supplier))].sort(),
-    [resultados],
+    () => [...new Set(results.map((r) => r.supplier))].sort(),
+    [results],
   );
 
   // ── Filtrado ──────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    let list = resultados;
-    if (filterStatus) list = list.filter((r) => r.semaforo === filterStatus);
+    let list = results;
+    if (filterStatus) list = list.filter((r) => r.status === filterStatus);
     if (filterSupplier)
       list = list.filter((r) => r.supplier === filterSupplier);
     if (search.trim()) {
@@ -219,7 +219,7 @@ export function InventarioInteligente() {
       );
     }
     return list;
-  }, [resultados, filterStatus, filterSupplier, search]);
+  }, [results, filterStatus, filterSupplier, search]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -227,9 +227,9 @@ export function InventarioInteligente() {
   useEffect(() => { setPage(1); }, [filterStatus, filterSupplier, search]);
 
   // ── Contenedores ──────────────────────────────────────────────────────────
-  const contenedores: ResumenContenedor[] = useMemo(
-    () => calcularResumenContenedores(resultados),
-    [resultados],
+  const containerSummaries: ContainerSummary[] = useMemo(
+    () => calculateContainerSummary(results),
+    [results],
   );
 
   const updateParam = (key: keyof ModelParams, value: string) => {
@@ -269,7 +269,7 @@ export function InventarioInteligente() {
               ⚙️ Parámetros
             </button>
             <button
-              onClick={() => { fetchAll(); fetchDemandaHD(); }}
+              onClick={() => { fetchAll(); fetchHdDailyDemand(); }}
               disabled={isLoadingAny}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium transition-all disabled:opacity-60"
             >
@@ -287,11 +287,11 @@ export function InventarioInteligente() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
               {(
                 [
-                  { key: "leadTimeDias", label: "Lead time (días)" },
-                  { key: "diasObjetivo", label: "Cobertura objetivo (días)" },
-                  { key: "alertaRojo", label: "Umbral crítico (días)" },
-                  { key: "alertaAmarillo", label: "Umbral alerta (días)" },
-                  { key: "minPzsSku", label: "Mín. piezas / SKU" },
+                  { key: "leadTimeDays", label: "Lead time (días)" },
+                  { key: "targetDays", label: "Cobertura objetivo (días)" },
+                  { key: "redAlertDays", label: "Umbral crítico (días)" },
+                  { key: "yellowAlertDays", label: "Umbral alerta (días)" },
+                  { key: "minPiecesPerSku", label: "Mín. piezas / SKU" },
                 ] as { key: keyof ModelParams; label: string }[]
               ).map(({ key, label }) => (
                 <div key={key}>
@@ -320,7 +320,7 @@ export function InventarioInteligente() {
             { key: "verde", label: "OK" },
             { key: "sin_datos", label: "Sin datos HD" },
             { key: "sobrestock", label: "Sobrestock" },
-          ] as { key: SemaforoStatus; label: string }[]
+          ] as { key: InventoryStatus; label: string }[]
         ).map(({ key, label }) => {
           const cfg = STATUS_CFG[key];
           const active = filterStatus === key;
@@ -359,9 +359,9 @@ export function InventarioInteligente() {
         <div className="flex gap-1">
           {(
             [
-              { id: "semaforo", label: "📊 Semáforo" },
-              { id: "contenedores", label: "🚢 Contenedores" },
-            ] as { id: "semaforo" | "contenedores"; label: string }[]
+              { id: "status", label: "📊 Semáforo" },
+              { id: "containers", label: "🚢 Contenedores" },
+            ] as { id: "status" | "containers"; label: string }[]
           ).map(({ id, label }) => (
             <button
               key={id}
@@ -393,8 +393,8 @@ export function InventarioInteligente() {
         </div>
       ) : (
         <>
-          {tab === "semaforo" && (
-            <SemaforoTab
+          {tab === "status" && (
+            <StatusTab
               paginated={paginated}
               filtered={filtered}
               suppliers={suppliers}
@@ -404,15 +404,15 @@ export function InventarioInteligente() {
               page={page}
               totalPages={totalPages}
               PAGE_SIZE={PAGE_SIZE}
-              demandaHD={demandaHD}
+              hdDailyDemand={hdDailyDemand}
               onSearchChange={setSearch}
               onSupplierChange={setFilterSupplier}
-              onStatusChange={(v) => setFilterStatus(v as SemaforoStatus | "")}
+              onStatusChange={(v) => setFilterStatus(v as InventoryStatus | "")}
               onPageChange={setPage}
             />
           )}
-          {tab === "contenedores" && (
-            <ContenedoresTab contenedores={contenedores} />
+          {tab === "containers" && (
+            <ContainersTab containerSummaries={containerSummaries} />
           )}
         </>
       )}
@@ -422,24 +422,24 @@ export function InventarioInteligente() {
 
 // ─── Semáforo Tab ─────────────────────────────────────────────────────────────
 
-interface SemaforoTabProps {
-  paginated: ProductoResultado[];
-  filtered: ProductoResultado[];
+interface StatusTabProps {
+  paginated: ProductResult[];
+  filtered: ProductResult[];
   suppliers: string[];
   filterSupplier: string;
-  filterStatus: SemaforoStatus | "";
+  filterStatus: InventoryStatus | "";
   search: string;
   page: number;
   totalPages: number;
   PAGE_SIZE: number;
-  demandaHD: Record<string, number>;
+  hdDailyDemand: Record<string, number>;
   onSearchChange: (v: string) => void;
   onSupplierChange: (v: string) => void;
   onStatusChange: (v: string) => void;
   onPageChange: (p: number) => void;
 }
 
-function SemaforoTab({
+function StatusTab({
   paginated,
   filtered,
   suppliers,
@@ -449,12 +449,12 @@ function SemaforoTab({
   page,
   totalPages,
   PAGE_SIZE,
-  demandaHD,
+  hdDailyDemand,
   onSearchChange,
   onSupplierChange,
   onStatusChange,
   onPageChange,
-}: SemaforoTabProps) {
+}: StatusTabProps) {
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       {/* Filters */}
@@ -508,10 +508,10 @@ function SemaforoTab({
           </thead>
           <tbody>
             {paginated.map((r, idx) => {
-              const cfg = STATUS_CFG[r.semaforo];
+              const cfg = STATUS_CFG[r.status];
               const globalIdx = (page - 1) * PAGE_SIZE + idx + 1;
               // r.sku contiene el MOD (master_sku del artículo)
-              const hdDem = demandaHD[r.sku];
+              const hdDem = hdDailyDemand[r.sku];
               return (
                 <tr
                   key={r.sku}
@@ -532,7 +532,7 @@ function SemaforoTab({
                   <td className="px-3 py-2 text-right font-medium text-gray-800 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700">
                     {fmt(r.stock)}
                   </td>
-                  {/* Demanda diaria — solo lectura, calculada de HD */}
+                  {/* Demanda diaria, solo lectura, calculada de HD */}
                   <td className="px-3 py-2 text-right border-r border-gray-200 dark:border-gray-700">
                     {hdDem ? (
                       <span className="font-medium text-blue-700 dark:text-blue-400">
@@ -544,7 +544,7 @@ function SemaforoTab({
                   </td>
                   {/* Días cobertura */}
                   <td className={`px-3 py-2 text-right font-semibold border-r border-gray-200 dark:border-gray-700 ${cfg.badgeText}`}>
-                    {fmtDias(r.diasInventario)}
+                    {fmtDias(r.inventoryDays)}
                   </td>
                   {/* Estado badge */}
                   <td className="px-3 py-2 text-center">
@@ -612,10 +612,10 @@ function SemaforoTab({
 
 // ─── Contenedores Tab ─────────────────────────────────────────────────────────
 
-function ContenedoresTab({ contenedores }: { contenedores: ResumenContenedor[] }) {
-  const [selectedTipo, setSelectedTipo] = useState<Record<string, string>>({});
+function ContainersTab({ containerSummaries }: { containerSummaries: ContainerSummary[] }) {
+  const [selectedType, setSelectedType] = useState<Record<string, string>>({});
 
-  if (contenedores.length === 0) {
+  if (containerSummaries.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 py-20 text-gray-400 dark:text-gray-500">
         <div className="text-5xl mb-3">🚢</div>
@@ -635,9 +635,9 @@ function ContenedoresTab({ contenedores }: { contenedores: ResumenContenedor[] }
         <span className="text-green-600 dark:text-green-400 font-semibold">✦ Recomendado</span>.
       </p>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {contenedores.map((c) => {
-          const tipoActual = selectedTipo[c.supplier] ?? c.tipoRecomendado;
-          const opcion = c.opciones.find((o) => o.tipo === tipoActual) ?? c.opciones[0];
+        {containerSummaries.map((c) => {
+          const currentType = selectedType[c.supplier] ?? c.recommendedType;
+          const option = c.options.find((o) => o.type === currentType) ?? c.options[0];
 
           const barColor = (pct: number) =>
             pct > 100 ? "bg-red-500" : pct >= 80 ? "bg-green-500" : pct >= 50 ? "bg-yellow-500" : "bg-orange-400";
@@ -650,32 +650,32 @@ function ContenedoresTab({ contenedores }: { contenedores: ResumenContenedor[] }
                 </h3>
                 <div className="text-xs text-gray-400 dark:text-gray-500 shrink-0 text-right">
                   <div>
-                    {c.pesoTotalKg.toLocaleString("es-MX", { maximumFractionDigits: 1 })} kg ·{" "}
-                    {c.volumenTotalM3.toLocaleString("es-MX", { maximumFractionDigits: 2 })} m³
+                    {c.totalWeightKg.toLocaleString("es-MX", { maximumFractionDigits: 1 })} kg ·{" "}
+                    {c.totalVolumeM3.toLocaleString("es-MX", { maximumFractionDigits: 2 })} m³
                   </div>
                   {(() => {
-                    const totalCtns = c.productos.reduce((sum, p) =>
-                      sum + (p.qtyPerCarton && p.qtyPerCarton > 0 ? Math.ceil(p.pzsAPedir / p.qtyPerCarton) : 0), 0);
-                    return totalCtns > 0 ? (
-                      <div className="text-blue-500 dark:text-blue-400 font-medium">{totalCtns.toLocaleString("es-MX")} CTN total</div>
+                    const totalCartons = c.products.reduce((sum, p) =>
+                      sum + (p.qtyPerCarton && p.qtyPerCarton > 0 ? Math.ceil(p.piecesToOrder / p.qtyPerCarton) : 0), 0);
+                    return totalCartons > 0 ? (
+                      <div className="text-blue-500 dark:text-blue-400 font-medium">{totalCartons.toLocaleString("es-MX")} CTN total</div>
                     ) : null;
                   })()}
                 </div>
               </div>
 
               <div className="flex gap-2 mb-4">
-                {c.opciones.map((o) => (
+                {c.options.map((o) => (
                   <button
-                    key={o.tipo}
-                    onClick={() => setSelectedTipo((prev) => ({ ...prev, [c.supplier]: o.tipo }))}
+                    key={o.type}
+                    onClick={() => setSelectedType((prev) => ({ ...prev, [c.supplier]: o.type }))}
                     className={`relative flex-1 py-2 px-3 rounded-lg text-sm font-medium border-2 transition-all ${
-                      o.tipo === tipoActual
+                      o.type === currentType
                         ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
                         : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-300"
                     }`}
                   >
-                    {o.tipo}&apos;
-                    {o.recomendado && (
+                    {o.type}&apos;
+                    {o.recommended && (
                       <span className="absolute -top-2 -right-1 text-[10px] bg-green-500 text-white px-1 rounded-full leading-4">✦</span>
                     )}
                   </button>
@@ -686,14 +686,14 @@ function ContenedoresTab({ contenedores }: { contenedores: ResumenContenedor[] }
                 <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
                   <span>⚖️ Peso</span>
                   <span>
-                    {c.pesoTotalKg.toLocaleString("es-MX", { maximumFractionDigits: 1 })} / {opcion.pesoMaxKg.toLocaleString("es-MX")} kg{" "}
-                    <strong className={opcion.pctPeso > 100 ? "text-red-500" : opcion.pctPeso >= 80 ? "text-green-600 dark:text-green-400" : "text-orange-500"}>
-                      {opcion.pctPeso}%
+                    {c.totalWeightKg.toLocaleString("es-MX", { maximumFractionDigits: 1 })} / {option.maxWeightKg.toLocaleString("es-MX")} kg{" "}
+                    <strong className={option.weightPct > 100 ? "text-red-500" : option.weightPct >= 80 ? "text-green-600 dark:text-green-400" : "text-orange-500"}>
+                      {option.weightPct}%
                     </strong>
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
-                  <div className={`h-3 rounded-full transition-all ${barColor(opcion.pctPeso)}`} style={{ width: `${Math.min(opcion.pctPeso, 100)}%` }} />
+                  <div className={`h-3 rounded-full transition-all ${barColor(option.weightPct)}`} style={{ width: `${Math.min(option.weightPct, 100)}%` }} />
                 </div>
               </div>
 
@@ -701,30 +701,30 @@ function ContenedoresTab({ contenedores }: { contenedores: ResumenContenedor[] }
                 <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
                   <span>📦 Volumen</span>
                   <span>
-                    {c.volumenTotalM3.toLocaleString("es-MX", { maximumFractionDigits: 2 })} / {opcion.volMaxM3} m³{" "}
-                    <strong className={opcion.pctVol > 100 ? "text-red-500" : opcion.pctVol >= 80 ? "text-green-600 dark:text-green-400" : "text-orange-500"}>
-                      {opcion.pctVol}%
+                    {c.totalVolumeM3.toLocaleString("es-MX", { maximumFractionDigits: 2 })} / {option.maxVolM3} m³{" "}
+                    <strong className={option.volPct > 100 ? "text-red-500" : option.volPct >= 80 ? "text-green-600 dark:text-green-400" : "text-orange-500"}>
+                      {option.volPct}%
                     </strong>
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
-                  <div className={`h-3 rounded-full transition-all ${barColor(opcion.pctVol)}`} style={{ width: `${Math.min(opcion.pctVol, 100)}%` }} />
+                  <div className={`h-3 rounded-full transition-all ${barColor(option.volPct)}`} style={{ width: `${Math.min(option.volPct, 100)}%` }} />
                 </div>
               </div>
 
-              {opcion.pctMax > 100 && (
+              {option.maxPct > 100 && (
                 <p className="text-xs text-red-600 dark:text-red-400 mb-3">
-                  🚨 El pedido supera la capacidad ({opcion.pctMax}%). Divide el envío en múltiples contenedores.
+                  🚨 El pedido supera la capacidad ({option.maxPct}%). Divide el envío en múltiples containerSummaries.
                 </p>
               )}
 
               <div>
                 <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                  {c.productos.length} SKUs incluidos
+                  {c.products.length} SKUs incluidos
                 </p>
                 <div className="max-h-44 overflow-y-auto space-y-1 pr-1">
-                  {c.productos.map((p) => {
-                    const cfg = STATUS_CFG[p.semaforo];
+                  {c.products.map((p) => {
+                    const cfg = STATUS_CFG[p.status];
                     return (
                       <div key={p.sku} className="flex items-center justify-between text-xs bg-gray-50 dark:bg-gray-700/50 rounded px-2 py-1.5">
                         <div className="flex items-center gap-1.5 min-w-0">
@@ -735,11 +735,11 @@ function ContenedoresTab({ contenedores }: { contenedores: ResumenContenedor[] }
                         <div className="flex gap-3 shrink-0 ml-2 text-gray-500 dark:text-gray-400">
                           {p.qtyPerCarton && p.qtyPerCarton > 0 && (
                             <span className="text-blue-600 dark:text-blue-400 font-medium">
-                              {Math.ceil(p.pzsAPedir / p.qtyPerCarton)} CTN
+                              {Math.ceil(p.piecesToOrder / p.qtyPerCarton)} CTN
                             </span>
                           )}
-                          <span>{p.pzsAPedir.toLocaleString("es-MX")} pzs</span>
-                          {p.pesoKg > 0 && <span>{Math.round(p.pesoKg).toLocaleString("es-MX")} kg</span>}
+                          <span>{p.piecesToOrder.toLocaleString("es-MX")} pzs</span>
+                          {p.weightKg > 0 && <span>{Math.round(p.weightKg).toLocaleString("es-MX")} kg</span>}
                         </div>
                       </div>
                     );

@@ -1,3 +1,5 @@
+// Generic confirmation modal for destructive actions.
+// Takes a title and message and reports back via onConfirm/onCancel.
 import { useState } from "react";
 
 interface DeleteConfirmModalProps {

@@ -1,3 +1,4 @@
+// Displays the current user's avatar, name, and email.
 import { useAuth } from "../context/AuthContext";
 import { useDarkMode } from '../context/DarkModeContext'
 

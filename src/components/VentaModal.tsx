@@ -1,3 +1,5 @@
+// Modal for creating or editing a sales order (venta), grouped into folios
+// each holding a list of products.
 import React, { useState, useEffect, useRef } from "react";
 import { fetchAPI } from "../lib/fetch";
 import { getMonterreyDateISO } from "../lib/dateMx";

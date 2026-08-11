@@ -1,3 +1,4 @@
+// Superadmin page for managing user accounts and roles.
 import { useState, useEffect } from 'react';
 import { useDarkMode } from '../context/DarkModeContext';
 import { api } from '../lib/api';
@@ -228,10 +229,10 @@ export function UserManagement() {
                   {filteredUsers.map((user) => (
                     <tr key={user.id_usuario} className={darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
                       <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                        {user.nombre || '—'}
+                        {user.nombre || '-'}
                       </td>
                       <td className={`px-6 py-4 whitespace-nowrap text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                        {user.apellido || '—'}
+                        {user.apellido || '-'}
                       </td>
                       <td className={`px-6 py-4 whitespace-nowrap text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                         {user.email}

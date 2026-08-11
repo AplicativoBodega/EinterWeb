@@ -1,3 +1,4 @@
+// Modal for creating or editing a supplier (proveedor).
 import { useState, useEffect } from "react";
 
 interface Proveedor {

@@ -1,3 +1,4 @@
+// Top navigation bar with the app title and profile dropdown menu.
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useDarkMode } from '../context/DarkModeContext'

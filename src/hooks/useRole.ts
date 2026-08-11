@@ -1,3 +1,4 @@
+// Hook exposing the current user's role and permission-check helpers.
 import { useAuth } from '../context/AuthContext';
 import { hasPermission, isSuperAdmin } from '../lib/roles';
 import type { UserRole } from '../lib/roles';

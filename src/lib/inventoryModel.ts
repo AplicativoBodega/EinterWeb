@@ -1,42 +1,36 @@
-/**
- * Modelo Predictivo de Reabastecimiento — BodegaEinter
- * Basado en ModeloMatematico.py v1.1
- *
- * Calcula semáforo de inventario, demanda diaria ponderada,
- * pedidos sugeridos y resumen de llenado de contenedores.
- */
-
+// Modelo predictivo de reabastecimiento: calcula semáforo de inventario,
+// demanda diaria ponderada, pedidos sugeridos y llenado de contenedores.
 // ─── Parámetros configurables ─────────────────────────────────────────────────
 
 export interface ModelParams {
-  leadTimeDias: number;        // días que tarda llegar un pedido (default 60)
-  diasObjetivo: number;        // días de cobertura ideal (default 150)
-  alertaRojo: number;          // días < este valor → CRÍTICO (default 60)
-  alertaAmarillo: number;      // días < este valor → ALERTA (default 80)
-  minPzsSku: number;           // mínimo de piezas por SKU en cualquier pedido (default 2000)
-  tipoContenedor: '20' | '40' | '40HC';
+  leadTimeDays: number;        // días que tarda llegar un pedido (default 60)
+  targetDays: number;          // días de cobertura ideal (default 150)
+  redAlertDays: number;        // días < este valor → CRÍTICO (default 60)
+  yellowAlertDays: number;     // días < este valor → ALERTA (default 80)
+  minPiecesPerSku: number;     // mínimo de piezas por SKU en cualquier pedido (default 2000)
+  containerType: '20' | '40' | '40HC';
 }
 
 export const DEFAULT_PARAMS: ModelParams = {
-  leadTimeDias: 60,
-  diasObjetivo: 150,
-  alertaRojo: 60,
-  alertaAmarillo: 80,
-  minPzsSku: 2000,
-  tipoContenedor: '40HC',
+  leadTimeDays: 60,
+  targetDays: 150,
+  redAlertDays: 60,
+  yellowAlertDays: 80,
+  minPiecesPerSku: 2000,
+  containerType: '40HC',
 };
 
-export const CONTENEDORES: Record<string, { pesoMaxKg: number; volumenM3: number }> = {
-  '20':   { pesoMaxKg: 21_700, volumenM3: 33.0 },
-  '40':   { pesoMaxKg: 26_500, volumenM3: 67.0 },
-  '40HC': { pesoMaxKg: 26_500, volumenM3: 76.0 },
+export const CONTAINERS: Record<string, { maxWeightKg: number; volumeM3: number }> = {
+  '20':   { maxWeightKg: 21_700, volumeM3: 33.0 },
+  '40':   { maxWeightKg: 26_500, volumeM3: 67.0 },
+  '40HC': { maxWeightKg: 26_500, volumeM3: 76.0 },
 };
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-export type SemaforoStatus = 'rojo' | 'amarillo' | 'verde' | 'sin_datos' | 'sobrestock';
+export type InventoryStatus = 'rojo' | 'amarillo' | 'verde' | 'sin_datos' | 'sobrestock';
 
-export interface ProductoInput {
+export interface ProductInput {
   sku: string;
   name: string;
   supplier: string;
@@ -45,21 +39,21 @@ export interface ProductoInput {
   weightKg: number;
   qtyPerCarton?: number | null;
   dimensionsCm?: { largo: number; ancho: number; alto: number };
-  pzsEnTransito: number;
-  demandaDiaria: number; // piezas/día — 0 si no se conoce
+  piecesInTransit: number;
+  dailyDemand: number; // piezas/día, 0 si no se conoce
 }
 
-export interface ProductoResultado extends ProductoInput {
-  invEfectivo: number;
-  diasInventario: number;      // 9999 = sin demanda
-  semaforo: SemaforoStatus;
-  sobrestock: boolean;
-  diasARojo: number | null;    // días hasta entrar a zona roja
-  fechaRojo: string | null;    // fecha estimada de zona roja
-  pzsNecesarias: number;       // piezas a pedir (cálculo crudo)
-  pzsAPedir: number;           // piezas a pedir (redondeado a cartón)
-  pesoKg: number;              // peso estimado del pedido
-  volumenM3: number;           // volumen estimado del pedido
+export interface ProductResult extends ProductInput {
+  effectiveInventory: number;
+  inventoryDays: number;       // 9999 = sin demanda
+  status: InventoryStatus;
+  isOverstock: boolean;
+  daysToRed: number | null;    // días hasta entrar a zona roja
+  redDate: string | null;      // fecha estimada de zona roja
+  piecesNeeded: number;        // piezas a pedir (cálculo crudo)
+  piecesToOrder: number;       // piezas a pedir (redondeado a cartón)
+  weightKg: number;            // peso estimado del pedido
+  volumeM3: number;            // volumen estimado del pedido
 }
 
 import { getMonterreyNow, MX_TIME_ZONE } from './dateMx';
@@ -67,7 +61,7 @@ import { getMonterreyNow, MX_TIME_ZONE } from './dateMx';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Calcula volumen en m³ a partir de dimensiones en cm (largo × ancho × alto / 1_000_000) */
-export function calcularVolumenM3(
+export function calculateVolumeM3(
   dims?: { largo: number; ancho: number; alto: number }
 ): number {
   if (!dims) return 0;
@@ -78,52 +72,48 @@ export function calcularVolumenM3(
 
 // ─── Motor de cálculo principal ───────────────────────────────────────────────
 
-/**
- * Aplica el modelo a un array de productos y retorna los resultados calculados.
- * Para SKUs sin demanda (demandaDiaria = 0) el semáforo es 'sin_datos'.
- */
-export function calcularResultados(
-  inputs: ProductoInput[],
+export function calculateResults(
+  inputs: ProductInput[],
   params: ModelParams
-): ProductoResultado[] {
+): ProductResult[] {
   return inputs.map((p) => {
-    const demanda = p.demandaDiaria;
-    const transit = p.pzsEnTransito;
-    const invEfectivo = p.stock + transit;
+    const demand = p.dailyDemand;
+    const transit = p.piecesInTransit;
+    const effectiveInventory = p.stock + transit;
 
     // Días de cobertura basados en inventario efectivo
-    const diasInventario =
-      demanda > 0 ? Math.round((invEfectivo / demanda) * 10) / 10 : 9999;
+    const inventoryDays =
+      demand > 0 ? Math.round((effectiveInventory / demand) * 10) / 10 : 9999;
 
     // Sobrestock si supera 2× el objetivo
-    const umbralSobrestock = params.diasObjetivo * 2;
-    const esSobrestock =
-      demanda === 0 ? false : diasInventario > umbralSobrestock;
+    const overstockThreshold = params.targetDays * 2;
+    const isOverstock =
+      demand === 0 ? false : inventoryDays > overstockThreshold;
 
     // Semáforo
-    let semaforo: SemaforoStatus;
-    if (demanda === 0) {
-      semaforo = 'sin_datos';
-    } else if (esSobrestock) {
-      semaforo = 'sobrestock';
-    } else if (diasInventario < params.alertaRojo) {
-      semaforo = 'rojo';
-    } else if (diasInventario < params.alertaAmarillo) {
-      semaforo = 'amarillo';
+    let status: InventoryStatus;
+    if (demand === 0) {
+      status = 'sin_datos';
+    } else if (isOverstock) {
+      status = 'sobrestock';
+    } else if (inventoryDays < params.redAlertDays) {
+      status = 'rojo';
+    } else if (inventoryDays < params.yellowAlertDays) {
+      status = 'amarillo';
     } else {
-      semaforo = 'verde';
+      status = 'verde';
     }
 
     // Fecha estimada de entrada a zona roja (solo para verdes)
-    let diasARojo: number | null = null;
-    let fechaRojo: string | null = null;
-    if (semaforo === 'verde' && demanda > 0) {
-      const d = diasInventario - params.alertaRojo;
+    let daysToRed: number | null = null;
+    let redDate: string | null = null;
+    if (status === 'verde' && demand > 0) {
+      const d = inventoryDays - params.redAlertDays;
       if (d > 0) {
-        diasARojo = Math.round(d);
-        const fecha = getMonterreyNow();
-        fecha.setUTCDate(fecha.getUTCDate() + diasARojo);
-        fechaRojo = fecha.toLocaleDateString('es-MX', {
+        daysToRed = Math.round(d);
+        const date = getMonterreyNow();
+        date.setUTCDate(date.getUTCDate() + daysToRed);
+        redDate = date.toLocaleDateString('es-MX', {
           day: '2-digit',
           month: '2-digit',
           year: 'numeric',
@@ -133,152 +123,147 @@ export function calcularResultados(
     }
 
     // Cálculo de pedido (solo para rojo/amarillo)
-    let pzsNecesarias = 0;
-    let pzsAPedir = 0;
-    let pesoKg = 0;
-    let volumenM3 = 0;
+    let piecesNeeded = 0;
+    let piecesToOrder = 0;
+    let weightKg = 0;
+    let volumeM3 = 0;
 
-    if ((semaforo === 'rojo' || semaforo === 'amarillo') && demanda > 0) {
+    if ((status === 'rojo' || status === 'amarillo') && demand > 0) {
       // Inventario proyectado al momento de recepción
-      const invEnRecepcion = Math.max(
+      const inventoryAtReceipt = Math.max(
         0,
-        invEfectivo - demanda * params.leadTimeDias
+        effectiveInventory - demand * params.leadTimeDays
       );
-      pzsNecesarias = Math.max(
+      piecesNeeded = Math.max(
         0,
-        demanda * params.diasObjetivo - invEnRecepcion
+        demand * params.targetDays - inventoryAtReceipt
       );
       // Aplicar mínimo y redondear a múltiplo de cartón (CTN)
-      pzsAPedir = Math.max(pzsNecesarias, params.minPzsSku);
+      piecesToOrder = Math.max(piecesNeeded, params.minPiecesPerSku);
       if (p.qtyPerCarton && p.qtyPerCarton > 0) {
-        pzsAPedir = Math.ceil(pzsAPedir / p.qtyPerCarton) * p.qtyPerCarton;
+        piecesToOrder = Math.ceil(piecesToOrder / p.qtyPerCarton) * p.qtyPerCarton;
       } else {
-        pzsAPedir = Math.ceil(pzsAPedir);
+        piecesToOrder = Math.ceil(piecesToOrder);
       }
-      pesoKg = Math.round(pzsAPedir * p.weightKg * 100) / 100;
-      volumenM3 =
-        Math.round(pzsAPedir * calcularVolumenM3(p.dimensionsCm) * 10000) /
+      weightKg = Math.round(piecesToOrder * p.weightKg * 100) / 100;
+      volumeM3 =
+        Math.round(piecesToOrder * calculateVolumeM3(p.dimensionsCm) * 10000) /
         10000;
     }
 
     return {
       ...p,
-      pzsEnTransito: transit,
-      invEfectivo,
-      diasInventario,
-      semaforo,
-      sobrestock: esSobrestock,
-      diasARojo,
-      fechaRojo,
-      pzsNecesarias: Math.round(pzsNecesarias),
-      pzsAPedir: Math.round(pzsAPedir),
-      pesoKg,
-      volumenM3,
+      piecesInTransit: transit,
+      effectiveInventory,
+      inventoryDays,
+      status,
+      isOverstock,
+      daysToRed,
+      redDate,
+      piecesNeeded: Math.round(piecesNeeded),
+      piecesToOrder: Math.round(piecesToOrder),
+      weightKg,
+      volumeM3,
     };
   });
 }
 
 // ─── Resumen por proveedor (llenado de contenedor) ────────────────────────────
 
-export interface OpcionContenedor {
-  tipo: string;
-  pesoMaxKg: number;
-  volMaxM3: number;
-  pctPeso: number;
-  pctVol: number;
-  /** El mayor de los dos porcentajes — determina si cabe o no */
-  pctMax: number;
-  recomendado: boolean;
+export interface ContainerOption {
+  type: string;
+  maxWeightKg: number;
+  maxVolM3: number;
+  weightPct: number;
+  volPct: number;
+  /** El mayor de los dos porcentajes: determina si cabe o no */
+  maxPct: number;
+  recommended: boolean;
 }
 
-export interface ResumenContenedor {
+export interface ContainerSummary {
   supplier: string;
-  pesoTotalKg: number;
-  volumenTotalM3: number;
+  totalWeightKg: number;
+  totalVolumeM3: number;
   /** Métricas calculadas para cada tipo de contenedor */
-  opciones: OpcionContenedor[];
+  options: ContainerOption[];
   /** Tipo recomendado por el modelo */
-  tipoRecomendado: string;
-  productos: ProductoResultado[];
+  recommendedType: string;
+  products: ProductResult[];
 }
 
 /** Elige el tipo de contenedor óptimo para un pedido dado su peso y volumen. */
-function elegirTipoRecomendado(
-  _pesoKg: number,
+function chooseRecommendedType(
+  _weightKg: number,
   _volM3: number,
-  opciones: Omit<OpcionContenedor, 'recomendado'>[]
+  options: Omit<ContainerOption, 'recommended'>[]
 ): string {
   // Contenedores en orden de menor a mayor capacidad
-  const ordered = [...opciones].sort((a, b) => a.volMaxM3 - b.volMaxM3);
-  // Entre los que caben (pctMax ≤ 100), elegir el de mayor ocupación (más eficiente)
-  const queEntran = ordered.filter((o) => o.pctMax <= 100);
-  if (queEntran.length > 0) {
-    return queEntran.reduce((best, o) => (o.pctMax > best.pctMax ? o : best)).tipo;
+  const ordered = [...options].sort((a, b) => a.maxVolM3 - b.maxVolM3);
+  // Entre los que caben (maxPct ≤ 100), elegir el de mayor ocupación (más eficiente)
+  const fitting = ordered.filter((o) => o.maxPct <= 100);
+  if (fitting.length > 0) {
+    return fitting.reduce((best, o) => (o.maxPct > best.maxPct ? o : best)).type;
   }
   // Ninguno cabe → recomendar el más grande para minimizar contenedores
-  return ordered[ordered.length - 1].tipo;
+  return ordered[ordered.length - 1].type;
 }
 
-/**
- * Agrupa los productos en alerta por proveedor y calcula el llenado
- * estimado para TODOS los tipos de contenedor disponibles.
- * Cada ResumenContenedor incluye las opciones y una recomendación.
- */
-export function calcularResumenContenedores(
-  resultados: ProductoResultado[]
-): ResumenContenedor[] {
-  const alertas = resultados.filter(
-    (r) => r.semaforo === 'rojo' || r.semaforo === 'amarillo'
+export function calculateContainerSummary(
+  results: ProductResult[]
+): ContainerSummary[] {
+  const alerts = results.filter(
+    (r) => r.status === 'rojo' || r.status === 'amarillo'
   );
 
-  const bySupplier: Record<string, ProductoResultado[]> = {};
-  for (const r of alertas) {
+  const bySupplier: Record<string, ProductResult[]> = {};
+  for (const r of alerts) {
     const s = r.supplier || 'Sin proveedor';
     if (!bySupplier[s]) bySupplier[s] = [];
     bySupplier[s].push(r);
   }
 
   return Object.entries(bySupplier)
-    .map(([supplier, prods]) => {
-      const pesoTotal = prods.reduce((sum, p) => sum + p.pesoKg, 0);
-      const volTotal  = prods.reduce((sum, p) => sum + p.volumenM3, 0);
+    .map(([supplier, items]) => {
+      const totalWeight = items.reduce((sum, p) => sum + p.weightKg, 0);
+      const totalVol  = items.reduce((sum, p) => sum + p.volumeM3, 0);
 
-      const opcionesSinFlag: Omit<OpcionContenedor, 'recomendado'>[] =
-        Object.entries(CONTENEDORES).map(([tipo, cap]) => {
-          const pctPeso = Math.min(999, Math.round((pesoTotal / cap.pesoMaxKg) * 1000) / 10);
-          const pctVol  = Math.min(999, Math.round((volTotal  / cap.volumenM3) * 1000) / 10);
+      const optionsWithoutFlag: Omit<ContainerOption, 'recommended'>[] =
+        Object.entries(CONTAINERS).map(([type, cap]) => {
+          const weightPct = Math.min(999, Math.round((totalWeight / cap.maxWeightKg) * 1000) / 10);
+          const volPct  = Math.min(999, Math.round((totalVol  / cap.volumeM3) * 1000) / 10);
           return {
-            tipo,
-            pesoMaxKg: cap.pesoMaxKg,
-            volMaxM3:  cap.volumenM3,
-            pctPeso,
-            pctVol,
-            pctMax: Math.max(pctPeso, pctVol),
+            type,
+            maxWeightKg: cap.maxWeightKg,
+            maxVolM3:  cap.volumeM3,
+            weightPct,
+            volPct,
+            maxPct: Math.max(weightPct, volPct),
           };
         });
 
-      const tipoRecomendado = elegirTipoRecomendado(pesoTotal, volTotal, opcionesSinFlag);
+      const recommendedType = chooseRecommendedType(totalWeight, totalVol, optionsWithoutFlag);
 
-      const opciones: OpcionContenedor[] = opcionesSinFlag.map((o) => ({
+      const options: ContainerOption[] = optionsWithoutFlag.map((o) => ({
         ...o,
-        recomendado: o.tipo === tipoRecomendado,
+        recommended: o.type === recommendedType,
       }));
 
       return {
         supplier,
-        pesoTotalKg:    Math.round(pesoTotal * 100) / 100,
-        volumenTotalM3: Math.round(volTotal  * 1000) / 1000,
-        opciones,
-        tipoRecomendado,
-        productos: prods,
+        totalWeightKg:  Math.round(totalWeight * 100) / 100,
+        totalVolumeM3:  Math.round(totalVol  * 1000) / 1000,
+        options,
+        recommendedType,
+        products: items,
       };
     })
-    .sort((a, b) => b.pesoTotalKg - a.pesoTotalKg);
+    .sort((a, b) => b.totalWeightKg - a.totalWeightKg);
 }
 
 // ─── Utilidades de ordenación ─────────────────────────────────────────────────
 
-const SEMAFORO_ORDER: Record<SemaforoStatus, number> = {
+const STATUS_ORDER: Record<InventoryStatus, number> = {
   rojo: 0,
   amarillo: 1,
   verde: 2,
@@ -287,12 +272,12 @@ const SEMAFORO_ORDER: Record<SemaforoStatus, number> = {
 };
 
 /** Ordena: rojo → amarillo → verde → sin_datos → sobrestock; dentro de c/u por días asc. */
-export function sortResultados(
-  results: ProductoResultado[]
-): ProductoResultado[] {
+export function sortResults(
+  results: ProductResult[]
+): ProductResult[] {
   return [...results].sort((a, b) => {
-    const diff = SEMAFORO_ORDER[a.semaforo] - SEMAFORO_ORDER[b.semaforo];
+    const diff = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
     if (diff !== 0) return diff;
-    return a.diasInventario - b.diasInventario;
+    return a.inventoryDays - b.inventoryDays;
   });
 }

@@ -1,3 +1,4 @@
+// Home Depot sales page: weekly matrix entry/editing and Excel export.
 import { useState, useEffect, useRef } from "react";
 import ExcelJS from "exceljs";
 import { useDarkMode } from "../context/DarkModeContext";
@@ -41,16 +42,16 @@ const MESES_ES = [
   "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
 ];
 
-function isoWeekMonday(anio: number, semana: number): Date {
+function isoWeekMonday(year: number, week: number): Date {
   // Jan 4 is always in ISO week 1 of its year
-  const jan4 = new Date(anio, 0, 4);
+  const jan4 = new Date(year, 0, 4);
   const dow = jan4.getDay() || 7; // 1=Mon … 7=Sun
   const monday = new Date(jan4);
-  monday.setDate(jan4.getDate() - (dow - 1) + (semana - 1) * 7);
+  monday.setDate(jan4.getDate() - (dow - 1) + (week - 1) * 7);
   return monday;
 }
 
-function generarSemanaLabel(anio: number, semana: number): string {
+function generateWeekLabel(anio: number, semana: number): string {
   const monday = isoWeekMonday(anio, semana);
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
@@ -195,8 +196,6 @@ function NuevaSemanaModal({ anio, semanas, productos, onClose, onSave }: NuevaSe
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Precarga los campos con todos los modelos existentes.
-  // Si se elige una semana existente, rellena con sus ventas actuales (edición masiva).
   useEffect(() => {
     const init: Record<number, { cantidad: string; importe: string }> = {};
     const num = semanaMode === "existente" ? Number(semanaSeleccionada) : NaN;
@@ -238,7 +237,7 @@ function NuevaSemanaModal({ anio, semanas, productos, onClose, onSave }: NuevaSe
       if (semanas.some((s) => s.semana_num === semana_num)) {
         setError(`La semana ${semana_num} ya existe`); return;
       }
-      semana_label = generarSemanaLabel(anio, semana_num);
+      semana_label = generateWeekLabel(anio, semana_num);
     }
 
     const filas: FilaVenta[] = productos
@@ -271,7 +270,7 @@ function NuevaSemanaModal({ anio, semanas, productos, onClose, onSave }: NuevaSe
         {/* Header */}
         <div className="p-6 pb-4 border-b border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-            Nueva semana — {anio}
+            Nueva semana de {anio}
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
             Captura la venta de cada modelo para la semana. Los modelos sin venta se omiten.
@@ -315,7 +314,7 @@ function NuevaSemanaModal({ anio, semanas, productos, onClose, onSave }: NuevaSe
               >
                 {semanas.map((s) => (
                   <option key={s.semana_num} value={s.semana_num}>
-                    Sem {s.semana_num} — {s.semana_label}
+                    Sem {s.semana_num}: {s.semana_label}
                   </option>
                 ))}
               </select>
@@ -333,7 +332,7 @@ function NuevaSemanaModal({ anio, semanas, productos, onClose, onSave }: NuevaSe
                 {nuevaSemanaNum && !isNaN(Number(nuevaSemanaNum)) &&
                  Number(nuevaSemanaNum) >= 1 && Number(nuevaSemanaNum) <= 53 && (
                   <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                    {generarSemanaLabel(anio, Number(nuevaSemanaNum))}
+                    {generateWeekLabel(anio, Number(nuevaSemanaNum))}
                   </span>
                 )}
               </div>
@@ -462,10 +461,6 @@ export function VentasHomeDepot() {
 
   useEffect(() => { fetchMatriz(anio); }, [anio]);
 
-  // No refetch-on-focus aquí: la matriz alimenta `valores`, el estado de
-  // captura en vivo (líneas 200-211) — un refetch de fondo lo pisaría
-  // mientras el usuario está escribiendo cantidades/importes sin guardar.
-
   // ── Edit cell ──────────────────────────────────────────────────────────────
 
   const handleCellClick = (producto: Producto, semana: Semana) => {
@@ -537,10 +532,6 @@ export function VentasHomeDepot() {
     const sems = matriz.semanas;
     const prods = matriz.productos;
 
-    // Column index helpers (1-based)
-    // Fixed: 1=MOD, 2=SKU, 3=Desc
-    // Per semana: col 4 + i*2 = Pzas,  col 5 + i*2 = $MXN
-    // Total: col 4 + N*2 = Pzas total, col 5 + N*2 = Importe total
     const FIXED = 3;
     const semCol = (i: number) => FIXED + i * 2 + 1;
     const totalCantCol = FIXED + sems.length * 2 + 1;
@@ -828,7 +819,7 @@ export function VentasHomeDepot() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Ventas HD</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-            Ventas semanales por producto — vista matricial
+            Ventas semanales por producto, vista matricial
           </p>
         </div>
 
@@ -1008,7 +999,7 @@ export function VentasHomeDepot() {
                           {cant.toLocaleString("es-MX")}
                         </div>
                         <div className="text-[10px] text-green-600 dark:text-green-400 leading-none mt-0.5 whitespace-nowrap">
-                          {imp > 0 ? formatImporte(imp) : "—"}
+                          {imp > 0 ? formatImporte(imp) : "-"}
                         </div>
                       </td>
                     );

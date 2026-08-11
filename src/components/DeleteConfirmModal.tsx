@@ -1,3 +1,5 @@
+// Confirmation modal shown before deleting a product.
+// Displays the product name and an irreversible-action warning.
 interface DeleteConfirmModalProps {
   visible: boolean;
   productName: string;

@@ -1,5 +1,9 @@
+// Warehouse locations page: master-detail view plus a tarima barcode
+// lookup tool.
 import React, { useState } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
+import { fetchAPI } from "../lib/fetch";
+import { TarimaEtiquetaModal, type TarimaEtiquetaCarton } from "../components/TarimaEtiquetaModal";
 
 type Product = {
   id: string;
@@ -247,6 +251,73 @@ const DetailPanel: React.FC<{ ubicacion: Ubicacion }> = ({ ubicacion }) => {
   );
 };
 
+// Barcode lookup for a tarima, backed by the real API.
+function TarimaBarcodeSearch() {
+  const [skuInput, setSkuInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [etiquetaVisible, setEtiquetaVisible] = useState(false);
+  const [etiquetaData, setEtiquetaData] = useState<{
+    sku: string;
+    isla_master_sku?: string | null;
+    cartones: TarimaEtiquetaCarton[];
+  } | null>(null);
+
+  const handleSearch = async () => {
+    const sku = skuInput.trim();
+    if (!sku) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const tarima = (await fetchAPI(
+        `/api/tarimas?sku=${encodeURIComponent(sku)}`
+      )) as { id_tarima: number; sku: string; isla_master_sku?: string | null };
+      const cartonesRes = (await fetchAPI(
+        `/api/tarimas/${tarima.id_tarima}/cartones`
+      )) as { items: TarimaEtiquetaCarton[] };
+      setEtiquetaData({
+        sku: tarima.sku,
+        isla_master_sku: tarima.isla_master_sku,
+        cartones: cartonesRes.items,
+      });
+      setEtiquetaVisible(true);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-4">
+      <div className="flex items-center gap-2 max-w-lg">
+        <input
+          type="text"
+          value={skuInput}
+          onChange={(e) => setSkuInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+          placeholder="Buscar tarima por SKU para imprimir su barcode..."
+          className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+        />
+        <button
+          onClick={handleSearch}
+          disabled={loading || !skuInput.trim()}
+          className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-robotoMedium disabled:opacity-50"
+        >
+          {loading ? "Buscando..." : "Buscar"}
+        </button>
+      </div>
+      {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+
+      <TarimaEtiquetaModal
+        visible={etiquetaVisible}
+        data={etiquetaData}
+        onClose={() => setEtiquetaVisible(false)}
+      />
+    </div>
+  );
+}
+
 export function Ubicaciones() {
   useDarkMode();
   const [data, setData] = useState<Ubicacion[]>(sampleData);
@@ -313,6 +384,8 @@ export function Ubicaciones() {
           </button>
         </div>
       </div>
+
+      <TarimaBarcodeSearch />
 
       {/* Layout maestro-detalle */}
       <div className="flex-1 flex flex-col md:flex-row gap-6 px-8 py-6 overflow-hidden">

@@ -1,3 +1,4 @@
+// Page for recording and browsing salidas (outbound shipments/sales).
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
@@ -58,7 +59,7 @@ const AVAILABLE_YEARS = [CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2];
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatDate(val: string | null): string {
-  if (!val) return "—";
+  if (!val) return "-";
   const d = new Date(val + "T00:00:00");
   return d.toLocaleDateString("es-MX", { year: "numeric", month: "2-digit", day: "2-digit" });
 }
@@ -146,9 +147,9 @@ function DetalleModal({ folio, onClose }: { folio: string | null; onClose: () =>
                         <span className="ml-1 text-amber-500" title="No encontrado en catálogo">⚠</span>
                       )}
                     </td>
-                    <td className="py-2 pr-3 font-mono text-xs text-gray-500 dark:text-gray-400">{p.sku_thd ?? "—"}</td>
+                    <td className="py-2 pr-3 font-mono text-xs text-gray-500 dark:text-gray-400">{p.sku_thd ?? "-"}</td>
                     <td className="py-2 pr-3 text-xs text-gray-900 dark:text-gray-100">
-                      {p.nombre_articulo ?? (p.descripcion ? <span className="italic text-gray-400">{p.descripcion}</span> : "—")}
+                      {p.nombre_articulo ?? (p.descripcion ? <span className="italic text-gray-400">{p.descripcion}</span> : "-")}
                     </td>
                     <td className="py-2 text-right font-semibold text-gray-900 dark:text-white">{p.cantidad}</td>
                   </tr>
@@ -274,7 +275,7 @@ function ProductoRow({
         <span className={`block text-xs px-2 py-1 truncate ${
           row.en_catalogo ? "text-gray-700 dark:text-gray-300" : "text-gray-400 dark:text-gray-500 italic"
         }`} title={row.nombre_producto}>
-          {row.nombre_producto || "—"}
+          {row.nombre_producto || "-"}
         </span>
       </td>
       {/* SKU THD */}

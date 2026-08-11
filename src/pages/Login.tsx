@@ -1,3 +1,4 @@
+// Login screen shown to unauthenticated users.
 import { useAuth } from "../context/AuthContext";
 import LoginButton from "../components/LoginButton";
 

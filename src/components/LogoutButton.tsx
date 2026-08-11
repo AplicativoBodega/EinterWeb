@@ -1,3 +1,4 @@
+// Simple button that signs the current user out.
 import { useAuth } from "../context/AuthContext";
 
 const LogoutButton = () => {

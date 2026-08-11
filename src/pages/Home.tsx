@@ -1,3 +1,4 @@
+// Dashboard home page: KPI cards, sales charts, and top products/alerts.
 import { useState, useEffect, useCallback } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { api } from "../lib/api";
@@ -249,7 +250,7 @@ export function Home() {
 
         setKpi(dashData.kpi);
 
-        // Weekly chart — use semana_label as x-axis label
+        // Weekly chart, use semana_label as x-axis label
         setVentasSemanas(
           (dashData.ventasSemanas as any[]).map((v) => ({
             label: String(v.semana_label ?? `S${v.semana_num}`),
@@ -257,7 +258,7 @@ export function Home() {
           }))
         );
 
-        // Monthly chart — fill in last 6 months, zeros for missing
+        // Monthly chart, fill in last 6 months, zeros for missing
         const last6 = getLast6Months();
         const mesMap = new Map<string, number>(
           (dashData.ventasMeses as any[]).map((v) => [
@@ -319,7 +320,7 @@ export function Home() {
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-6">
         <h1 className="text-3xl font-bold tracking-wide text-gray-900 dark:text-white">Inicio</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Resumen general — {currentMonthLabel()}
+          Resumen general de {currentMonthLabel()}
         </p>
       </div>
 
@@ -328,28 +329,28 @@ export function Home() {
         <div className="grid grid-cols-4 gap-4">
           <KpiCard
             title="Ventas semana"
-            value={loading ? "—" : fmtImporte(kpi.ventasSemana)}
+            value={loading ? "-" : fmtImporte(kpi.ventasSemana)}
             icon="💰"
             accent="text-blue-500 bg-blue-50 dark:bg-blue-900/20"
             delta="Semana más reciente (HD)"
           />
           <KpiCard
             title="Ventas del mes"
-            value={loading ? "—" : fmtImporte(kpi.ventasMes)}
+            value={loading ? "-" : fmtImporte(kpi.ventasMes)}
             icon="📈"
             accent="text-green-500 bg-green-50 dark:bg-green-900/20"
             delta={`${currentMonthLabel()} (HD)`}
           />
           <KpiCard
             title="Pedidos pendientes"
-            value={loading ? "—" : String(kpi.pedidosPendientes)}
+            value={loading ? "-" : String(kpi.pedidosPendientes)}
             icon="📦"
             accent="text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20"
             delta="Sin fecha de llegada"
           />
           <KpiCard
             title="Productos en alerta"
-            value={loading ? "—" : String(kpi.productosEnAlerta)}
+            value={loading ? "-" : String(kpi.productosEnAlerta)}
             icon="⚠️"
             accent="text-red-500 bg-red-50 dark:bg-red-900/20"
             delta="Crítico o alerta de cobertura"
@@ -362,7 +363,7 @@ export function Home() {
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
               Ventas por semana (últimas 7 semanas)
             </h2>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">Home Depot — importe MXN</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">Home Depot: importe MXN</p>
             <div className="h-44">
               {loading ? (
                 <div className="h-full flex items-center justify-center text-xs text-gray-400">Cargando…</div>
@@ -376,7 +377,7 @@ export function Home() {
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
               Ventas mensuales (últimos 6 meses)
             </h2>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">Home Depot — importe MXN</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">Home Depot: importe MXN</p>
             <div className="h-44">
               {loading ? (
                 <div className="h-full flex items-center justify-center text-xs text-gray-400">Cargando…</div>
