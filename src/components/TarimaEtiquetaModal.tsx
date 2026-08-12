@@ -1,35 +1,56 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import JsBarcode from "jsbarcode";
+import { fetchAPI } from "../lib/fetch";
 import { useDarkMode } from "../context/DarkModeContext";
 
-// Modal that renders a printable barcode label for a tarima (pallet),
-// listing the cartones it contains.
-export interface TarimaEtiquetaCarton {
+// Modal that renders a printable barcode label for a tarima (pallet), listing
+// the cartones it contains. Fetches its own cartones from GET
+// /api/tarimas/:id/cartones given just the tarima's id, so any caller that
+// already has a tarima row (from a search or from a real list) can use it
+// directly without pre-fetching anything itself.
+export interface TarimaRef {
+  id_tarima: number;
+  sku: string;
+  isla_master_sku?: string | null;
+}
+
+interface CartonRow {
   sku: string;
   nombre_producto: string;
   cantidad_unidades: number;
 }
 
-interface TarimaEtiquetaData {
-  sku: string;
-  isla_master_sku?: string | null;
-  cartones: TarimaEtiquetaCarton[];
-}
-
 interface TarimaEtiquetaModalProps {
   visible: boolean;
-  data: TarimaEtiquetaData | null;
+  tarima: TarimaRef | null;
   onClose: () => void;
 }
 
-export function TarimaEtiquetaModal({ visible, data, onClose }: TarimaEtiquetaModalProps) {
+export function TarimaEtiquetaModal({ visible, tarima, onClose }: TarimaEtiquetaModalProps) {
   useDarkMode();
   const svgRef = useRef<SVGSVGElement>(null);
+  const [cartones, setCartones] = useState<CartonRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!visible || !data || !svgRef.current) return;
+    if (!visible || !tarima) return;
+    setCartones([]);
+    setError(null);
+    setLoading(true);
+    fetchAPI(`/api/tarimas/${tarima.id_tarima}/cartones`)
+      .then((res: unknown) => {
+        const data = res as { items?: CartonRow[] };
+        setCartones(data.items ?? []);
+      })
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [visible, tarima]);
+
+  useEffect(() => {
+    if (!tarima || !svgRef.current) return;
     try {
-      JsBarcode(svgRef.current, data.sku, {
+      JsBarcode(svgRef.current, tarima.sku, {
         format: "CODE128",
         width: 2,
         height: 60,
@@ -40,12 +61,12 @@ export function TarimaEtiquetaModal({ visible, data, onClose }: TarimaEtiquetaMo
     } catch {
       // sku contains characters CODE128 can't encode, label still renders without the barcode
     }
-  }, [visible, data]);
+  }, [tarima]);
 
-  if (!visible || !data) return null;
+  if (!visible || !tarima) return null;
 
   const handlePrint = () => window.print();
-  const totalUnidades = data.cartones.reduce((sum, c) => sum + c.cantidad_unidades, 0);
+  const totalUnidades = cartones.reduce((sum, c) => sum + c.cantidad_unidades, 0);
 
   return (
     <div
@@ -68,45 +89,54 @@ export function TarimaEtiquetaModal({ visible, data, onClose }: TarimaEtiquetaMo
         </div>
 
         <div className="px-6 py-6">
-          <div
-            id="etiqueta-print-area"
-            className="flex flex-col items-center gap-3 border border-gray-300 dark:border-gray-600 rounded p-4"
-          >
-            <p className="font-bold text-gray-900 dark:text-white text-center">{data.sku}</p>
-            {data.isla_master_sku && (
-              <p className="text-sm text-gray-500 dark:text-gray-400">Isla: {data.isla_master_sku}</p>
-            )}
-            <svg ref={svgRef} />
-            <div className="w-full">
-              {data.cartones.length === 0 ? (
-                <p className="text-center text-sm text-gray-400">Sin cartones registrados</p>
-              ) : (
-                <>
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-gray-300 dark:border-gray-600">
-                        <th className="text-left py-1">Cartón</th>
-                        <th className="text-left py-1">Producto</th>
-                        <th className="text-right py-1">Cant.</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.cartones.map((c, idx) => (
-                        <tr key={idx} className="border-b border-gray-100 dark:border-gray-700">
-                          <td className="py-1 font-mono">{c.sku}</td>
-                          <td className="py-1">{c.nombre_producto}</td>
-                          <td className="py-1 text-right">{c.cantidad_unidades}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <p className="text-right text-sm font-bold text-gray-900 dark:text-white mt-2">
-                    Total: {totalUnidades}
-                  </p>
-                </>
-              )}
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-8 gap-3">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+              <p className="text-sm text-gray-500 dark:text-gray-400">Cargando cartones...</p>
             </div>
-          </div>
+          ) : error ? (
+            <p className="text-center text-red-500 py-8 text-sm">{error}</p>
+          ) : (
+            <div
+              id="etiqueta-print-area"
+              className="flex flex-col items-center gap-3 border border-gray-300 dark:border-gray-600 rounded p-4"
+            >
+              <p className="font-bold text-gray-900 dark:text-white text-center">{tarima.sku}</p>
+              {tarima.isla_master_sku && (
+                <p className="text-sm text-gray-500 dark:text-gray-400">Isla: {tarima.isla_master_sku}</p>
+              )}
+              <svg ref={svgRef} />
+              <div className="w-full">
+                {cartones.length === 0 ? (
+                  <p className="text-center text-sm text-gray-400">Sin cartones registrados</p>
+                ) : (
+                  <>
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-gray-300 dark:border-gray-600">
+                          <th className="text-left py-1">Cartón</th>
+                          <th className="text-left py-1">Producto</th>
+                          <th className="text-right py-1">Cant.</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cartones.map((c, idx) => (
+                          <tr key={idx} className="border-b border-gray-100 dark:border-gray-700">
+                            <td className="py-1 font-mono">{c.sku}</td>
+                            <td className="py-1">{c.nombre_producto}</td>
+                            <td className="py-1 text-right">{c.cantidad_unidades}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p className="text-right text-sm font-bold text-gray-900 dark:text-white mt-2">
+                      Total: {totalUnidades}
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
@@ -118,7 +148,8 @@ export function TarimaEtiquetaModal({ visible, data, onClose }: TarimaEtiquetaMo
           </button>
           <button
             onClick={handlePrint}
-            className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+            disabled={loading || cartones.length === 0}
+            className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Imprimir
           </button>
