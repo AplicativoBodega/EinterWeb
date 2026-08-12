@@ -1,268 +1,42 @@
-// Warehouse locations page: master-detail view plus a tarima barcode
-// lookup tool.
-import React, { useState } from "react";
+// Warehouse locations page: browses the real Ubicación -> Isla -> Tarima
+// hierarchy from the DB and prints row/pallet labels directly from the list,
+// plus a quick barcode lookup for when the SKU is already known.
+import { useEffect, useState } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
-import { TarimaEtiquetaModal, type TarimaEtiquetaCarton } from "../components/TarimaEtiquetaModal";
+import { TarimaEtiquetaModal, type TarimaRef } from "../components/TarimaEtiquetaModal";
 import { FilaEtiquetaModal } from "../components/FilaEtiquetaModal";
 
-type Product = {
-  id: string;
-  name: string;
+interface Ubicacion {
+  id_ubicacion: number;
+  nombre_ubicacion: string;
+}
+
+interface Isla {
+  id_isla: number;
+  master_sku: string;
+  nombre_isla?: string | null;
+  nombre_producto?: string;
+  producto_sku?: string;
+  tarimas_actuales?: number;
+}
+
+interface Tarima {
+  id_tarima: number;
   sku: string;
-  existencia: number;
-  children?: Product[];
-};
-
-type Ubicacion = {
-  id: string;
-  name: string;
-  products: Product[];
-};
-
-const sampleData: Ubicacion[] = [
-  {
-    id: "b1",
-    name: "Bodega 1",
-    products: [
-      {
-        id: "m1",
-        name: "Master QR 1",
-        sku: "XXXX",
-        existencia: 120,
-        children: [
-          { id: "s1", name: "Sub-QR 1", sku: "XXXX", existencia: 10 },
-          { id: "s2", name: "Sub-QR 2", sku: "XXXX", existencia: 20 },
-          { id: "s3", name: "Sub-QR 3", sku: "XXXX", existencia: 15 },
-          { id: "s4", name: "Sub-QR 4", sku: "XXXX", existencia: 5 },
-        ],
-      },
-      { id: "m2", name: "Master QR 2", sku: "XXXX", existencia: 80 },
-      { id: "m3", name: "Master QR 3", sku: "XXXX", existencia: 60 },
-      { id: "m4", name: "Master QR 4", sku: "XXXX", existencia: 40 },
-    ],
-  },
-  { id: "b2", name: "Bodega 2", products: [] },
-  { id: "b3", name: "Bodega 3", products: [] },
-  { id: "b4", name: "Bodega 4", products: [] },
-];
-
-interface UbicacionModalProps {
-  visible: boolean;
-  ubicacion: { id: string; name: string } | null;
-  mode: "create" | "edit";
-  onClose: () => void;
-  onSave: (data: { id?: string; name: string }) => void;
+  numero_secuencial: number;
+  nombre_producto?: string;
+  cartones_actuales?: number;
 }
 
-const UbicacionModal: React.FC<UbicacionModalProps> = ({
-  visible,
-  ubicacion,
-  mode,
-  onClose,
-  onSave,
-}) => {
-  const [name, setName] = useState(ubicacion?.name ?? "");
-  const [error, setError] = useState<string | null>(null);
-
-  React.useEffect(() => {
-    setName(ubicacion?.name ?? "");
-    setError(null);
-  }, [ubicacion, visible]);
-
-  const handleSave = () => {
-    if (!name.trim()) {
-      setError("El nombre es obligatorio");
-      return;
-    }
-    onSave({ ...(mode === "edit" && ubicacion ? { id: ubicacion.id } : {}), name: name.trim() });
-    onClose();
-  };
-
-  if (!visible) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex justify-center items-center p-4 z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md">
-        <div className="flex flex-row items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-robotoMedium text-gray-800 dark:text-white">
-            {mode === "create" ? "Nueva Ubicación" : "Editar Ubicación"}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
-          >
-            <span className="text-gray-500 dark:text-gray-400 text-xl">✕</span>
-          </button>
-        </div>
-
-        <div className="px-6 py-4">
-          {error && (
-            <div className="mb-4 p-3 bg-red-100 dark:bg-red-900 border border-red-300 dark:border-red-700 rounded-lg">
-              <p className="text-red-700 dark:text-red-200 text-sm">{error}</p>
-            </div>
-          )}
-          <div className="mb-4">
-            <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
-              Nombre de Ubicación
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSave()}
-              placeholder="Nombre de la ubicación"
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-row items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
-          >
-            <span className="text-gray-700 dark:text-gray-300 font-robotoMedium">Cancelar</span>
-          </button>
-          <button
-            onClick={handleSave}
-            className="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-700"
-          >
-            <span className="text-white font-robotoMedium">
-              {mode === "create" ? "Crear" : "Guardar"}
-            </span>
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-interface DeleteConfirmModalProps {
-  visible: boolean;
-  ubicacion: { id: string; name: string } | null;
-  onConfirm: () => void;
-  onCancel: () => void;
-}
-
-const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
-  visible,
-  ubicacion,
-  onConfirm,
-  onCancel,
-}) => {
-  if (!visible) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex justify-center items-center p-4 z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md">
-        <div className="flex flex-row items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-robotoMedium text-gray-800 dark:text-white">
-            Eliminar Ubicación
-          </h2>
-          <button
-            onClick={onCancel}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
-          >
-            <span className="text-gray-500 dark:text-gray-400 text-xl">✕</span>
-          </button>
-        </div>
-        <div className="px-6 py-4">
-          <p className="text-gray-700 dark:text-gray-300">
-            ¿Estás seguro de que deseas eliminar la ubicación "{ubicacion?.name}"?
-          </p>
-        </div>
-        <div className="flex flex-row items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
-          >
-            <span className="text-gray-700 dark:text-gray-300 font-robotoMedium">Cancelar</span>
-          </button>
-          <button
-            onClick={onConfirm}
-            className="px-6 py-2 rounded-lg bg-red-600 hover:bg-red-700"
-          >
-            <span className="text-white font-robotoMedium">Eliminar</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const DetailPanel: React.FC<{ ubicacion: Ubicacion }> = ({ ubicacion }) => {
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-        <h3 className="text-lg font-medium text-gray-800 dark:text-white">{ubicacion.name}</h3>
-      </div>
-
-      <div className="p-6">
-        <div className="overflow-x-auto">
-          {ubicacion.products.length > 0 ? (
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b-2 border-gray-300 dark:border-gray-600">
-                  <th className="text-left px-4 py-3 font-semibold text-black dark:text-white text-sm">Producto</th>
-                  <th className="text-left px-4 py-3 font-semibold text-black dark:text-white text-sm">SKU</th>
-                  <th className="text-left px-4 py-3 font-semibold text-black dark:text-white text-sm">Stock</th>
-                  <th className="text-right px-4 py-3 font-semibold text-black dark:text-white text-sm">Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ubicacion.products.map((p) => (
-                  <tr
-                    key={p.id}
-                    className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <td className="px-4 py-4 text-black dark:text-white">
-                      <p className="font-medium">{p.name}</p>
-                      {p.children && (
-                        <div className="ml-4 mt-1 space-y-0.5">
-                          {p.children.map((c) => (
-                            <p key={c.id} className="text-sm text-gray-500 dark:text-gray-400">
-                              ↳ {c.name}
-                            </p>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 text-gray-700 dark:text-gray-300">{p.sku}</td>
-                    <td className="px-4 py-4 font-medium text-gray-900 dark:text-white">{p.existencia}</td>
-                    <td className="px-4 py-4 text-right">
-                      <button className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded hover:border-black dark:hover:border-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                        <span className="text-sm">🖨️</span>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div className="py-8 text-center">
-              <p className="text-gray-500 dark:text-gray-400 italic">
-                No hay productos en esta ubicación
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Barcode lookup for a tarima, backed by the real API.
+// Quick barcode lookup for a tarima, for when the SKU is already known
+// (e.g. scanned with a handheld reader) instead of browsing the list.
 function TarimaBarcodeSearch() {
   const [skuInput, setSkuInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [etiquetaVisible, setEtiquetaVisible] = useState(false);
-  const [etiquetaData, setEtiquetaData] = useState<{
-    sku: string;
-    isla_master_sku?: string | null;
-    cartones: TarimaEtiquetaCarton[];
-  } | null>(null);
+  const [tarima, setTarima] = useState<TarimaRef | null>(null);
 
   const handleSearch = async () => {
     const sku = skuInput.trim();
@@ -270,17 +44,12 @@ function TarimaBarcodeSearch() {
     setLoading(true);
     setError(null);
     try {
-      const tarima = (await fetchAPI(
-        `/api/tarimas?sku=${encodeURIComponent(sku)}`
-      )) as { id_tarima: number; sku: string; isla_master_sku?: string | null };
-      const cartonesRes = (await fetchAPI(
-        `/api/tarimas/${tarima.id_tarima}/cartones`
-      )) as { items: TarimaEtiquetaCarton[] };
-      setEtiquetaData({
-        sku: tarima.sku,
-        isla_master_sku: tarima.isla_master_sku,
-        cartones: cartonesRes.items,
-      });
+      const res = (await fetchAPI(`/api/tarimas?sku=${encodeURIComponent(sku)}`)) as {
+        id_tarima: number;
+        sku: string;
+        isla_master_sku?: string | null;
+      };
+      setTarima({ id_tarima: res.id_tarima, sku: res.sku, isla_master_sku: res.isla_master_sku });
       setEtiquetaVisible(true);
     } catch (err) {
       setError((err as Error).message);
@@ -290,48 +59,42 @@ function TarimaBarcodeSearch() {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-4">
-      <div className="flex items-center gap-2 max-w-lg">
-        <input
-          type="text"
-          value={skuInput}
-          onChange={(e) => setSkuInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-          placeholder="Buscar tarima por SKU para imprimir su barcode..."
-          className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-        />
-        <button
-          onClick={handleSearch}
-          disabled={loading || !skuInput.trim()}
-          className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-robotoMedium disabled:opacity-50"
-        >
-          {loading ? "Buscando..." : "Buscar"}
-        </button>
-      </div>
-      {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+    <div className="flex items-center gap-2">
+      <input
+        type="text"
+        value={skuInput}
+        onChange={(e) => setSkuInput(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+        placeholder="Buscar tarima por SKU..."
+        className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+      />
+      <button
+        onClick={handleSearch}
+        disabled={loading || !skuInput.trim()}
+        className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-robotoMedium disabled:opacity-50 whitespace-nowrap"
+      >
+        {loading ? "Buscando..." : "Buscar tarima"}
+      </button>
+      {error && <p className="text-red-500 text-sm">{error}</p>}
 
       <TarimaEtiquetaModal
         visible={etiquetaVisible}
-        data={etiquetaData}
+        tarima={tarima}
         onClose={() => setEtiquetaVisible(false)}
       />
     </div>
   );
 }
 
-// Real (non-mock) row (isla) barcode lookup — one label per row with a table
-// of every tarima position it contains, via GET /api/islas?sku= +
-// GET /api/islas/:id/tarimas + GET /api/tarimas/:id/cartones.
+// Quick barcode lookup for an isla (row), same idea as above.
 function FilaBarcodeSearch() {
   const [skuInput, setSkuInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [etiquetaVisible, setEtiquetaVisible] = useState(false);
-  const [isla, setIsla] = useState<{
-    id_isla: number;
-    master_sku: string;
-    nombre_isla?: string | null;
-  } | null>(null);
+  const [isla, setIsla] = useState<{ id_isla: number; master_sku: string; nombre_isla?: string | null } | null>(
+    null
+  );
 
   const handleSearch = async () => {
     const sku = skuInput.trim();
@@ -339,9 +102,11 @@ function FilaBarcodeSearch() {
     setLoading(true);
     setError(null);
     try {
-      const islaRes = (await fetchAPI(
-        `/api/islas?sku=${encodeURIComponent(sku)}`
-      )) as { id_isla: number; master_sku: string; nombre_isla?: string | null };
+      const islaRes = (await fetchAPI(`/api/islas?sku=${encodeURIComponent(sku)}`)) as {
+        id_isla: number;
+        master_sku: string;
+        nombre_isla?: string | null;
+      };
       setIsla(islaRes);
       setEtiquetaVisible(true);
     } catch (err) {
@@ -352,108 +117,212 @@ function FilaBarcodeSearch() {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-4">
-      <div className="flex items-center gap-2 max-w-lg">
-        <input
-          type="text"
-          value={skuInput}
-          onChange={(e) => setSkuInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-          placeholder="Buscar fila (isla) por SKU para imprimir su etiqueta..."
-          className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-        />
+    <div className="flex items-center gap-2">
+      <input
+        type="text"
+        value={skuInput}
+        onChange={(e) => setSkuInput(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+        placeholder="Buscar fila (isla) por SKU..."
+        className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+      />
+      <button
+        onClick={handleSearch}
+        disabled={loading || !skuInput.trim()}
+        className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-robotoMedium disabled:opacity-50 whitespace-nowrap"
+      >
+        {loading ? "Buscando..." : "Buscar fila"}
+      </button>
+      {error && <p className="text-red-500 text-sm">{error}</p>}
+
+      <FilaEtiquetaModal visible={etiquetaVisible} isla={isla} onClose={() => setEtiquetaVisible(false)} />
+    </div>
+  );
+}
+
+// One isla row inside the detail panel: shows its own info, a print button
+// for the row label, and expands on click to load and list its tarimas.
+function IslaRow({ isla, onPrintFila, onPrintTarima }: {
+  isla: Isla;
+  onPrintFila: (isla: Isla) => void;
+  onPrintTarima: (tarima: Tarima, isla: Isla) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [tarimas, setTarimas] = useState<Tarima[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const toggle = async () => {
+    const next = !expanded;
+    setExpanded(next);
+    if (next && tarimas === null) {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = (await fetchAPI(`/api/islas/${isla.id_isla}/tarimas`)) as { items: Tarima[] };
+        setTarimas(res.items);
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  return (
+    <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+      <div
+        className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-700/50 cursor-pointer"
+        onClick={toggle}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-gray-400 text-xs">{expanded ? "▼" : "▶"}</span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+              {isla.nombre_isla || isla.master_sku}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 font-mono truncate">
+              {isla.master_sku} · {isla.nombre_producto} · {isla.tarimas_actuales ?? 0} tarimas
+            </p>
+          </div>
+        </div>
         <button
-          onClick={handleSearch}
-          disabled={loading || !skuInput.trim()}
-          className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-robotoMedium disabled:opacity-50"
+          onClick={(e) => {
+            e.stopPropagation();
+            onPrintFila(isla);
+          }}
+          className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded hover:border-black dark:hover:border-white hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-sm shrink-0"
+          title="Imprimir etiqueta de fila"
         >
-          {loading ? "Buscando..." : "Buscar"}
+          🖨️ Fila
         </button>
       </div>
-      {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
 
-      <FilaEtiquetaModal
-        visible={etiquetaVisible}
-        isla={isla}
-        onClose={() => setEtiquetaVisible(false)}
-      />
+      {expanded && (
+        <div className="px-4 py-2">
+          {loading ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400 py-2">Cargando tarimas...</p>
+          ) : error ? (
+            <p className="text-sm text-red-500 py-2">{error}</p>
+          ) : tarimas && tarimas.length > 0 ? (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400">
+                  <th className="text-left py-1.5 font-medium w-12">Pos.</th>
+                  <th className="text-left py-1.5 font-medium">SKU</th>
+                  <th className="text-left py-1.5 font-medium">Producto</th>
+                  <th className="text-left py-1.5 font-medium">Cartones</th>
+                  <th className="text-right py-1.5 font-medium">Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tarimas.map((t) => (
+                  <tr key={t.id_tarima} className="border-b border-gray-100 dark:border-gray-800">
+                    <td className="py-2 font-bold text-gray-900 dark:text-white">{t.numero_secuencial}</td>
+                    <td className="py-2 font-mono text-gray-700 dark:text-gray-300">{t.sku}</td>
+                    <td className="py-2 text-gray-700 dark:text-gray-300">{t.nombre_producto}</td>
+                    <td className="py-2 text-gray-700 dark:text-gray-300">{t.cartones_actuales ?? 0}</td>
+                    <td className="py-2 text-right">
+                      <button
+                        onClick={() => onPrintTarima(t, isla)}
+                        className="px-2.5 py-1 border border-gray-300 dark:border-gray-600 rounded hover:border-black dark:hover:border-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-xs"
+                        title="Imprimir etiqueta de tarima"
+                      >
+                        🖨️ Tarima
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="text-sm text-gray-400 py-2">Esta fila no tiene tarimas registradas</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 export function Ubicaciones() {
   useDarkMode();
-  const [data, setData] = useState<Ubicacion[]>(sampleData);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>([]);
+  const [loadingUbicaciones, setLoadingUbicaciones] = useState(true);
+  const [ubicacionesError, setUbicacionesError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingUbicacion, setEditingUbicacion] = useState<{ id: string; name: string } | null>(null);
-  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
-  const [ubicacionToDelete, setUbicacionToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  const openCreateModal = () => {
-    setEditingUbicacion(null);
-    setModalVisible(true);
-  };
+  const [islas, setIslas] = useState<Isla[] | null>(null);
+  const [loadingIslas, setLoadingIslas] = useState(false);
+  const [islasError, setIslasError] = useState<string | null>(null);
 
-  const openEditModal = (ubicacion: { id: string; name: string }) => {
-    setEditingUbicacion(ubicacion);
-    setModalVisible(true);
-  };
+  const [filaEtiquetaVisible, setFilaEtiquetaVisible] = useState(false);
+  const [filaEtiquetaIsla, setFilaEtiquetaIsla] = useState<{
+    id_isla: number;
+    master_sku: string;
+    nombre_isla?: string | null;
+  } | null>(null);
 
-  const handleSave = (saveData: { id?: string; name: string }) => {
-    if (saveData.id) {
-      setData((prev) =>
-        prev.map((u) => (u.id === saveData.id ? { ...u, name: saveData.name } : u))
-      );
-    } else {
-      const newItem: Ubicacion = { id: `u-${Date.now()}`, name: saveData.name, products: [] };
-      setData((prev) => [newItem, ...prev]);
+  const [tarimaEtiquetaVisible, setTarimaEtiquetaVisible] = useState(false);
+  const [tarimaEtiquetaTarima, setTarimaEtiquetaTarima] = useState<TarimaRef | null>(null);
+
+  useEffect(() => {
+    setLoadingUbicaciones(true);
+    setUbicacionesError(null);
+    fetchAPI("/api/ubicaciones?pageSize=200")
+      .then((res: unknown) => {
+        const data = res as { items: Ubicacion[] };
+        setUbicaciones(data.items);
+      })
+      .catch((err: Error) => setUbicacionesError(err.message))
+      .finally(() => setLoadingUbicaciones(false));
+  }, []);
+
+  useEffect(() => {
+    if (selectedId === null) {
+      setIslas(null);
+      return;
     }
-  };
+    setIslas(null);
+    setLoadingIslas(true);
+    setIslasError(null);
+    fetchAPI(`/api/islas?id_ubicacion=${selectedId}&pageSize=200`)
+      .then((res: unknown) => {
+        const data = res as { items: Isla[] };
+        setIslas(data.items);
+      })
+      .catch((err: Error) => setIslasError(err.message))
+      .finally(() => setLoadingIslas(false));
+  }, [selectedId]);
 
-  const openDeleteModal = (ubicacion: { id: string; name: string }) => {
-    setUbicacionToDelete(ubicacion);
-    setDeleteModalVisible(true);
-  };
-
-  const handleDelete = () => {
-    if (!ubicacionToDelete) return;
-    setData((prev) => prev.filter((u) => u.id !== ubicacionToDelete.id));
-    if (selectedId === ubicacionToDelete.id) setSelectedId(null);
-    setDeleteModalVisible(false);
-    setUbicacionToDelete(null);
-  };
-
-  const filtered = data.filter((u) =>
-    u.name.toLowerCase().includes(search.trim().toLowerCase())
+  const filtered = ubicaciones.filter((u) =>
+    u.nombre_ubicacion.toLowerCase().includes(search.trim().toLowerCase())
   );
 
-  const selectedUbicacion = data.find((u) => u.id === selectedId) ?? null;
+  const selectedUbicacion = ubicaciones.find((u) => u.id_ubicacion === selectedId) ?? null;
+
+  const handlePrintFila = (isla: Isla) => {
+    setFilaEtiquetaIsla({ id_isla: isla.id_isla, master_sku: isla.master_sku, nombre_isla: isla.nombre_isla });
+    setFilaEtiquetaVisible(true);
+  };
+
+  const handlePrintTarima = (tarima: Tarima, isla: Isla) => {
+    setTarimaEtiquetaTarima({ id_tarima: tarima.id_tarima, sku: tarima.sku, isla_master_sku: isla.master_sku });
+    setTarimaEtiquetaVisible(true);
+  };
 
   return (
     <div className="flex-1 bg-gray-50 dark:bg-gray-900 h-screen flex flex-col overflow-hidden">
-      {/* Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-6">
-        <div className="flex flex-row justify-between items-center">
-          <h1 className="text-3xl font-bold tracking-wide text-gray-900 dark:text-white">
-            Ubicaciones
-          </h1>
-          <button
-            onClick={openCreateModal}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-robotoMedium transition-colors"
-          >
-            + Nueva Ubicación
-          </button>
-        </div>
+        <h1 className="text-3xl font-bold tracking-wide text-gray-900 dark:text-white">Ubicaciones</h1>
       </div>
 
-      <TarimaBarcodeSearch />
-      <FilaBarcodeSearch />
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-4 flex flex-col md:flex-row gap-3">
+        <TarimaBarcodeSearch />
+        <FilaBarcodeSearch />
+      </div>
 
-      {/* Layout maestro-detalle */}
       <div className="flex-1 flex flex-col md:flex-row gap-6 px-8 py-6 overflow-hidden">
-        {/* Panel izquierdo: lista de ubicaciones */}
         <aside className="md:w-80 shrink-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
             <div className="relative">
@@ -464,25 +333,27 @@ export function Ubicaciones() {
                 placeholder="Buscar ubicación..."
                 className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <span className="absolute left-3 top-2.5 text-gray-400 text-sm pointer-events-none">
-                🔍
-              </span>
+              <span className="absolute left-3 top-2.5 text-gray-400 text-sm pointer-events-none">🔍</span>
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {filtered.length === 0 ? (
+            {loadingUbicaciones ? (
+              <p className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">Cargando...</p>
+            ) : ubicacionesError ? (
+              <p className="px-4 py-6 text-sm text-red-500 text-center">{ubicacionesError}</p>
+            ) : filtered.length === 0 ? (
               <p className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
                 No hay ubicaciones
               </p>
             ) : (
               filtered.map((ubicacion) => {
-                const active = selectedId === ubicacion.id;
+                const active = selectedId === ubicacion.id_ubicacion;
                 return (
                   <div
-                    key={ubicacion.id}
-                    onClick={() => setSelectedId(active ? null : ubicacion.id)}
-                    className={`group flex items-center justify-between px-4 py-3 cursor-pointer border-l-4 transition-colors ${
+                    key={ubicacion.id_ubicacion}
+                    onClick={() => setSelectedId(active ? null : ubicacion.id_ubicacion)}
+                    className={`flex items-center px-4 py-3 cursor-pointer border-l-4 transition-colors ${
                       active
                         ? "border-blue-600 bg-blue-50 dark:bg-blue-900/30"
                         : "border-transparent hover:bg-gray-50 dark:hover:bg-gray-700/60"
@@ -495,30 +366,8 @@ export function Ubicaciones() {
                           : "text-gray-700 dark:text-gray-200"
                       }`}
                     >
-                      {ubicacion.name}
+                      {ubicacion.nombre_ubicacion}
                     </span>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEditModal(ubicacion);
-                        }}
-                        className="p-1 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
-                        title="Editar"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openDeleteModal(ubicacion);
-                        }}
-                        className="p-1 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                        title="Eliminar"
-                      >
-                        🗑️
-                      </button>
-                    </div>
                   </div>
                 );
               })
@@ -526,10 +375,40 @@ export function Ubicaciones() {
           </div>
         </aside>
 
-        {/* Panel derecho: detalle de ubicación */}
         <section className="flex-1 overflow-y-auto">
           {selectedUbicacion ? (
-            <DetailPanel ubicacion={selectedUbicacion} />
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+                <h3 className="text-lg font-medium text-gray-800 dark:text-white">
+                  {selectedUbicacion.nombre_ubicacion}
+                </h3>
+              </div>
+
+              <div className="p-6">
+                {loadingIslas ? (
+                  <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-8">
+                    Cargando islas...
+                  </p>
+                ) : islasError ? (
+                  <p className="text-center text-sm text-red-500 py-8">{islasError}</p>
+                ) : islas && islas.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {islas.map((isla) => (
+                      <IslaRow
+                        key={isla.id_isla}
+                        isla={isla}
+                        onPrintFila={handlePrintFila}
+                        onPrintTarima={handlePrintTarima}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center text-gray-500 dark:text-gray-400 italic py-8">
+                    No hay islas registradas en esta ubicación
+                  </p>
+                )}
+              </div>
+            </div>
           ) : (
             <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center h-full flex items-center justify-center">
               <div className="max-w-md mx-auto">
@@ -537,7 +416,7 @@ export function Ubicaciones() {
                   Selecciona una ubicación
                 </h2>
                 <p className="text-base text-gray-500 dark:text-gray-500 leading-relaxed">
-                  Haz click en una ubicación de la lista para ver su inventario.
+                  Haz click en una ubicación de la lista para ver sus islas y tarimas.
                 </p>
               </div>
             </div>
@@ -545,22 +424,15 @@ export function Ubicaciones() {
         </section>
       </div>
 
-      <UbicacionModal
-        visible={modalVisible}
-        ubicacion={editingUbicacion}
-        mode={editingUbicacion ? "edit" : "create"}
-        onClose={() => setModalVisible(false)}
-        onSave={handleSave}
+      <FilaEtiquetaModal
+        visible={filaEtiquetaVisible}
+        isla={filaEtiquetaIsla}
+        onClose={() => setFilaEtiquetaVisible(false)}
       />
-
-      <DeleteConfirmModal
-        visible={deleteModalVisible}
-        ubicacion={ubicacionToDelete}
-        onConfirm={handleDelete}
-        onCancel={() => {
-          setDeleteModalVisible(false);
-          setUbicacionToDelete(null);
-        }}
+      <TarimaEtiquetaModal
+        visible={tarimaEtiquetaVisible}
+        tarima={tarimaEtiquetaTarima}
+        onClose={() => setTarimaEtiquetaVisible(false)}
       />
     </div>
   );
