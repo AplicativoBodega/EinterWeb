@@ -427,7 +427,7 @@ export function Home() {
             <div>
               <div className="relative">
                 <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-                  Buscar producto por nombre o SKU
+                  Buscar producto por nombre o MOD
                 </label>
                 <input
                   type="text"

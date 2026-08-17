@@ -119,7 +119,7 @@ export function Productos() {
       const allProducts: Product[] = allItems.map(mapOdooProduct);
 
       const rows = allProducts.map((p) => ({
-        SKU: p.sku,
+        MOD: p.sku,
         Nombre: p.name,
         Proveedor: p.supplier?.name ?? "",
         Categoría:
@@ -511,7 +511,7 @@ export function Productos() {
   // Column definitions for the Excel-style header filters
   const PROD_COLUMNS: { key: string; label: string }[] = [
     { key: "name", label: "Nombre" },
-    { key: "sku", label: "SKU" },
+    { key: "sku", label: "MOD" },
     { key: "proveedor", label: "Proveedor" },
     { key: "stock", label: "Stock" },
     { key: "price", label: "Precio" },
@@ -553,7 +553,7 @@ export function Productos() {
           <div className="relative">
             <input
               type="text"
-              placeholder="Buscar por SKU o nombre..."
+              placeholder="Buscar por MOD o nombre..."
               value={searchText}
               onChange={(e) => handleSearch(e.target.value)}
               className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 text-base bg-white dark:bg-gray-700 dark:text-white pr-10 placeholder-gray-500 dark:placeholder-gray-400"

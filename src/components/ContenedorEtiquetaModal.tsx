@@ -80,7 +80,7 @@ export function ContenedorEtiquetaModal({ visible, detail, onClose }: Contenedor
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-gray-300 dark:border-gray-600">
-                    <th className="text-left py-1">SKU</th>
+                    <th className="text-left py-1">MOD</th>
                     <th className="text-left py-1">Producto</th>
                     <th className="text-right py-1">Cant.</th>
                   </tr>

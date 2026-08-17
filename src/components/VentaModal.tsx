@@ -97,7 +97,7 @@ export function VentaModal({
 
     const trimmedSku = skuSearch.trim();
     if (!trimmedSku) {
-      setSkuError("Ingresa un SKU");
+      setSkuError("Ingresa un MOD");
       return;
     }
 
@@ -118,7 +118,7 @@ export function VentaModal({
       );
 
       if (!matched || matched.length === 0) {
-        setSkuError(`No existe producto con SKU: ${trimmedSku}`);
+        setSkuError(`No existe producto con MOD: ${trimmedSku}`);
         return;
       }
 
@@ -143,7 +143,7 @@ export function VentaModal({
       setSkuSearch("");
       setSkuError(null);
     } catch (err) {
-      setSkuError(err instanceof Error ? err.message : "Error al buscar SKU");
+      setSkuError(err instanceof Error ? err.message : "Error al buscar MOD");
     } finally {
       setSkuLoading(false);
     }
@@ -470,7 +470,7 @@ export function VentaModal({
                             value={skuSearch}
                             onChange={(e) => setSkuSearch(e.target.value)}
                             onKeyPress={handleSkuKeyPress}
-                            placeholder="Ingresa SKU..."
+                            placeholder="Ingresa MOD..."
                             className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm"
                           />
                           <button
@@ -501,7 +501,7 @@ export function VentaModal({
                               Nombre del Producto
                             </th>
                             <th className="px-4 py-3 text-left font-robotoMedium text-gray-900 dark:text-white border-r border-gray-300 dark:border-gray-600">
-                              SKU
+                              MOD
                             </th>
                             <th className="px-4 py-3 text-left font-robotoMedium text-gray-900 dark:text-white border-r border-gray-300 dark:border-gray-600">
                               Cantidad
@@ -541,7 +541,7 @@ export function VentaModal({
                                   onChange={(e) =>
                                     handleUpdateProducto(producto.id, "sku", e.target.value)
                                   }
-                                  placeholder="SKU"
+                                  placeholder="MOD"
                                   className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 dark:text-white text-sm"
                                 />
                               </td>

@@ -20,8 +20,8 @@ const COLUMN_DEFS: { key: string; label: string }[] = [
   { key: "nombre", label: "Nombre" },
   { key: "from", label: "Desde" },
   { key: "to", label: "Hacia" },
-  { key: "oldMasterSku", label: "Master SKU Antiguo" },
-  { key: "newMasterSku", label: "Master SKU Nuevo" },
+  { key: "oldMasterSku", label: "MOD Antiguo" },
+  { key: "newMasterSku", label: "MOD Nuevo" },
   { key: "cantidad", label: "Cantidad" },
   { key: "date", label: "Fecha" },
 ];

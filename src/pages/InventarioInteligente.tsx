@@ -398,7 +398,7 @@ export function InventarioInteligente() {
                   { key: "targetDays", label: "Cobertura objetivo (días)" },
                   { key: "redAlertDays", label: "Umbral crítico (días)" },
                   { key: "yellowAlertDays", label: "Umbral alerta (días)" },
-                  { key: "minPiecesPerSku", label: "Mín. piezas / SKU" },
+                  { key: "minPiecesPerSku", label: "Mín. piezas / MOD" },
                 ] as { key: keyof ModelParams; label: string }[]
               ).map(({ key, label }) => (
                 <div key={key}>
@@ -456,7 +456,7 @@ export function InventarioInteligente() {
       {counts.sin_datos > 0 && !loadingHD && (
         <div className="mx-6 mb-2 px-4 py-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-800 dark:text-amber-300">
           <strong>ℹ️ {counts.sin_datos} productos sin ventas HD registradas.</strong>{" "}
-          Estos SKUs no tienen historial en la tabla de ventas semanales de Home Depot
+          Estos MODs no tienen historial en la tabla de ventas semanales de Home Depot
           y no pueden ser evaluados por el modelo.
         </div>
       )}
@@ -578,7 +578,7 @@ function StatusTab({
       <div className="flex flex-wrap gap-2 px-6 py-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <input
           type="text"
-          placeholder="🔍 Buscar SKU o nombre…"
+          placeholder="🔍 Buscar MOD o nombre…"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 w-56"
@@ -614,7 +614,7 @@ function StatusTab({
           <thead className="sticky top-0 z-10">
             <tr className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs uppercase tracking-wide">
               <th className="px-3 py-2.5 text-left border-b border-r border-gray-300 dark:border-gray-600 w-8">#</th>
-              <th className="px-3 py-2.5 text-left border-b border-r border-gray-300 dark:border-gray-600 min-w-[80px]">SKU</th>
+              <th className="px-3 py-2.5 text-left border-b border-r border-gray-300 dark:border-gray-600 min-w-[80px]">MOD</th>
               <th className="px-3 py-2.5 text-left border-b border-r border-gray-300 dark:border-gray-600 min-w-[200px]">Nombre</th>
               <th className="px-3 py-2.5 text-left border-b border-r border-gray-300 dark:border-gray-600 min-w-[100px]">Proveedor</th>
               <th className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600">Stock</th>
@@ -797,7 +797,7 @@ function ContainersTab({
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        Elige un proveedor para calcular su empaque óptimo (MILP): cuántas cajas pedir de cada SKU y
+        Elige un proveedor para calcular su empaque óptimo (MILP): cuántas cajas pedir de cada MOD y
         en qué contenedor va cada una.
       </p>
 
@@ -820,7 +820,7 @@ function ContainersTab({
               <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${cfg.badge}`}>
                 {cfg.dot} {cfg.label}
               </span>
-              <span className="text-gray-400 dark:text-gray-500 text-xs">{r.nSkus} SKUs</span>
+              <span className="text-gray-400 dark:text-gray-500 text-xs">{r.nSkus} MODs</span>
             </button>
           );
         })}

@@ -65,7 +65,7 @@ function TarimaBarcodeSearch() {
         value={skuInput}
         onChange={(e) => setSkuInput(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-        placeholder="Buscar tarima por SKU..."
+        placeholder="Buscar tarima por MOD..."
         className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
       />
       <button
@@ -123,7 +123,7 @@ function FilaBarcodeSearch() {
         value={skuInput}
         onChange={(e) => setSkuInput(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-        placeholder="Buscar fila (isla) por SKU..."
+        placeholder="Buscar fila (isla) por MOD..."
         className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
       />
       <button
@@ -209,7 +209,7 @@ function IslaRow({ isla, onPrintFila, onPrintTarima }: {
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400">
                   <th className="text-left py-1.5 font-medium w-12">Pos.</th>
-                  <th className="text-left py-1.5 font-medium">SKU</th>
+                  <th className="text-left py-1.5 font-medium">MOD</th>
                   <th className="text-left py-1.5 font-medium">Producto</th>
                   <th className="text-left py-1.5 font-medium">Cartones</th>
                   <th className="text-right py-1.5 font-medium">Acción</th>
