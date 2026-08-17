@@ -37,6 +37,7 @@ const mapOdooProduct = (item: Record<string, unknown>): Product => ({
     ? { id: Number(item.id_categoria), name: String(item.nombre_categoria ?? '') }
     : undefined,
   qty_per_carton: item.cantidad_x_ctn != null ? Number(item.cantidad_x_ctn) : null,
+  standard_tarima: item.inventario_standar_tarima != null ? Number(item.inventario_standar_tarima) : null,
   updated_at: item.updated_at ? String(item.updated_at) : null,
 });
 
@@ -364,6 +365,7 @@ export function Productos() {
         id_proveedor: productData.supplier?.id || null,
         id_categoria: productData.category ? parseInt(String(productData.category)) : null,
         cantidad_x_ctn: productData.qty_per_carton ?? null,
+        inventario_standar_tarima: productData.standard_tarima ?? 0,
       };
 
       const result = await fetchAPI("/(api)/productos", {
@@ -421,6 +423,8 @@ export function Productos() {
         apiData.id_proveedor = productData.supplier.id;
       if (productData.qty_per_carton !== undefined)
         apiData.cantidad_x_ctn = productData.qty_per_carton;
+      if (productData.standard_tarima !== undefined)
+        apiData.inventario_standar_tarima = productData.standard_tarima;
       if (productData.category !== undefined)
         apiData.id_categoria = productData.category ? parseInt(String(productData.category)) : null;
       if (productData.updated_at)

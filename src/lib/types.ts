@@ -96,6 +96,7 @@ export interface Product {
   category?: string | { id: number; name: string };
   description?: string;
   qty_per_carton?: number | null;
+  standard_tarima?: number | null;
   updated_at?: string | null;
 }
 

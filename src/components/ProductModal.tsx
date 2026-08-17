@@ -23,6 +23,7 @@ interface FormData {
   stock: string;
   weight_kg: string;
   qty_per_carton: string;
+  standard_tarima: string;
   alto: string;
   ancho: string;
   largo: string;
@@ -42,6 +43,7 @@ const initialFormData: FormData = {
   stock: "",
   weight_kg: "",
   qty_per_carton: "",
+  standard_tarima: "",
   alto: "",
   ancho: "",
   largo: "",
@@ -92,6 +94,7 @@ export function ProductModal({
         stock: String(product.stock || ""),
         weight_kg: String(product.weight_kg || ""),
         qty_per_carton: product.qty_per_carton != null ? String(product.qty_per_carton) : "",
+        standard_tarima: product.standard_tarima != null ? String(product.standard_tarima) : "",
         largo: String(product.dimensions_cm?.largo || ""),
         ancho: String(product.dimensions_cm?.ancho || ""),
         alto: String(product.dimensions_cm?.alto || ""),
@@ -253,6 +256,7 @@ export function ProductModal({
           : null,
         description: formData.description,
         qty_per_carton: formData.qty_per_carton !== "" ? parseFloat(formData.qty_per_carton) : null,
+        standard_tarima: formData.standard_tarima !== "" ? parseFloat(formData.standard_tarima) : null,
       };
 
       if (mode === "edit" && product) {
@@ -458,21 +462,34 @@ export function ProductModal({
             </div>
           </div>
 
-          <div className="flex flex-row gap-4 mb-4">
-            <div className="flex-1">
-              <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
-                Piezas X Cartón
-              </label>
-              <input
-                type="number"
-                value={formData.qty_per_carton}
-                onChange={(e) =>
-                  setFormData({ ...formData, qty_per_carton: e.target.value })
-                }
-                placeholder="Piezas por cartón"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
-              />
-            </div>
+          <div className="mb-4">
+            <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
+              Piezas por Cartón
+            </label>
+            <input
+              type="number"
+              value={formData.qty_per_carton}
+              onChange={(e) =>
+                setFormData({ ...formData, qty_per_carton: e.target.value })
+              }
+              placeholder="Piezas por cartón"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
+            />
+          </div>
+
+          <div className="mb-4">
+            <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
+              Piezas por Tarima
+            </label>
+            <input
+              type="number"
+              value={formData.standard_tarima}
+              onChange={(e) =>
+                setFormData({ ...formData, standard_tarima: e.target.value })
+              }
+              placeholder="Piezas por tarima"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
+            />
           </div>
 
           <div className="mb-6">
