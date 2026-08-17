@@ -315,9 +315,9 @@ export function InventarioInteligente() {
     if (tab === "containers" && !rankingFetched) fetchRanking();
   }, [tab, rankingFetched, fetchRanking]);
 
-  const selectFactory = useCallback(async (factory: string) => {
+  const selectFactory = useCallback(async (factory: string, force = false) => {
     setSelectedFactory(factory);
-    if (solucionCache[factory]) return;
+    if (!force && solucionCache[factory]) return;
     setLoadingFactory(factory);
     setErrorFactory(null);
     try {
@@ -372,7 +372,10 @@ export function InventarioInteligente() {
               onClick={() => {
                 fetchAll();
                 fetchHdDailyDemand();
-                if (tab === "containers") fetchReabasto();
+                if (tab === "containers") {
+                  fetchRanking();
+                  if (selectedFactory) selectFactory(selectedFactory, true);
+                }
               }}
               disabled={isLoadingAny}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium transition-all disabled:opacity-60"
