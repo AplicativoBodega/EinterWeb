@@ -84,6 +84,7 @@ export interface ProductLocation {
 export interface Product {
   id?: number;
   sku: string;
+  china_sku?: string | null;
   name: string;
   photo?: string | null;
   dimensions_cm?: ProductDimensions;

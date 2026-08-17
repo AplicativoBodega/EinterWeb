@@ -14,6 +14,7 @@ interface ProductModalProps {
 
 interface FormData {
   sku: string;
+  china_sku: string;
   name: string;
   category_id: string;
   supplier_id: string;
@@ -34,6 +35,7 @@ interface FormData {
 
 const initialFormData: FormData = {
   sku: "",
+  china_sku: "",
   name: "",
   category_id: "",
   supplier_id: "",
@@ -85,6 +87,7 @@ export function ProductModal({
 
       setFormData({
         sku: String(product.sku || ""),
+        china_sku: product.china_sku || "",
         name: product.name || "",
         category_id: categoryId,
         supplier_id: String(product.supplier?.id || ""),
@@ -222,7 +225,7 @@ export function ProductModal({
     }
 
     if (!formData.sku.trim()) {
-      setError("El SKU es obligatorio");
+      setError("El MOD es obligatorio");
       return;
     }
 
@@ -232,6 +235,7 @@ export function ProductModal({
     try {
       const productData: Partial<Product> = {
         sku: formData.sku,
+        china_sku: formData.china_sku.trim() ? formData.china_sku.trim() : null,
         name: formData.name,
         category: formData.category_id,
         price: parseFloat(formData.price) || 0,
@@ -303,24 +307,38 @@ export function ProductModal({
             </label>
             <input
               type="text"
-              value={formData.sku}
-              onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-              placeholder="SKU del producto"
+              value={formData.china_sku}
+              onChange={(e) => setFormData({ ...formData, china_sku: e.target.value })}
+              placeholder="SKU de China"
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
             />
           </div>
 
-          <div className="mb-4">
-            <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
-              Nombre
-            </label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="Nombre del producto"
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
-            />
+          <div className="flex flex-row gap-4 mb-4">
+            <div className="w-24">
+              <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
+                MOD
+              </label>
+              <input
+                type="text"
+                value={formData.sku}
+                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                placeholder="MOD"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
+                Nombre
+              </label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Nombre del producto"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
+              />
+            </div>
           </div>
 
           <div className="flex flex-row gap-4 mb-4">

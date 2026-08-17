@@ -19,6 +19,7 @@ const TABLE_GRID_COLUMNS =
 const mapOdooProduct = (item: Record<string, unknown>): Product => ({
   id: item.id_articulo !== undefined ? Number(item.id_articulo) : undefined,
   sku: String(item.master_sku ?? ''),
+  china_sku: item.sku_china != null ? String(item.sku_china) : null,
   name: String(item.nombre_producto ?? ''),
   price: Number(item.precio) || 0,
   cost: Number(item.costo) || 0,
@@ -353,6 +354,7 @@ export function Productos() {
     // Transform Product to ArticuloCreate format
     const apiData = {
         master_sku: productData.sku || "",
+        sku_china: productData.china_sku || null,
         nombre_producto: productData.name || "",
         foto: productData.photo || null,
         largo_cm: productData.dimensions_cm?.largo || 0,
@@ -404,6 +406,8 @@ export function Productos() {
       const apiData: Record<string, unknown> = {};
 
       if (productData.sku !== undefined) apiData.master_sku = productData.sku;
+      if (productData.china_sku !== undefined)
+        apiData.sku_china = productData.china_sku;
       if (productData.name !== undefined)
         apiData.nombre_producto = productData.name;
       if (productData.photo !== undefined) apiData.foto = productData.photo;
