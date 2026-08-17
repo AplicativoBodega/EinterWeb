@@ -11,7 +11,6 @@ import { Home } from './pages/Home'
 import { Productos } from './pages/Productos'
 import { Proveedores } from './pages/Proveedores'
 import { Ubicaciones } from './pages/Ubicaciones'
-import { Movimientos } from './pages/Movimientos'
 import { Salidas } from './pages/Salidas'
 import { VentasHomeDepot } from './pages/VentasHomeDepot'
 import { UnderConstruction } from './components/UnderConstruction'
@@ -38,7 +37,7 @@ function App() {
       case 'ubicaciones':
         return <Ubicaciones/>
       case 'movimientos':
-        return <Movimientos/>
+        return <UnderConstruction/>
       case 'salidas':
         return <Salidas/>
       case 'ventas-homedepot':
