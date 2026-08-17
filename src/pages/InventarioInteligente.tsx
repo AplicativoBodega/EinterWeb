@@ -6,14 +6,74 @@ import { fetchAPI } from "../lib/fetch";
 import { useRefetchOnFocus } from "../hooks/useRefetchOnFocus";
 import {
   calculateResults,
-  calculateContainerSummary,
   sortResults,
   DEFAULT_PARAMS,
   type ModelParams,
   type ProductResult,
-  type ContainerSummary,
   type InventoryStatus,
 } from "../lib/inventoryModel";
+
+// ─── Tipos de la recomendación MILP (GET /api/reabasto/contenedores) ────────
+type AsignacionSKU = {
+  mod: string;
+  desc: string;
+  factory: string;
+  categoria: "OBLIGATORIO" | "DESEABLE" | "ADELANTABLE";
+  urgencia: string;
+  cajas: number;
+  pzsCaja: number;
+  pzs: number;
+  pesoKg: number;
+  volM3: number;
+};
+
+type ContenedorResuelto = {
+  indice: number;
+  tipo: string;
+  pesoMaxKg: number;
+  volMaxM3: number;
+  pctPeso: number;
+  pctVol: number;
+  justificadoPor: string;
+  esValido: boolean;
+  asignaciones: AsignacionSKU[];
+};
+
+type SolucionSerialized = {
+  configuracion: string;
+  nBins: number;
+  pesoTotalKg: number;
+  volTotalM3: number;
+  pctPesoProm: number;
+  pctVolProm: number;
+  todosValidos: boolean;
+  detalle: {
+    obligatoriosCubiertos?: string;
+    coberturaPromDias?: number;
+  };
+  contenedores: ContenedorResuelto[];
+};
+
+type ReabastoPorFactory = Record<string, SolucionSerialized[] | { error: string }>;
+
+type RankingProveedor = {
+  factory: string;
+  categoria: "CRITICO" | "URGENTE" | "PROXIMO" | "SIN_PRISA";
+  urgenciaScore: number;
+  nSkus: number;
+  nVencidos: number;
+  nUrgentes: number;
+  nProximos: number;
+  diasAlPrimerLimite: number;
+  descMasUrgente: string;
+};
+
+const CATEGORIA_PROVEEDOR_CFG: Record<RankingProveedor["categoria"], { label: string; dot: string; badge: string }> = {
+  CRITICO: { label: "Crítico", dot: "🔴", badge: "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300" },
+  URGENTE: { label: "Urgente", dot: "🟠", badge: "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300" },
+  PROXIMO: { label: "Próximo", dot: "🟡", badge: "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300" },
+  SIN_PRISA: { label: "Sin prisa", dot: "🟢", badge: "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300" },
+};
 
 // ─── Helpers de estilo por estado ────────────────────────────────────────────
 const STATUS_CFG: Record<
@@ -226,11 +286,51 @@ export function InventarioInteligente() {
 
   useEffect(() => { setPage(1); }, [filterStatus, filterSupplier, search]);
 
-  // ── Contenedores ──────────────────────────────────────────────────────────
-  const containerSummaries: ContainerSummary[] = useMemo(
-    () => calculateContainerSummary(results),
-    [results],
-  );
+  // ── Contenedores: primero elegir proveedor, luego pedir su óptimo al MILP ──
+  const [ranking, setRanking] = useState<RankingProveedor[] | null>(null);
+  const [loadingRanking, setLoadingRanking] = useState(false);
+  const [errorRanking, setErrorRanking] = useState<string | null>(null);
+  const [rankingFetched, setRankingFetched] = useState(false);
+
+  const [selectedFactory, setSelectedFactory] = useState<string | null>(null);
+  const [solucionCache, setSolucionCache] = useState<ReabastoPorFactory>({});
+  const [loadingFactory, setLoadingFactory] = useState<string | null>(null);
+  const [errorFactory, setErrorFactory] = useState<string | null>(null);
+
+  const fetchRanking = useCallback(async () => {
+    setLoadingRanking(true);
+    setErrorRanking(null);
+    try {
+      const res = (await fetchAPI("/api/reabasto/ranking")) as { data: RankingProveedor[] };
+      setRanking(res.data);
+    } catch (e) {
+      setErrorRanking((e as Error).message);
+    } finally {
+      setLoadingRanking(false);
+      setRankingFetched(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab === "containers" && !rankingFetched) fetchRanking();
+  }, [tab, rankingFetched, fetchRanking]);
+
+  const selectFactory = useCallback(async (factory: string) => {
+    setSelectedFactory(factory);
+    if (solucionCache[factory]) return;
+    setLoadingFactory(factory);
+    setErrorFactory(null);
+    try {
+      const res = (await fetchAPI(
+        `/api/reabasto/contenedores?factory=${encodeURIComponent(factory)}`,
+      )) as { soluciones: SolucionSerialized[] };
+      setSolucionCache((prev) => ({ ...prev, [factory]: res.soluciones }));
+    } catch (e) {
+      setErrorFactory((e as Error).message);
+    } finally {
+      setLoadingFactory(null);
+    }
+  }, [solucionCache]);
 
   const updateParam = (key: keyof ModelParams, value: string) => {
     const num = parseFloat(value);
@@ -269,7 +369,11 @@ export function InventarioInteligente() {
               ⚙️ Parámetros
             </button>
             <button
-              onClick={() => { fetchAll(); fetchHdDailyDemand(); }}
+              onClick={() => {
+                fetchAll();
+                fetchHdDailyDemand();
+                if (tab === "containers") fetchReabasto();
+              }}
               disabled={isLoadingAny}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium transition-all disabled:opacity-60"
             >
@@ -412,7 +516,17 @@ export function InventarioInteligente() {
             />
           )}
           {tab === "containers" && (
-            <ContainersTab containerSummaries={containerSummaries} />
+            <ContainersTab
+              ranking={ranking}
+              loadingRanking={loadingRanking}
+              errorRanking={errorRanking}
+              onRetryRanking={fetchRanking}
+              selectedFactory={selectedFactory}
+              onSelectFactory={selectFactory}
+              solucionCache={solucionCache}
+              loadingFactory={loadingFactory}
+              errorFactory={errorFactory}
+            />
           )}
         </>
       )}
@@ -610,145 +724,227 @@ function StatusTab({
   );
 }
 
-// ─── Contenedores Tab ─────────────────────────────────────────────────────────
+// ─── Contenedores Tab (recomendación MILP real) ─────────────────────────────
 
-function ContainersTab({ containerSummaries }: { containerSummaries: ContainerSummary[] }) {
-  const [selectedType, setSelectedType] = useState<Record<string, string>>({});
+const CATEGORIA_DOT: Record<string, string> = {
+  OBLIGATORIO: "🔴",
+  DESEABLE: "🟡",
+  ADELANTABLE: "🔵",
+};
 
-  if (containerSummaries.length === 0) {
+interface ContainersTabProps {
+  ranking: RankingProveedor[] | null;
+  loadingRanking: boolean;
+  errorRanking: string | null;
+  onRetryRanking: () => void;
+  selectedFactory: string | null;
+  onSelectFactory: (factory: string) => void;
+  solucionCache: ReabastoPorFactory;
+  loadingFactory: string | null;
+  errorFactory: string | null;
+}
+
+function ContainersTab({
+  ranking,
+  loadingRanking,
+  errorRanking,
+  onRetryRanking,
+  selectedFactory,
+  onSelectFactory,
+  solucionCache,
+  loadingFactory,
+  errorFactory,
+}: ContainersTabProps) {
+  if (loadingRanking && !ranking) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 py-20 text-gray-400 dark:text-gray-500">
-        <div className="text-5xl mb-3">🚢</div>
-        <p className="text-lg">Sin pedidos pendientes.</p>
-        <p className="text-sm mt-1">
-          Cuando haya productos en alerta con datos de ventas HD, aparecerán aquí.
-        </p>
+        <div className="text-4xl mb-4 animate-bounce">🚢</div>
+        <p>Cargando proveedores…</p>
       </div>
     );
   }
 
+  if (errorRanking) {
+    return (
+      <div className="flex flex-col items-center justify-center flex-1 py-20 text-gray-400 dark:text-gray-500">
+        <div className="text-5xl mb-3">❌</div>
+        <p className="text-red-500 dark:text-red-400">{errorRanking}</p>
+        <button
+          onClick={onRetryRanking}
+          className="mt-4 px-4 py-2 text-sm rounded-lg bg-blue-500 hover:bg-blue-600 text-white"
+        >
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
+  if (!ranking || ranking.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center flex-1 py-20 text-gray-400 dark:text-gray-500">
+        <div className="text-5xl mb-3">🚢</div>
+        <p className="text-lg">Sin proveedores con catálogo activo.</p>
+      </div>
+    );
+  }
+
+  const entry = selectedFactory ? solucionCache[selectedFactory] : null;
+  const isLoadingSelected = loadingFactory === selectedFactory;
+
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        Estimación de llenado por proveedor basada en demanda de ventas Home Depot.
-        El modelo resalta su recomendación con{" "}
-        <span className="text-green-600 dark:text-green-400 font-semibold">✦ Recomendado</span>.
+        Elige un proveedor para calcular su empaque óptimo (MILP): cuántas cajas pedir de cada SKU y
+        en qué contenedor va cada una.
       </p>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {containerSummaries.map((c) => {
-          const currentType = selectedType[c.supplier] ?? c.recommendedType;
-          const option = c.options.find((o) => o.type === currentType) ?? c.options[0];
 
-          const barColor = (pct: number) =>
-            pct > 100 ? "bg-red-500" : pct >= 80 ? "bg-green-500" : pct >= 50 ? "bg-yellow-500" : "bg-orange-400";
-
+      {/* Selector de proveedor */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        {ranking.map((r) => {
+          const cfg = CATEGORIA_PROVEEDOR_CFG[r.categoria];
+          const active = r.factory === selectedFactory;
           return (
-            <div key={c.supplier} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-              <div className="flex items-start justify-between mb-4 gap-2">
-                <h3 className="font-bold text-gray-800 dark:text-gray-100 text-base leading-tight">
-                  🏭 {c.supplier}
-                </h3>
-                <div className="text-xs text-gray-400 dark:text-gray-500 shrink-0 text-right">
-                  <div>
-                    {c.totalWeightKg.toLocaleString("es-MX", { maximumFractionDigits: 1 })} kg ·{" "}
-                    {c.totalVolumeM3.toLocaleString("es-MX", { maximumFractionDigits: 2 })} m³
-                  </div>
-                  {(() => {
-                    const totalCartons = c.products.reduce((sum, p) =>
-                      sum + (p.qtyPerCarton && p.qtyPerCarton > 0 ? Math.ceil(p.piecesToOrder / p.qtyPerCarton) : 0), 0);
-                    return totalCartons > 0 ? (
-                      <div className="text-blue-500 dark:text-blue-400 font-medium">{totalCartons.toLocaleString("es-MX")} CTN total</div>
-                    ) : null;
-                  })()}
-                </div>
-              </div>
-
-              <div className="flex gap-2 mb-4">
-                {c.options.map((o) => (
-                  <button
-                    key={o.type}
-                    onClick={() => setSelectedType((prev) => ({ ...prev, [c.supplier]: o.type }))}
-                    className={`relative flex-1 py-2 px-3 rounded-lg text-sm font-medium border-2 transition-all ${
-                      o.type === currentType
-                        ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                        : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-300"
-                    }`}
-                  >
-                    {o.type}&apos;
-                    {o.recommended && (
-                      <span className="absolute -top-2 -right-1 text-[10px] bg-green-500 text-white px-1 rounded-full leading-4">✦</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              <div className="mb-3">
-                <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
-                  <span>⚖️ Peso</span>
-                  <span>
-                    {c.totalWeightKg.toLocaleString("es-MX", { maximumFractionDigits: 1 })} / {option.maxWeightKg.toLocaleString("es-MX")} kg{" "}
-                    <strong className={option.weightPct > 100 ? "text-red-500" : option.weightPct >= 80 ? "text-green-600 dark:text-green-400" : "text-orange-500"}>
-                      {option.weightPct}%
-                    </strong>
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
-                  <div className={`h-3 rounded-full transition-all ${barColor(option.weightPct)}`} style={{ width: `${Math.min(option.weightPct, 100)}%` }} />
-                </div>
-              </div>
-
-              <div className="mb-4">
-                <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
-                  <span>📦 Volumen</span>
-                  <span>
-                    {c.totalVolumeM3.toLocaleString("es-MX", { maximumFractionDigits: 2 })} / {option.maxVolM3} m³{" "}
-                    <strong className={option.volPct > 100 ? "text-red-500" : option.volPct >= 80 ? "text-green-600 dark:text-green-400" : "text-orange-500"}>
-                      {option.volPct}%
-                    </strong>
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
-                  <div className={`h-3 rounded-full transition-all ${barColor(option.volPct)}`} style={{ width: `${Math.min(option.volPct, 100)}%` }} />
-                </div>
-              </div>
-
-              {option.maxPct > 100 && (
-                <p className="text-xs text-red-600 dark:text-red-400 mb-3">
-                  🚨 El pedido supera la capacidad ({option.maxPct}%). Divide el envío en múltiples containerSummaries.
-                </p>
-              )}
-
-              <div>
-                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                  {c.products.length} SKUs incluidos
-                </p>
-                <div className="max-h-44 overflow-y-auto space-y-1 pr-1">
-                  {c.products.map((p) => {
-                    const cfg = STATUS_CFG[p.status];
-                    return (
-                      <div key={p.sku} className="flex items-center justify-between text-xs bg-gray-50 dark:bg-gray-700/50 rounded px-2 py-1.5">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span>{cfg.dot}</span>
-                          <span className="font-mono text-gray-600 dark:text-gray-400 shrink-0">{p.sku}</span>
-                          <span className="text-gray-700 dark:text-gray-300 truncate">{p.name}</span>
-                        </div>
-                        <div className="flex gap-3 shrink-0 ml-2 text-gray-500 dark:text-gray-400">
-                          {p.qtyPerCarton && p.qtyPerCarton > 0 && (
-                            <span className="text-blue-600 dark:text-blue-400 font-medium">
-                              {Math.ceil(p.piecesToOrder / p.qtyPerCarton)} CTN
-                            </span>
-                          )}
-                          <span>{p.piecesToOrder.toLocaleString("es-MX")} pzs</span>
-                          {p.weightKg > 0 && <span>{Math.round(p.weightKg).toLocaleString("es-MX")} kg</span>}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+            <button
+              key={r.factory}
+              onClick={() => onSelectFactory(r.factory)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border-2 transition-all ${
+                active
+                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                  : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-300"
+              }`}
+            >
+              <span>🏭 {r.factory}</span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${cfg.badge}`}>
+                {cfg.dot} {cfg.label}
+              </span>
+              <span className="text-gray-400 dark:text-gray-500 text-xs">{r.nSkus} SKUs</span>
+            </button>
           );
         })}
+      </div>
+
+      {/* Resultado del proveedor seleccionado */}
+      {!selectedFactory && (
+        <div className="flex flex-col items-center justify-center py-16 text-gray-400 dark:text-gray-500">
+          <div className="text-5xl mb-3">👆</div>
+          <p>Selecciona un proveedor para ver su contenedor óptimo.</p>
+        </div>
+      )}
+
+      {selectedFactory && isLoadingSelected && (
+        <div className="flex flex-col items-center justify-center py-16 text-gray-400 dark:text-gray-500">
+          <div className="text-4xl mb-4 animate-bounce">🚢</div>
+          <p>Resolviendo el empaque óptimo de {selectedFactory} (MILP)…</p>
+        </div>
+      )}
+
+      {selectedFactory && !isLoadingSelected && errorFactory && (
+        <div className="flex flex-col items-center justify-center py-16 text-gray-400 dark:text-gray-500">
+          <div className="text-5xl mb-3">🚢</div>
+          <p className="text-lg">Sin pedido pendiente para {selectedFactory}.</p>
+          <p className="text-sm mt-1">{errorFactory}</p>
+        </div>
+      )}
+
+      {selectedFactory && !isLoadingSelected && !errorFactory && entry && Array.isArray(entry) && entry[0] && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <FactorySolutionCard factory={selectedFactory} sol={entry[0]} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FactorySolutionCard({ factory, sol }: { factory: string; sol: SolucionSerialized }) {
+  const barColor = (pct: number) =>
+    pct > 100 ? "bg-red-500" : pct >= 80 ? "bg-green-500" : pct >= 50 ? "bg-yellow-500" : "bg-orange-400";
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+      <div className="flex items-start justify-between mb-1 gap-2">
+        <h3 className="font-bold text-gray-800 dark:text-gray-100 text-base leading-tight">
+          🏭 {factory}
+        </h3>
+        <div className="text-xs text-gray-400 dark:text-gray-500 shrink-0 text-right">
+          <div>
+            {sol.pesoTotalKg.toLocaleString("es-MX")} kg · {sol.volTotalM3.toLocaleString("es-MX")} m³
+          </div>
+          <div className="text-blue-500 dark:text-blue-400 font-medium">{sol.configuracion}</div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 mb-4 text-xs">
+        <span className={sol.todosValidos ? "text-green-600 dark:text-green-400" : "text-orange-500"}>
+          {sol.todosValidos ? "✓ Todos los contenedores justificados" : "⚠ Algún contenedor por debajo del piso"}
+        </span>
+        {sol.detalle.obligatoriosCubiertos && (
+          <span className="text-gray-400 dark:text-gray-500">
+            · Obligatorios: {sol.detalle.obligatoriosCubiertos}
+          </span>
+        )}
+        {sol.detalle.coberturaPromDias != null && (
+          <span className="text-gray-400 dark:text-gray-500">· ~{sol.detalle.coberturaPromDias}d cobertura</span>
+        )}
+      </div>
+
+      <div className="space-y-4">
+        {sol.contenedores.map((c) => (
+          <div key={c.indice} className="border border-gray-100 dark:border-gray-700 rounded-lg p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-semibold text-sm text-gray-700 dark:text-gray-300">
+                Contenedor {c.indice + 1} · {c.tipo}
+              </span>
+              <span
+                className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  c.esValido
+                    ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300"
+                    : "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300"
+                }`}
+              >
+                {c.justificadoPor}
+              </span>
+            </div>
+
+            <div className="mb-2">
+              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+                <span>⚖️ Peso</span>
+                <span>{c.pctPeso}%</span>
+              </div>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                <div className={`h-2.5 rounded-full ${barColor(c.pctPeso)}`} style={{ width: `${Math.min(c.pctPeso, 100)}%` }} />
+              </div>
+            </div>
+            <div className="mb-3">
+              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+                <span>📦 Volumen</span>
+                <span>{c.pctVol}%</span>
+              </div>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                <div className={`h-2.5 rounded-full ${barColor(c.pctVol)}`} style={{ width: `${Math.min(c.pctVol, 100)}%` }} />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              {c.asignaciones.map((a) => (
+                <div
+                  key={a.mod}
+                  className="flex items-center justify-between text-xs bg-gray-50 dark:bg-gray-700/50 rounded px-2 py-1.5"
+                >
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span>{CATEGORIA_DOT[a.categoria] ?? "⚪"}</span>
+                    <span className="font-mono text-gray-600 dark:text-gray-400 shrink-0">{a.mod}</span>
+                    <span className="text-gray-700 dark:text-gray-300 truncate">{a.desc}</span>
+                  </div>
+                  <div className="flex gap-3 shrink-0 ml-2 text-gray-500 dark:text-gray-400">
+                    <span className="text-blue-600 dark:text-blue-400 font-medium">{a.cajas} CTN</span>
+                    <span>{a.pzs.toLocaleString("es-MX")} pzs</span>
+                    <span>{a.pesoKg.toLocaleString("es-MX")} kg</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
