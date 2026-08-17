@@ -5,8 +5,6 @@ import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 import { getMonterreyYear } from "../lib/dateMx";
 
-// ─── Types ──────────────────────────────────────────────────────────────────
-
 interface Semana {
   semana_num: number;
   semana_label: string;
