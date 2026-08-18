@@ -39,6 +39,8 @@ const mapOdooProduct = (item: Record<string, unknown>): Product => ({
     : undefined,
   qty_per_carton: item.cantidad_x_ctn != null ? Number(item.cantidad_x_ctn) : null,
   standard_tarima: item.inventario_standar_tarima != null ? Number(item.inventario_standar_tarima) : null,
+  cajas_x_tarima: item.cajas_x_tarima != null ? Number(item.cajas_x_tarima) : null,
+  no_estiba: item.no_estiba != null ? Number(item.no_estiba) : null,
   pronostico_1_fecha: item.pronostico_1_fecha != null ? String(item.pronostico_1_fecha) : null,
   pronostico_1_valor: item.pronostico_1_valor != null ? Number(item.pronostico_1_valor) : null,
   pronostico_2_fecha: item.pronostico_2_fecha != null ? String(item.pronostico_2_fecha) : null,
@@ -143,6 +145,8 @@ export function Productos() {
         "Alto (cm)": p.dimensions_cm?.alto ?? "",
         "Piezas por Cartón": p.qty_per_carton ?? "",
         "Piezas por Tarima": p.standard_tarima ?? "",
+        "Cajas por Tarima": p.cajas_x_tarima ?? "",
+        "No. de Estiba": p.no_estiba ?? "",
         "Futuro Lunes 1 (fecha)": p.pronostico_1_fecha ?? "",
         "Futuro Lunes 1 (inventario)": p.pronostico_1_valor ?? "",
         "Futuro Lunes 2 (fecha)": p.pronostico_2_fecha ?? "",
@@ -451,6 +455,10 @@ export function Productos() {
         apiData.cantidad_x_ctn = productData.qty_per_carton;
       if (productData.standard_tarima !== undefined)
         apiData.inventario_standar_tarima = productData.standard_tarima;
+      if (productData.cajas_x_tarima !== undefined)
+        apiData.cajas_x_tarima = productData.cajas_x_tarima;
+      if (productData.no_estiba !== undefined)
+        apiData.no_estiba = productData.no_estiba;
       if (productData.category !== undefined)
         apiData.id_categoria = productData.category ? parseInt(String(productData.category)) : null;
       if (productData.pronostico_1_fecha !== undefined)

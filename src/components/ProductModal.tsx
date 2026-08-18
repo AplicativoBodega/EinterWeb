@@ -25,6 +25,8 @@ interface FormData {
   weight_kg: string;
   qty_per_carton: string;
   standard_tarima: string;
+  cajas_x_tarima: string;
+  no_estiba: string;
   alto: string;
   ancho: string;
   largo: string;
@@ -55,6 +57,8 @@ const initialFormData: FormData = {
   weight_kg: "",
   qty_per_carton: "",
   standard_tarima: "",
+  cajas_x_tarima: "",
+  no_estiba: "",
   alto: "",
   ancho: "",
   largo: "",
@@ -123,6 +127,8 @@ export function ProductModal({
         weight_kg: String(product.weight_kg || ""),
         qty_per_carton: product.qty_per_carton != null ? String(product.qty_per_carton) : "",
         standard_tarima: product.standard_tarima != null ? String(product.standard_tarima) : "",
+        cajas_x_tarima: product.cajas_x_tarima != null ? String(product.cajas_x_tarima) : "",
+        no_estiba: product.no_estiba != null ? String(product.no_estiba) : "",
         largo: String(product.dimensions_cm?.largo || ""),
         ancho: String(product.dimensions_cm?.ancho || ""),
         alto: String(product.dimensions_cm?.alto || ""),
@@ -295,6 +301,8 @@ export function ProductModal({
         description: formData.description,
         qty_per_carton: formData.qty_per_carton !== "" ? parseFloat(formData.qty_per_carton) : null,
         standard_tarima: formData.standard_tarima !== "" ? parseFloat(formData.standard_tarima) : null,
+        cajas_x_tarima: formData.cajas_x_tarima !== "" ? parseFloat(formData.cajas_x_tarima) : null,
+        no_estiba: formData.no_estiba !== "" ? parseFloat(formData.no_estiba) : null,
         pronostico_1_fecha: formData.pronostico_1_fecha !== "" ? formData.pronostico_1_fecha : null,
         pronostico_1_valor: formData.pronostico_1_valor !== "" ? parseFloat(formData.pronostico_1_valor) : null,
         pronostico_2_fecha: formData.pronostico_2_fecha !== "" ? formData.pronostico_2_fecha : null,
@@ -551,6 +559,37 @@ export function ProductModal({
               placeholder="Piezas por tarima"
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
             />
+          </div>
+
+          <div className="flex flex-row gap-4 mb-4">
+            <div className="flex-1">
+              <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
+                Cajas por Tarima
+              </label>
+              <input
+                type="number"
+                value={formData.cajas_x_tarima}
+                onChange={(e) =>
+                  setFormData({ ...formData, cajas_x_tarima: e.target.value })
+                }
+                placeholder="Cajas por tarima"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
+                No. de Estiba
+              </label>
+              <input
+                type="number"
+                value={formData.no_estiba}
+                onChange={(e) =>
+                  setFormData({ ...formData, no_estiba: e.target.value })
+                }
+                placeholder="Cajas apilables en altura"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
+              />
+            </div>
           </div>
 
           <div className="mb-6 p-4 border border-gray-200 dark:border-gray-700 rounded-lg">

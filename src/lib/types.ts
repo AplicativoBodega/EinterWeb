@@ -98,6 +98,8 @@ export interface Product {
   description?: string;
   qty_per_carton?: number | null;
   standard_tarima?: number | null;
+  cajas_x_tarima?: number | null;
+  no_estiba?: number | null;
   pronostico_1_fecha?: string | null;
   pronostico_1_valor?: number | null;
   pronostico_2_fecha?: string | null;
