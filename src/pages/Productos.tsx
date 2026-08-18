@@ -129,6 +129,7 @@ export function Productos() {
 
       const rows = allProducts.map((p) => ({
         MOD: p.sku,
+        "SKU China": p.china_sku ?? "",
         Nombre: p.name,
         Proveedor: p.supplier?.name ?? "",
         Categoría:
@@ -140,6 +141,18 @@ export function Productos() {
         "Largo (cm)": p.dimensions_cm?.largo ?? "",
         "Ancho (cm)": p.dimensions_cm?.ancho ?? "",
         "Alto (cm)": p.dimensions_cm?.alto ?? "",
+        "Piezas por Cartón": p.qty_per_carton ?? "",
+        "Piezas por Tarima": p.standard_tarima ?? "",
+        "Futuro Lunes 1 (fecha)": p.pronostico_1_fecha ?? "",
+        "Futuro Lunes 1 (inventario)": p.pronostico_1_valor ?? "",
+        "Futuro Lunes 2 (fecha)": p.pronostico_2_fecha ?? "",
+        "Futuro Lunes 2 (inventario)": p.pronostico_2_valor ?? "",
+        "Futuro Lunes 3 (fecha)": p.pronostico_3_fecha ?? "",
+        "Futuro Lunes 3 (inventario)": p.pronostico_3_valor ?? "",
+        "Futuro Lunes 4 (fecha)": p.pronostico_4_fecha ?? "",
+        "Futuro Lunes 4 (inventario)": p.pronostico_4_valor ?? "",
+        "Modelo Matemático": p.considerar_modelo_matematico === false ? "No" : "Sí",
+        "Última actualización": p.updated_at ?? "",
       }));
 
       const workbook = new ExcelJS.Workbook();
