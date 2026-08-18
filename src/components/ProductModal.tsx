@@ -9,6 +9,7 @@ interface ProductModalProps {
   product: Product | null;
   onClose: () => void;
   onSave: (product: Partial<Product>) => Promise<void>;
+  onDelete?: () => void;
   mode: "create" | "edit";
 }
 
@@ -88,6 +89,7 @@ export function ProductModal({
   product,
   onClose,
   onSave,
+  onDelete,
   mode,
 }: ProductModalProps) {
   const [formData, setFormData] = useState<FormData>(initialFormData);
@@ -715,23 +717,36 @@ export function ProductModal({
           </div>
         </div>
 
-        <div className="flex flex-row items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-          <button
-            onClick={onClose}
-            disabled={loading}
-            className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-50"
-          >
-            <span className="text-gray-700 dark:text-gray-300 font-robotoMedium">Cancelar</span>
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={loading}
-            className="px-6 py-2 rounded-lg bg-blue-600 disabled:opacity-50"
-          >
-            <span className="text-white font-robotoMedium">
-              {loading ? "Guardando..." : mode === "create" ? "Crear" : "Guardar"}
-            </span>
-          </button>
+        <div className="flex flex-row items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+          {mode === "edit" && onDelete ? (
+            <button
+              onClick={onDelete}
+              disabled={loading}
+              className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 disabled:opacity-50"
+            >
+              <span className="text-white font-robotoMedium">Eliminar</span>
+            </button>
+          ) : (
+            <span />
+          )}
+          <div className="flex flex-row items-center gap-3">
+            <button
+              onClick={onClose}
+              disabled={loading}
+              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-50"
+            >
+              <span className="text-gray-700 dark:text-gray-300 font-robotoMedium">Cancelar</span>
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={loading}
+              className="px-6 py-2 rounded-lg bg-blue-600 disabled:opacity-50"
+            >
+              <span className="text-white font-robotoMedium">
+                {loading ? "Guardando..." : mode === "create" ? "Crear" : "Guardar"}
+              </span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -19,7 +19,6 @@ import { PedidoPersonalizado } from './pages/PedidoPersonalizado'
 import { Categorias } from './pages/Categorias'
 import Profile from './components/Profile'
 import { UserManagement } from './pages/UserManagement'
-import { THDComparativo } from './pages/THDComparativo'
 import { Entradas } from './pages/Entradas'
 import { RoleGuard } from './components/RoleGuard'
 
@@ -48,7 +47,7 @@ function App() {
       case 'pedido-personalizado':
         return <PedidoPersonalizado />
       case 'thd-comparativo':
-        return <THDComparativo />
+        return <UnderConstruction title="THD Comparativo" />
       case 'entradas':
         return <Entradas />
       case 'categorias':

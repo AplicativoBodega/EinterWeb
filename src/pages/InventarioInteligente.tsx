@@ -162,6 +162,7 @@ export function InventarioInteligente() {
   const [search, setSearch] = useState("");
   const [filterSupplier, setFilterSupplier] = useState("");
   const [filterStatus, setFilterStatus] = useState<InventoryStatus | "">("");
+  const [filterModelo, setFilterModelo] = useState<"" | "si" | "no">("si");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 50;
 
@@ -223,58 +224,82 @@ export function InventarioInteligente() {
 
   // ── Calcular resultados ────────────────────────────────────────────────────
   const results: ProductResult[] = useMemo(() => {
-    const inputs = rawItems
-      .filter((item) => {
-        const i = item as Record<string, unknown>;
-        // Switch "tomar en cuenta en modelo matemático" del modal de edición:
-        // si está apagado, el producto se excluye por completo de este cálculo.
-        return i.considerar_modelo_matematico !== false;
-      })
-      .map((item) => {
-        const i = item as Record<string, unknown>;
-        // master_sku en articulos = default_code en Odoo = MOD del producto
-        const mod = String(i.master_sku ?? i.id_articulo ?? "");
-        return {
-          sku: mod,
-          name: String(i.nombre_producto ?? ""),
-          supplier: String(i.proveedor_nombre || "Sin proveedor"),
-          supplierId:
-            i.id_proveedor !== undefined ? Number(i.id_proveedor) : undefined,
-          stock: Number(i.existencias) || 0,
-          weightKg: Number(i.peso_kg) || 0,
-          qtyPerCarton: i.cantidad_x_ctn != null ? Number(i.cantidad_x_ctn) : null,
-          dimensionsCm:
-            i.largo_cm || i.ancho_cm || i.alto_cm
-              ? {
-                  largo: Number(i.largo_cm) || 0,
-                  ancho: Number(i.ancho_cm) || 0,
-                  alto: Number(i.alto_cm) || 0,
-                }
-              : undefined,
-          piecesInTransit: 0,
-          // Cruce por MOD: hdDailyDemand tiene keys = String(mod)
-          dailyDemand: hdDailyDemand[mod] || 0,
-        };
-      });
-    return sortResults(calculateResults(inputs, params));
+    const inputs = rawItems.map((item) => {
+      const i = item as Record<string, unknown>;
+      // master_sku en articulos = default_code en Odoo = MOD del producto
+      const mod = String(i.master_sku ?? i.id_articulo ?? "");
+      return {
+        sku: mod,
+        name: String(i.nombre_producto ?? ""),
+        supplier: String(i.proveedor_nombre || "Sin proveedor"),
+        supplierId:
+          i.id_proveedor !== undefined ? Number(i.id_proveedor) : undefined,
+        stock: Number(i.existencias) || 0,
+        weightKg: Number(i.peso_kg) || 0,
+        qtyPerCarton: i.cantidad_x_ctn != null ? Number(i.cantidad_x_ctn) : null,
+        dimensionsCm:
+          i.largo_cm || i.ancho_cm || i.alto_cm
+            ? {
+                largo: Number(i.largo_cm) || 0,
+                ancho: Number(i.ancho_cm) || 0,
+                alto: Number(i.alto_cm) || 0,
+              }
+            : undefined,
+        piecesInTransit: 0,
+        // Cruce por MOD: hdDailyDemand tiene keys = String(mod)
+        dailyDemand: hdDailyDemand[mod] || 0,
+        // Switch "tomar en cuenta en modelo matemático" del modal de edición
+        consideraModelo: i.considerar_modelo_matematico !== false,
+      };
+    });
+    // El motor de cálculo solo debe operar sobre los productos marcados para
+    // el modelo; los demás se conservan aparte para el filtro "Considerado en modelo".
+    const consideradosCalculados = sortResults(
+      calculateResults(
+        inputs.filter((i) => i.consideraModelo),
+        params,
+      ),
+    );
+    const noConsiderados: ProductResult[] = inputs
+      .filter((i) => !i.consideraModelo)
+      .map((i) => ({
+        ...i,
+        effectiveInventory: i.stock,
+        inventoryDays: 9999,
+        status: "sin_datos" as InventoryStatus,
+        isOverstock: false,
+        daysToRed: null,
+        redDate: null,
+        piecesNeeded: 0,
+        piecesToOrder: 0,
+        volumeM3: 0,
+      }));
+    return [...consideradosCalculados, ...noConsiderados];
   }, [rawItems, hdDailyDemand, params]);
+
+  // ── Filtro por consideración en el modelo ─────────────────────────────────
+  const modeloFiltered = useMemo(() => {
+    if (filterModelo === "si") return results.filter((r) => r.consideraModelo);
+    if (filterModelo === "no") return results.filter((r) => !r.consideraModelo);
+    return results;
+  }, [results, filterModelo]);
 
   // ── Conteos de semáforo ───────────────────────────────────────────────────
   const counts = useMemo(() => {
     const c = { rojo: 0, amarillo: 0, verde: 0, sin_datos: 0, sobrestock: 0 };
-    for (const r of results) c[r.status]++;
+    for (const r of modeloFiltered) c[r.status]++;
     return c;
-  }, [results]);
+  }, [modeloFiltered]);
 
   // ── Proveedores únicos ────────────────────────────────────────────────────
   const suppliers = useMemo(
-    () => [...new Set(results.map((r) => r.supplier))].sort(),
-    [results],
+    () => [...new Set(modeloFiltered.map((r) => r.supplier))].sort(),
+    [modeloFiltered],
   );
 
   // ── Filtrado ──────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    let list = results;
+    let list = modeloFiltered;
     if (filterStatus) list = list.filter((r) => r.status === filterStatus);
     if (filterSupplier)
       list = list.filter((r) => r.supplier === filterSupplier);
@@ -286,12 +311,12 @@ export function InventarioInteligente() {
       );
     }
     return list;
-  }, [results, filterStatus, filterSupplier, search]);
+  }, [modeloFiltered, filterStatus, filterSupplier, search]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  useEffect(() => { setPage(1); }, [filterStatus, filterSupplier, search]);
+  useEffect(() => { setPage(1); }, [filterModelo, filterStatus, filterSupplier, search]);
 
   // ── Contenedores: primero elegir proveedor, luego pedir su óptimo al MILP ──
   const [ranking, setRanking] = useState<RankingProveedor[] | null>(null);
@@ -514,6 +539,7 @@ export function InventarioInteligente() {
               suppliers={suppliers}
               filterSupplier={filterSupplier}
               filterStatus={filterStatus}
+              filterModelo={filterModelo}
               search={search}
               page={page}
               totalPages={totalPages}
@@ -522,6 +548,7 @@ export function InventarioInteligente() {
               onSearchChange={setSearch}
               onSupplierChange={setFilterSupplier}
               onStatusChange={(v) => setFilterStatus(v as InventoryStatus | "")}
+              onModeloChange={(v) => setFilterModelo(v as "" | "si" | "no")}
               onPageChange={setPage}
             />
           )}
@@ -552,6 +579,7 @@ interface StatusTabProps {
   suppliers: string[];
   filterSupplier: string;
   filterStatus: InventoryStatus | "";
+  filterModelo: "" | "si" | "no";
   search: string;
   page: number;
   totalPages: number;
@@ -560,6 +588,7 @@ interface StatusTabProps {
   onSearchChange: (v: string) => void;
   onSupplierChange: (v: string) => void;
   onStatusChange: (v: string) => void;
+  onModeloChange: (v: string) => void;
   onPageChange: (p: number) => void;
 }
 
@@ -569,6 +598,7 @@ function StatusTab({
   suppliers,
   filterSupplier,
   filterStatus,
+  filterModelo,
   search,
   page,
   totalPages,
@@ -577,6 +607,7 @@ function StatusTab({
   onSearchChange,
   onSupplierChange,
   onStatusChange,
+  onModeloChange,
   onPageChange,
 }: StatusTabProps) {
   return (
@@ -610,6 +641,15 @@ function StatusTab({
             <option key={k} value={k}>{v.dot} {v.label}</option>
           ))}
         </select>
+        <select
+          value={filterModelo}
+          onChange={(e) => onModeloChange(e.target.value)}
+          className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+        >
+          <option value="">Todos (considerados y no considerados)</option>
+          <option value="si">✅ Considerados en el modelo</option>
+          <option value="no">🚫 No considerados en el modelo</option>
+        </select>
         <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 self-center">
           {filtered.length} productos
         </span>
@@ -627,7 +667,8 @@ function StatusTab({
               <th className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600">Stock</th>
               <th className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600">Dem./día HD</th>
               <th className="px-3 py-2.5 text-right border-b border-r border-gray-300 dark:border-gray-600">Días cob.</th>
-              <th className="px-3 py-2.5 text-center border-b border-gray-300 dark:border-gray-600 min-w-[100px]">Estado</th>
+              <th className="px-3 py-2.5 text-center border-b border-r border-gray-300 dark:border-gray-600 min-w-[100px]">Estado</th>
+              <th className="px-3 py-2.5 text-center border-b border-gray-300 dark:border-gray-600 min-w-[90px]">Modelo</th>
             </tr>
           </thead>
           <tbody>
@@ -671,9 +712,21 @@ function StatusTab({
                     {fmtDias(r.inventoryDays)}
                   </td>
                   {/* Estado badge */}
-                  <td className="px-3 py-2 text-center">
+                  <td className="px-3 py-2 text-center border-r border-gray-200 dark:border-gray-700">
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.badgeBg} ${cfg.badgeText}`}>
                       {cfg.dot} {cfg.label}
+                    </span>
+                  </td>
+                  {/* Considerado en modelo matemático */}
+                  <td className="px-3 py-2 text-center">
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                        r.consideraModelo
+                          ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300"
+                          : "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
+                      }`}
+                    >
+                      {r.consideraModelo ? "✅ Sí" : "🚫 No"}
                     </span>
                   </td>
                 </tr>

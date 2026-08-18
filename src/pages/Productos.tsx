@@ -790,12 +790,6 @@ export function Productos() {
                   >
                     Editar
                   </button>
-                  <button
-                    onClick={() => openDeleteModal(product)}
-                    className="px-3 py-1.5 bg-red-500 rounded hover:bg-red-600 text-white text-xs font-robotoMedium"
-                  >
-                    Eliminar
-                  </button>
                 </div>
               </div>
             ))
@@ -845,6 +839,15 @@ export function Productos() {
         }}
         onSave={
           modalMode === "create" ? handleCreateProduct : handleUpdateProduct
+        }
+        onDelete={
+          modalMode === "edit"
+            ? () => {
+                if (!selectedProduct) return;
+                setModalVisible(false);
+                openDeleteModal(selectedProduct);
+              }
+            : undefined
         }
       />
 
