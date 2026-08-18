@@ -39,6 +39,15 @@ const mapOdooProduct = (item: Record<string, unknown>): Product => ({
     : undefined,
   qty_per_carton: item.cantidad_x_ctn != null ? Number(item.cantidad_x_ctn) : null,
   standard_tarima: item.inventario_standar_tarima != null ? Number(item.inventario_standar_tarima) : null,
+  pronostico_1_fecha: item.pronostico_1_fecha != null ? String(item.pronostico_1_fecha) : null,
+  pronostico_1_valor: item.pronostico_1_valor != null ? Number(item.pronostico_1_valor) : null,
+  pronostico_2_fecha: item.pronostico_2_fecha != null ? String(item.pronostico_2_fecha) : null,
+  pronostico_2_valor: item.pronostico_2_valor != null ? Number(item.pronostico_2_valor) : null,
+  pronostico_3_fecha: item.pronostico_3_fecha != null ? String(item.pronostico_3_fecha) : null,
+  pronostico_3_valor: item.pronostico_3_valor != null ? Number(item.pronostico_3_valor) : null,
+  pronostico_4_fecha: item.pronostico_4_fecha != null ? String(item.pronostico_4_fecha) : null,
+  pronostico_4_valor: item.pronostico_4_valor != null ? Number(item.pronostico_4_valor) : null,
+  considerar_modelo_matematico: item.considerar_modelo_matematico !== undefined ? Boolean(item.considerar_modelo_matematico) : true,
   updated_at: item.updated_at ? String(item.updated_at) : null,
 });
 
@@ -431,6 +440,24 @@ export function Productos() {
         apiData.inventario_standar_tarima = productData.standard_tarima;
       if (productData.category !== undefined)
         apiData.id_categoria = productData.category ? parseInt(String(productData.category)) : null;
+      if (productData.pronostico_1_fecha !== undefined)
+        apiData.pronostico_1_fecha = productData.pronostico_1_fecha;
+      if (productData.pronostico_1_valor !== undefined)
+        apiData.pronostico_1_valor = productData.pronostico_1_valor;
+      if (productData.pronostico_2_fecha !== undefined)
+        apiData.pronostico_2_fecha = productData.pronostico_2_fecha;
+      if (productData.pronostico_2_valor !== undefined)
+        apiData.pronostico_2_valor = productData.pronostico_2_valor;
+      if (productData.pronostico_3_fecha !== undefined)
+        apiData.pronostico_3_fecha = productData.pronostico_3_fecha;
+      if (productData.pronostico_3_valor !== undefined)
+        apiData.pronostico_3_valor = productData.pronostico_3_valor;
+      if (productData.pronostico_4_fecha !== undefined)
+        apiData.pronostico_4_fecha = productData.pronostico_4_fecha;
+      if (productData.pronostico_4_valor !== undefined)
+        apiData.pronostico_4_valor = productData.pronostico_4_valor;
+      if (productData.considerar_modelo_matematico !== undefined)
+        apiData.considerar_modelo_matematico = productData.considerar_modelo_matematico;
       if (productData.updated_at)
         apiData.updated_at = productData.updated_at;
 

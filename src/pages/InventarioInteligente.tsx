@@ -223,32 +223,39 @@ export function InventarioInteligente() {
 
   // ── Calcular resultados ────────────────────────────────────────────────────
   const results: ProductResult[] = useMemo(() => {
-    const inputs = rawItems.map((item) => {
-      const i = item as Record<string, unknown>;
-      // master_sku en articulos = default_code en Odoo = MOD del producto
-      const mod = String(i.master_sku ?? i.id_articulo ?? "");
-      return {
-        sku: mod,
-        name: String(i.nombre_producto ?? ""),
-        supplier: String(i.proveedor_nombre || "Sin proveedor"),
-        supplierId:
-          i.id_proveedor !== undefined ? Number(i.id_proveedor) : undefined,
-        stock: Number(i.existencias) || 0,
-        weightKg: Number(i.peso_kg) || 0,
-        qtyPerCarton: i.cantidad_x_ctn != null ? Number(i.cantidad_x_ctn) : null,
-        dimensionsCm:
-          i.largo_cm || i.ancho_cm || i.alto_cm
-            ? {
-                largo: Number(i.largo_cm) || 0,
-                ancho: Number(i.ancho_cm) || 0,
-                alto: Number(i.alto_cm) || 0,
-              }
-            : undefined,
-        piecesInTransit: 0,
-        // Cruce por MOD: hdDailyDemand tiene keys = String(mod)
-        dailyDemand: hdDailyDemand[mod] || 0,
-      };
-    });
+    const inputs = rawItems
+      .filter((item) => {
+        const i = item as Record<string, unknown>;
+        // Switch "tomar en cuenta en modelo matemático" del modal de edición:
+        // si está apagado, el producto se excluye por completo de este cálculo.
+        return i.considerar_modelo_matematico !== false;
+      })
+      .map((item) => {
+        const i = item as Record<string, unknown>;
+        // master_sku en articulos = default_code en Odoo = MOD del producto
+        const mod = String(i.master_sku ?? i.id_articulo ?? "");
+        return {
+          sku: mod,
+          name: String(i.nombre_producto ?? ""),
+          supplier: String(i.proveedor_nombre || "Sin proveedor"),
+          supplierId:
+            i.id_proveedor !== undefined ? Number(i.id_proveedor) : undefined,
+          stock: Number(i.existencias) || 0,
+          weightKg: Number(i.peso_kg) || 0,
+          qtyPerCarton: i.cantidad_x_ctn != null ? Number(i.cantidad_x_ctn) : null,
+          dimensionsCm:
+            i.largo_cm || i.ancho_cm || i.alto_cm
+              ? {
+                  largo: Number(i.largo_cm) || 0,
+                  ancho: Number(i.ancho_cm) || 0,
+                  alto: Number(i.alto_cm) || 0,
+                }
+              : undefined,
+          piecesInTransit: 0,
+          // Cruce por MOD: hdDailyDemand tiene keys = String(mod)
+          dailyDemand: hdDailyDemand[mod] || 0,
+        };
+      });
     return sortResults(calculateResults(inputs, params));
   }, [rawItems, hdDailyDemand, params]);
 
