@@ -536,8 +536,11 @@ export function Productos() {
     setSelectedProduct(product);
     setModalVisible(true);
     try {
-      const fresh = (await fetchAPI(`/(api)/productos?id=${product.id}`)) as Product;
-      setSelectedProduct(fresh);
+      const raw = (await fetchAPI(`/(api)/productos?id=${product.id}`)) as Record<string, unknown>;
+      setSelectedProduct({
+        ...(raw as unknown as Product),
+        china_sku: raw.sku_china != null ? String(raw.sku_china) : null,
+      });
     } catch (err) {
       console.warn("No se pudo refrescar el producto antes de editar:", err);
     }
