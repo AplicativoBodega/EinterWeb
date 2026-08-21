@@ -385,6 +385,10 @@ export function ProductModal({
             </div>
           </div>
 
+          {mode === "edit" && product && (
+            <PrecioHistorial productId={product.id} />
+          )}
+
           <div className="flex flex-row gap-4 mb-4">
             <div className="flex-1">
               <label className="text-sm font-robotoMedium text-gray-700 dark:text-gray-300 mb-2 block">
@@ -541,6 +545,79 @@ export function ProductModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Historial de precios ─────────────────────────────────────────────────
+
+interface PrecioHistorialRow {
+  id_historial: number;
+  precio: number | null;
+  costo: number | null;
+  vigente_desde: string;
+  vigente_hasta: string | null;
+}
+
+function PrecioHistorial({ productId }: { productId: number }) {
+  const [rows, setRows] = useState<PrecioHistorialRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open || rows.length > 0) return;
+    setLoading(true);
+    fetchAPI(`/api/productos/${productId}/precio-historial`)
+      .then((raw) => setRows(raw as PrecioHistorialRow[]))
+      .catch(() => setRows([]))
+      .finally(() => setLoading(false));
+  }, [open, productId, rows.length]);
+
+  return (
+    <div className="mb-4">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="text-sm font-robotoMedium text-blue-600 dark:text-blue-400 hover:underline"
+      >
+        {open ? "▾" : "▸"} Historial de precios
+      </button>
+      {open && (
+        <div className="mt-2 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+          {loading ? (
+            <p className="text-sm text-gray-400 dark:text-gray-500 p-3">Cargando…</p>
+          ) : rows.length === 0 ? (
+            <p className="text-sm text-gray-400 dark:text-gray-500 p-3">Sin historial registrado todavía.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-900/40">
+                <tr className="text-left text-xs text-gray-500 dark:text-gray-400">
+                  <th className="px-3 py-1.5">Vigente desde</th>
+                  <th className="px-3 py-1.5">Vigente hasta</th>
+                  <th className="px-3 py-1.5 text-right">Precio</th>
+                  <th className="px-3 py-1.5 text-right">Costo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id_historial} className="border-t border-gray-100 dark:border-gray-800">
+                    <td className="px-3 py-1.5 text-gray-700 dark:text-gray-300">{r.vigente_desde?.slice(0, 10)}</td>
+                    <td className="px-3 py-1.5 text-gray-700 dark:text-gray-300">
+                      {r.vigente_hasta ? r.vigente_hasta.slice(0, 10) : "Actual"}
+                    </td>
+                    <td className="px-3 py-1.5 text-right text-gray-900 dark:text-white">
+                      {r.precio != null ? Number(r.precio).toFixed(2) : "-"}
+                    </td>
+                    <td className="px-3 py-1.5 text-right text-gray-900 dark:text-white">
+                      {r.costo != null ? Number(r.costo).toFixed(2) : "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
     </div>
   );
 }

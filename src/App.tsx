@@ -16,12 +16,24 @@ import { Salidas } from './pages/Salidas'
 import { VentasHomeDepot } from './pages/VentasHomeDepot'
 import { InventarioInteligente } from './pages/InventarioInteligente'
 import { UnderConstruction } from './components/UnderConstruction'
+import { PedidoPersonalizado } from './pages/PedidoPersonalizado'
 import { Categorias } from './pages/Categorias'
 import Profile from './components/Profile'
 import { UserManagement } from './pages/UserManagement'
 import { THDComparativo } from './pages/THDComparativo'
 import { Entradas } from './pages/Entradas'
+import { Facturas } from './pages/Facturas'
+import { Bitacora } from './pages/Bitacora'
 import { RoleGuard } from './components/RoleGuard'
+
+const ACCESO_DENEGADO = (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="text-center">
+      <h2 className="text-2xl font-bold text-red-600 mb-2">Acceso Denegado</h2>
+      <p className="text-gray-600">No tienes permisos para acceder a esta página.</p>
+    </div>
+  </div>
+)
 
 function App() {
   const { user, loading } = useAuth()
@@ -46,28 +58,32 @@ function App() {
       case 'inventario-inteligente':
         return <InventarioInteligente />
       case 'pedido-personalizado':
-        return <UnderConstruction />
+        return <PedidoPersonalizado />
       case 'thd-comparativo':
         return <THDComparativo />
       case 'entradas':
         return <Entradas />
+      case 'merma':
+        return <UnderConstruction title="Merma" />
+      case 'facturas':
+        return (
+          <RoleGuard requireSuperAdmin={true} fallback={ACCESO_DENEGADO}>
+            <Facturas />
+          </RoleGuard>
+        )
+      case 'bitacora':
+        return (
+          <RoleGuard requireSuperAdmin={true} fallback={ACCESO_DENEGADO}>
+            <Bitacora />
+          </RoleGuard>
+        )
       case 'categorias':
         return <Categorias/>
       case 'profile':
         return <Profile />
       case 'users':
         return (
-          <RoleGuard
-            requireSuperAdmin={true}
-            fallback={
-              <div className="flex items-center justify-center min-h-screen">
-                <div className="text-center">
-                  <h2 className="text-2xl font-bold text-red-600 mb-2">Acceso Denegado</h2>
-                  <p className="text-gray-600">No tienes permisos para acceder a esta página.</p>
-                </div>
-              </div>
-            }
-          >
+          <RoleGuard requireSuperAdmin={true} fallback={ACCESO_DENEGADO}>
             <UserManagement />
           </RoleGuard>
         )
