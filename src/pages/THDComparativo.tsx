@@ -1693,7 +1693,7 @@ export function THDComparativo() {
                 <div className="space-y-2">
                   <div className="grid grid-cols-[1fr_6rem_2rem] gap-2 px-1">
                     <span className="text-xs text-gray-500 dark:text-gray-400 font-robotoMedium">
-                      Modelo / SKU
+                      Modelo / MOD
                     </span>
                     <span className="text-xs text-gray-500 dark:text-gray-400 font-robotoMedium text-center">
                       Cantidad

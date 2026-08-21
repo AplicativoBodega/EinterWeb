@@ -2,7 +2,7 @@
 // typed methods for auth/user management endpoints.
 import type { UserRole } from './roles';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 // Store the current Firebase ID token
 let currentIdToken: string | null = null;

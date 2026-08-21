@@ -19,6 +19,7 @@ const TABLE_GRID_COLUMNS =
 const mapOdooProduct = (item: Record<string, unknown>): Product => ({
   id: item.id_articulo !== undefined ? Number(item.id_articulo) : undefined,
   sku: String(item.master_sku ?? ''),
+  china_sku: item.sku_china != null ? String(item.sku_china) : null,
   name: String(item.nombre_producto ?? ''),
   price: Number(item.precio) || 0,
   cost: Number(item.costo) || 0,
@@ -37,6 +38,18 @@ const mapOdooProduct = (item: Record<string, unknown>): Product => ({
     ? { id: Number(item.id_categoria), name: String(item.nombre_categoria ?? '') }
     : undefined,
   qty_per_carton: item.cantidad_x_ctn != null ? Number(item.cantidad_x_ctn) : null,
+  standard_tarima: item.inventario_standar_tarima != null ? Number(item.inventario_standar_tarima) : null,
+  cajas_x_tarima: item.cajas_x_tarima != null ? Number(item.cajas_x_tarima) : null,
+  no_estiba: item.no_estiba != null ? Number(item.no_estiba) : null,
+  pronostico_1_fecha: item.pronostico_1_fecha != null ? String(item.pronostico_1_fecha) : null,
+  pronostico_1_valor: item.pronostico_1_valor != null ? Number(item.pronostico_1_valor) : null,
+  pronostico_2_fecha: item.pronostico_2_fecha != null ? String(item.pronostico_2_fecha) : null,
+  pronostico_2_valor: item.pronostico_2_valor != null ? Number(item.pronostico_2_valor) : null,
+  pronostico_3_fecha: item.pronostico_3_fecha != null ? String(item.pronostico_3_fecha) : null,
+  pronostico_3_valor: item.pronostico_3_valor != null ? Number(item.pronostico_3_valor) : null,
+  pronostico_4_fecha: item.pronostico_4_fecha != null ? String(item.pronostico_4_fecha) : null,
+  pronostico_4_valor: item.pronostico_4_valor != null ? Number(item.pronostico_4_valor) : null,
+  considerar_modelo_matematico: item.considerar_modelo_matematico !== undefined ? Boolean(item.considerar_modelo_matematico) : true,
   updated_at: item.updated_at ? String(item.updated_at) : null,
 });
 
@@ -117,7 +130,8 @@ export function Productos() {
       const allProducts: Product[] = allItems.map(mapOdooProduct);
 
       const rows = allProducts.map((p) => ({
-        SKU: p.sku,
+        MOD: p.sku,
+        "SKU China": p.china_sku ?? "",
         Nombre: p.name,
         Proveedor: p.supplier?.name ?? "",
         Categoría:
@@ -129,6 +143,20 @@ export function Productos() {
         "Largo (cm)": p.dimensions_cm?.largo ?? "",
         "Ancho (cm)": p.dimensions_cm?.ancho ?? "",
         "Alto (cm)": p.dimensions_cm?.alto ?? "",
+        "Piezas por Cartón": p.qty_per_carton ?? "",
+        "Piezas por Tarima": p.standard_tarima ?? "",
+        "Cajas por Tarima": p.cajas_x_tarima ?? "",
+        "No. de Estiba": p.no_estiba ?? "",
+        "Futuro Lunes 1 (fecha)": p.pronostico_1_fecha ?? "",
+        "Futuro Lunes 1 (inventario)": p.pronostico_1_valor ?? "",
+        "Futuro Lunes 2 (fecha)": p.pronostico_2_fecha ?? "",
+        "Futuro Lunes 2 (inventario)": p.pronostico_2_valor ?? "",
+        "Futuro Lunes 3 (fecha)": p.pronostico_3_fecha ?? "",
+        "Futuro Lunes 3 (inventario)": p.pronostico_3_valor ?? "",
+        "Futuro Lunes 4 (fecha)": p.pronostico_4_fecha ?? "",
+        "Futuro Lunes 4 (inventario)": p.pronostico_4_valor ?? "",
+        "Modelo Matemático": p.considerar_modelo_matematico === false ? "No" : "Sí",
+        "Última actualización": p.updated_at ?? "",
       }));
 
       const workbook = new ExcelJS.Workbook();
@@ -352,6 +380,7 @@ export function Productos() {
     // Transform Product to ArticuloCreate format
     const apiData = {
         master_sku: productData.sku || "",
+        sku_china: productData.china_sku || null,
         nombre_producto: productData.name || "",
         foto: productData.photo || null,
         largo_cm: productData.dimensions_cm?.largo || 0,
@@ -364,6 +393,7 @@ export function Productos() {
         id_proveedor: productData.supplier?.id || null,
         id_categoria: productData.category ? parseInt(String(productData.category)) : null,
         cantidad_x_ctn: productData.qty_per_carton ?? null,
+        inventario_standar_tarima: productData.standard_tarima ?? 0,
       };
 
       const result = await fetchAPI("/(api)/productos", {
@@ -402,6 +432,8 @@ export function Productos() {
       const apiData: Record<string, unknown> = {};
 
       if (productData.sku !== undefined) apiData.master_sku = productData.sku;
+      if (productData.china_sku !== undefined)
+        apiData.sku_china = productData.china_sku;
       if (productData.name !== undefined)
         apiData.nombre_producto = productData.name;
       if (productData.photo !== undefined) apiData.foto = productData.photo;
@@ -421,8 +453,32 @@ export function Productos() {
         apiData.id_proveedor = productData.supplier.id;
       if (productData.qty_per_carton !== undefined)
         apiData.cantidad_x_ctn = productData.qty_per_carton;
+      if (productData.standard_tarima !== undefined)
+        apiData.inventario_standar_tarima = productData.standard_tarima;
+      if (productData.cajas_x_tarima !== undefined)
+        apiData.cajas_x_tarima = productData.cajas_x_tarima;
+      if (productData.no_estiba !== undefined)
+        apiData.no_estiba = productData.no_estiba;
       if (productData.category !== undefined)
         apiData.id_categoria = productData.category ? parseInt(String(productData.category)) : null;
+      if (productData.pronostico_1_fecha !== undefined)
+        apiData.pronostico_1_fecha = productData.pronostico_1_fecha;
+      if (productData.pronostico_1_valor !== undefined)
+        apiData.pronostico_1_valor = productData.pronostico_1_valor;
+      if (productData.pronostico_2_fecha !== undefined)
+        apiData.pronostico_2_fecha = productData.pronostico_2_fecha;
+      if (productData.pronostico_2_valor !== undefined)
+        apiData.pronostico_2_valor = productData.pronostico_2_valor;
+      if (productData.pronostico_3_fecha !== undefined)
+        apiData.pronostico_3_fecha = productData.pronostico_3_fecha;
+      if (productData.pronostico_3_valor !== undefined)
+        apiData.pronostico_3_valor = productData.pronostico_3_valor;
+      if (productData.pronostico_4_fecha !== undefined)
+        apiData.pronostico_4_fecha = productData.pronostico_4_fecha;
+      if (productData.pronostico_4_valor !== undefined)
+        apiData.pronostico_4_valor = productData.pronostico_4_valor;
+      if (productData.considerar_modelo_matematico !== undefined)
+        apiData.considerar_modelo_matematico = productData.considerar_modelo_matematico;
       if (productData.updated_at)
         apiData.updated_at = productData.updated_at;
 
@@ -480,8 +536,11 @@ export function Productos() {
     setSelectedProduct(product);
     setModalVisible(true);
     try {
-      const fresh = (await fetchAPI(`/(api)/productos?id=${product.id}`)) as Product;
-      setSelectedProduct(fresh);
+      const raw = (await fetchAPI(`/(api)/productos?id=${product.id}`)) as Record<string, unknown>;
+      setSelectedProduct({
+        ...(raw as unknown as Product),
+        china_sku: raw.sku_china != null ? String(raw.sku_china) : null,
+      });
     } catch (err) {
       console.warn("No se pudo refrescar el producto antes de editar:", err);
     }
@@ -503,7 +562,7 @@ export function Productos() {
   // Column definitions for the Excel-style header filters
   const PROD_COLUMNS: { key: string; label: string }[] = [
     { key: "name", label: "Nombre" },
-    { key: "sku", label: "SKU" },
+    { key: "sku", label: "MOD" },
     { key: "proveedor", label: "Proveedor" },
     { key: "stock", label: "Stock" },
     { key: "price", label: "Precio" },
@@ -545,7 +604,7 @@ export function Productos() {
           <div className="relative">
             <input
               type="text"
-              placeholder="Buscar por SKU o nombre..."
+              placeholder="Buscar por MOD o nombre..."
               value={searchText}
               onChange={(e) => handleSearch(e.target.value)}
               className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 text-base bg-white dark:bg-gray-700 dark:text-white pr-10 placeholder-gray-500 dark:placeholder-gray-400"
@@ -734,12 +793,6 @@ export function Productos() {
                   >
                     Editar
                   </button>
-                  <button
-                    onClick={() => openDeleteModal(product)}
-                    className="px-3 py-1.5 bg-red-500 rounded hover:bg-red-600 text-white text-xs font-robotoMedium"
-                  >
-                    Eliminar
-                  </button>
                 </div>
               </div>
             ))
@@ -789,6 +842,15 @@ export function Productos() {
         }}
         onSave={
           modalMode === "create" ? handleCreateProduct : handleUpdateProduct
+        }
+        onDelete={
+          modalMode === "edit"
+            ? () => {
+                if (!selectedProduct) return;
+                setModalVisible(false);
+                openDeleteModal(selectedProduct);
+              }
+            : undefined
         }
       />
 

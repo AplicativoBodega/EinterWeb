@@ -49,7 +49,7 @@ const AccordionItem: React.FC<AccordionItemProps> = ({
                 <thead>
                   <tr className="border-b-2 border-gray-300 dark:border-gray-600">
                     <th className="text-left px-4 py-3 font-semibold text-black dark:text-white text-sm">Producto</th>
-                    <th className="text-left px-4 py-3 font-semibold text-black dark:text-white text-sm">SKU</th>
+                    <th className="text-left px-4 py-3 font-semibold text-black dark:text-white text-sm">MOD</th>
                   </tr>
                 </thead>
                 <tbody>

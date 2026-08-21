@@ -5,8 +5,6 @@ import { useDarkMode } from "../context/DarkModeContext";
 import { fetchAPI } from "../lib/fetch";
 import { getMonterreyYear } from "../lib/dateMx";
 
-// ─── Types ──────────────────────────────────────────────────────────────────
-
 interface Semana {
   semana_num: number;
   semana_label: string;
@@ -24,6 +22,8 @@ interface Producto {
   mod: number;
   sku: string;
   descripcion: string;
+  nombre_catalogo: string | null;
+  en_catalogo: boolean;
   ventas: Record<number, VentaSemana>;
 }
 
@@ -410,7 +410,12 @@ function NuevaSemanaModal({ anio, semanas, productos, onClose, onSave }: NuevaSe
                       {p.mod}
                     </td>
                     <td className="px-4 py-2 text-xs text-gray-700 dark:text-gray-300 align-middle">
-                      <span className="line-clamp-2" title={p.descripcion}>{p.descripcion}</span>
+                      <span className="line-clamp-2" title={p.nombre_catalogo ?? p.descripcion}>
+                        {p.nombre_catalogo ?? p.descripcion}
+                      </span>
+                      {!p.en_catalogo && (
+                        <span className="block text-[10px] text-red-500">Sin producto en catálogo</span>
+                      )}
                       <span className="block font-mono text-[10px] text-gray-400">{p.sku}</span>
                     </td>
                     <td className="px-4 py-2 align-middle">
@@ -1043,9 +1048,12 @@ export function VentasHomeDepot() {
                   </td>
                   {/* Sticky: Descripción */}
                   <td className={`sticky left-36 z-10 border-b border-r-2 border-gray-200 dark:border-gray-700 px-3 py-2 text-xs text-gray-800 dark:text-gray-200 max-w-[16rem] ${idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}`}>
-                    <span className="line-clamp-2" title={producto.descripcion}>
-                      {producto.descripcion}
+                    <span className="line-clamp-2" title={producto.nombre_catalogo ?? producto.descripcion}>
+                      {producto.nombre_catalogo ?? producto.descripcion}
                     </span>
+                    {!producto.en_catalogo && (
+                      <span className="block text-[10px] text-red-500">Sin producto en catálogo</span>
+                    )}
                   </td>
 
                   {/* Week cells */}

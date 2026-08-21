@@ -41,6 +41,7 @@ export interface ProductInput {
   dimensionsCm?: { largo: number; ancho: number; alto: number };
   piecesInTransit: number;
   dailyDemand: number; // piezas/día, 0 si no se conoce
+  consideraModelo: boolean; // switch "tomar en cuenta en modelo matemático" del producto
 }
 
 export interface ProductResult extends ProductInput {

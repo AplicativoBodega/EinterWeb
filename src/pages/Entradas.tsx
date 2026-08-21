@@ -407,7 +407,7 @@ export function Entradas() {
       })
       .catch((err) =>
         setCreateError(
-          `No se pudo cargar el catálogo de SKUs: ${(err as Error).message}`
+          `No se pudo cargar el catálogo de MODs: ${(err as Error).message}`
         )
       )
       .finally(() => setSkuCatalogLoading(false));
@@ -514,7 +514,7 @@ export function Entradas() {
         .filter((sku) => !knownSkus.has(sku));
       if (unknown.length > 0) {
         setCreateError(
-          `SKU no encontrado: ${[...new Set(unknown)].join(", ")}. ` +
+          `MOD no encontrado: ${[...new Set(unknown)].join(", ")}. ` +
             "Selecciona un modelo de la lista."
         );
         return null;
@@ -1527,7 +1527,7 @@ export function Entradas() {
                   {/* Items header */}
                   <div className="grid grid-cols-[1fr_6rem_2rem] gap-2 px-1">
                     <span className="text-xs text-gray-500 dark:text-gray-400 font-robotoMedium">
-                      Modelo / SKU
+                      Modelo / MOD
                     </span>
                     <span className="text-xs text-gray-500 dark:text-gray-400 font-robotoMedium text-center">
                       Cantidad
